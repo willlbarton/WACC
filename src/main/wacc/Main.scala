@@ -1,4 +1,4 @@
-package wacc
+package src.main.wacc
 
 import parsley.{Success, Failure}
 
