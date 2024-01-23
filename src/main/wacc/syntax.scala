@@ -67,6 +67,7 @@ case object Len extends UnaryOp
 case object Ord extends UnaryOp
 case object Chr extends UnaryOp
 
+// <binary-oper>
 trait BinaryOp
 case object Mul extends BinaryOp
 case object Div extends BinaryOp
