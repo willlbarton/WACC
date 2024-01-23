@@ -54,5 +54,18 @@ case class BracketedExpr(expr: Expr) extends Expr
 
 trait UnaryOp
 
+// Binary operator types used in BinaryApp
 trait BinaryOp
-// ...
+case object Mul extends BinaryOp
+case object Div extends BinaryOp
+case object Mod extends BinaryOp
+case object Add extends BinaryOp
+case object Sub extends BinaryOp
+case object Gt extends BinaryOp
+case object GtEq extends BinaryOp
+case object Lt extends BinaryOp
+case object LtEq extends BinaryOp
+case object Eq extends BinaryOp
+case object NotEq extends BinaryOp
+case object And extends BinaryOp
+case object Or extends BinaryOp
