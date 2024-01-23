@@ -10,11 +10,13 @@ sealed trait Type
 sealed trait PairElemType extends Type
 sealed trait BaseType extends PairElemType
 
+//Base types
 case object IntType extends BaseType
 case object BoolType extends BaseType
 case object CharType extends BaseType
 case object StringType extends BaseType
 
+//Pair elem types
 case class ArrayType(t: Type) extends PairElemType
 case object Pair extends PairElemType
 
@@ -24,7 +26,7 @@ sealed trait Stmt
 case object Skip extends Stmt
 case class Decl(t: Type, name: Ident, value: RVal) extends Stmt
 case class Asgn(name: Ident, value: RVal) extends Stmt
-case class Read(value: LVal) extends  Stmt
+case class Read(value: LVal) extends Stmt
 case class Free(expr: Expr) extends Stmt
 case class Return(expr: Expr) extends Stmt
 case class Exit(expr: Expr) extends Stmt
