@@ -42,21 +42,25 @@ case class StmtChain(stmt: Stmt, next: Stmt) extends Stmt
 // <rvalue>
 sealed trait RVal
 case class ArrayLiter(first: Expr, rest: List[Expr]) extends RVal
+case class NewPair(fst: Expr, snd: Expr) extends RVal
+case class Call(name: Ident, args: List[Expr]) extends RVal
 
 // <lvalue>
 sealed trait LVal
+case class Fst(value: LVal) extends LVal with RVal // <pair-elem>
+case class Snd(value: LVal) extends LVal with RVal // <pair-elem>
 sealed trait Expr extends RVal
 case class UnaryApp(op: UnaryOp, expr: Expr) extends Expr
 case class BinaryApp(op: BinaryOp, left: Expr, right: Expr) extends Expr
 
 // <atom>
 case class Integer(i: Int) extends Expr
-case class Boolean(value: Boolean) extends Expr
+case class Bool(value: Boolean) extends Expr
 case class Character(c: Char) extends Expr
 case class StringAtom(s: String) extends Expr
 case object Null extends Expr // <pair-liter>
-case class Ident(name: String) extends Expr
-case class ArrayElem(name: Ident, exprs: List[Expr]) extends Expr
+case class Ident(name: String) extends Expr with LVal
+case class ArrayElem(name: Ident, exprs: List[Expr]) extends Expr with LVal
 case class BracketedExpr(expr: Expr) extends Expr
 
 // <unary-oper>
