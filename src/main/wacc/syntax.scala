@@ -1,5 +1,7 @@
 package src.main.wacc
 
+import parsley.generic
+
 case class Program(functions: List[Func], body: Stmt)
 
 // An empty 'params' list should be the same as no param-list in the syntax
@@ -25,7 +27,7 @@ case class PairType(fst: PairElemType, snd: PairElemType) extends Type
 
 // <stmnt>
 sealed trait Stmt
-case object Skip extends Stmt
+case object Skip extends generic.ParserBridge0[Stmt] with Stmt
 case class Decl(t: Type, name: Ident, value: RVal) extends Stmt
 case class Asgn(name: Ident, value: RVal) extends Stmt
 case class Read(value: LVal) extends Stmt
@@ -86,3 +88,11 @@ case object Eq extends BinaryOp
 case object NotEq extends BinaryOp
 case object And extends BinaryOp
 case object Or extends BinaryOp
+
+object Program extends generic.ParserBridge2[List[Func], Stmt, Program]
+object Func extends generic.ParserBridge4[Type, Ident, List[Param], Stmt, Func]
+object Param extends generic.ParserBridge2[Type, Ident, Param]
+
+object Decl extends generic.ParserBridge3[Type, Ident, RVal, Stmt]
+object Asgn extends generic.ParserBridge2[Ident, RVal, Stmt]
+object Read extends generic.ParserBridge1[LVal, Stmt]
