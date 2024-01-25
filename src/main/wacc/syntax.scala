@@ -43,7 +43,7 @@ case class StmtChain(stmt: Stmt, next: Stmt) extends Stmt
 
 // <rvalue>
 sealed trait RVal
-case class ArrayLiter(first: Expr, rest: List[Expr]) extends RVal
+case class ArrayLiter(elems: List[Expr]) extends RVal
 case class NewPair(fst: Expr, snd: Expr) extends RVal
 case class Call(name: Ident, args: List[Expr]) extends RVal
 
