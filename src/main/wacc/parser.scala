@@ -33,8 +33,15 @@ object parser {
     While("while" ~> expr <~ "do", statement <~ "done") |
     ScopedStmt("begin" ~> statement <~ "end") |
     chain.left1(statement)(";" as StmtChain)
-  
-  private lazy val typ: Parsley[Type] = ???
+
+  private lazy val typ: Parsley[Type] = baseType | arrayType |
+    PairType("pair" ~> "(" ~> pairElemType, "," ~> pairElemType <~ ")")
+  private lazy val baseType: Parsley[BaseType] = "int" #> IntType |
+    "bool" #> BoolType |
+    "char" #> CharType |
+    "string" #> StringType
+  private lazy val arrayType =  ArrayType(baseType <~ "[" <~ "]")
+  private lazy val pairElemType: Parsley[PairElemType] = baseType | arrayType | "pair" #> Pair
 
   private lazy val rvalue: Parsley[RVal] = ???
 

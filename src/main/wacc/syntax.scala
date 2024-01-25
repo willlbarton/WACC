@@ -93,6 +93,9 @@ object Program extends generic.ParserBridge2[List[Func], Stmt, Program]
 object Func extends generic.ParserBridge4[Type, Ident, List[Param], Stmt, Func]
 object Param extends generic.ParserBridge2[Type, Ident, Param]
 
+object ArrayType extends generic.ParserBridge1[Type, ArrayType]
+object PairType extends generic.ParserBridge2[PairElemType, PairElemType, PairType]
+
 object Decl extends generic.ParserBridge3[Type, Ident, RVal, Stmt]
 object Asgn extends generic.ParserBridge2[Ident, RVal, Stmt]
 object Read extends generic.ParserBridge1[LVal, Stmt]
