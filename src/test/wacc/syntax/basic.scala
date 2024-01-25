@@ -30,4 +30,23 @@ class Basic extends AnyFlatSpec {
     parseFile("beginNoend.wacc") shouldBe a[Failure[_]]
   }
 
+  it should "fail with syntax error, expect begin" in {
+    parseFile("bgnErr.wacc") shouldBe a[Failure[_]]
+  }
+
+  it should "fail with syntax error, begin missing closing end" in {
+    parseFile("multipleBegins.wacc") shouldBe a[Failure[_]]
+  }
+
+  it should "fail with syntax error, missing body" in {
+    parseFile("noBody.wacc") shouldBe a[Failure[_]]
+  }
+
+  it should "fail with syntax error, skip typo as skp" in {
+    parseFile("skpErr.wacc") shouldBe a[Failure[_]]
+  }
+
+  it should "fail with syntax error, unescaped double quote" in { // detects wrong error
+    parseFile("unescapedChar.wacc") shouldBe a[Success[_]]
+  }
 }
