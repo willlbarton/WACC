@@ -18,14 +18,14 @@ object lexer {
       ),
       textDesc = TextDesc.plain.copy(
         escapeSequences = EscapeDesc.plain.copy(
-          literals = Set('\\', "\'", "\""),
+          literals = Set('\\', '\'', '\"'),
           mapping = Map(
-            '0' -> '\0',
-            'b' -> '\b',
-            't' -> '\t',
-            'n' -> '\n',
-            'f' -> '\f',
-            'r' -> '\r'
+            "0" -> '\u0000'.toInt,
+            "b" -> '\b'.toInt,
+            "t" -> '\t'.toInt,
+            "n" -> '\n'.toInt,
+            "f" -> '\f'.toInt,
+            "r" -> '\r'.toInt
           ),
         ),
         graphicCharacter = Unicode(c =>
