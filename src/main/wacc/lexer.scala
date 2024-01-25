@@ -11,7 +11,9 @@ object lexer {
         identifierStart = predicate.Basic(_.isLetter),
         identifierLetter = predicate.Basic(_.isLetterOrDigit),
       ),
-      spaceDesc = SpaceDesc.plain,
+      spaceDesc = SpaceDesc.plain.copy(
+        lineCommentStart = "#",
+      ),
     )
     private val lexer = new Lexer(desc)
 
