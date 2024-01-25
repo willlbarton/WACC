@@ -67,8 +67,8 @@ case class BracketedExpr(expr: Expr) extends Expr
 
 // <unary-oper>
 trait UnaryOp
-case object Exclamation extends UnaryOp
-case object Negation extends UnaryOp
+case object Not extends UnaryOp
+case object Neg extends UnaryOp
 case object Len extends UnaryOp
 case object Ord extends UnaryOp
 case object Chr extends UnaryOp
