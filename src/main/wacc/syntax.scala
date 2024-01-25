@@ -108,6 +108,13 @@ object IfStmt extends generic.ParserBridge3[Expr, Stmt, Stmt, Stmt]
 object While extends generic.ParserBridge2[Expr, Stmt, Stmt]
 object ScopedStmt extends generic.ParserBridge1[Stmt, Stmt]
 
+object Ident extends generic.ParserBridge1[String, Ident]
+object Integer extends generic.ParserBridge1[Int, Integer]
+object Bool extends generic.ParserBridge1[Boolean, Bool]
+object Character extends generic.ParserBridge1[Char, Character]
+object StringAtom extends generic.ParserBridge1[String, StringAtom]
+object BracketedExpr extends generic.ParserBridge1[Expr, BracketedExpr]
+
 object ArrayElem extends generic.ParserBridge2[Ident, List[Expr], ArrayElem]
 object Fst extends generic.ParserBridge1[LVal, Fst]
 object Snd extends generic.ParserBridge1[LVal, Snd]
