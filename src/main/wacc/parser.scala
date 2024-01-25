@@ -20,7 +20,8 @@ object parser {
     Func(typ, ident, "(" ~> sepBy(parameter, ",") <~ ")", "is" ~> statement <~ "end")
   private lazy val parameter = Param(typ, ident)
 
-  private lazy val statement: Parsley[Stmt] = "skip" #> Skip |
+  private lazy val statement: Parsley[Stmt] =
+    "skip" #> Skip |
     Decl(typ, ident, "=" ~> rvalue) |
     Asgn(ident, "=" ~> rvalue) |
     Read("read" ~> lvalue) |
@@ -36,16 +37,21 @@ object parser {
 
   private lazy val typ: Parsley[Type] = baseType | arrayType |
     PairType("pair" ~> "(" ~> pairElemType, "," ~> pairElemType <~ ")")
-  private lazy val baseType: Parsley[BaseType] = "int" #> IntType |
+  private lazy val baseType: Parsley[BaseType] =
+    "int" #> IntType |
     "bool" #> BoolType |
     "char" #> CharType |
     "string" #> StringType
   private lazy val arrayType =  ArrayType(baseType <~ "[" <~ "]")
   private lazy val pairElemType: Parsley[PairElemType] = baseType | arrayType | "pair" #> Pair
 
-  private lazy val rvalue: Parsley[RVal] = ???
-
-  private lazy val lvalue: Parsley[LVal] = ???
+  private lazy val lvalue: Parsley[LVal] = atomic(ident) | pairElem |
+    ArrayElem(ident, some("[" ~> expr <~ "]"))
+  private lazy val rvalue: Parsley[RVal] = expr |
+    ArrayLiter("[" ~> sepBy(expr, ",") <~ "]") |
+    NewPair("newpair" ~> "(" ~> expr, "," ~> expr <~ ")") | pairElem |
+    Call("call" ~> ident, "(" ~> sepBy1(expr, ",") <~ ")")
+  private lazy val pairElem = Fst("fst" ~> lvalue) | Snd("snd" ~> lvalue)
 
   private lazy val expr: Parsley[Expr] = ???
 }

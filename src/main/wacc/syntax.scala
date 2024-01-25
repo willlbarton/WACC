@@ -107,3 +107,11 @@ object PrintLn extends generic.ParserBridge1[Expr, Stmt]
 object IfStmt extends generic.ParserBridge3[Expr, Stmt, Stmt, Stmt]
 object While extends generic.ParserBridge2[Expr, Stmt, Stmt]
 object ScopedStmt extends generic.ParserBridge1[Stmt, Stmt]
+
+object ArrayElem extends generic.ParserBridge2[Ident, List[Expr], ArrayElem]
+object Fst extends generic.ParserBridge1[LVal, Fst]
+object Snd extends generic.ParserBridge1[LVal, Snd]
+
+object ArrayLiter extends generic.ParserBridge1[List[Expr], ArrayLiter]
+object NewPair extends generic.ParserBridge2[Expr, Expr, NewPair]
+object Call extends generic.ParserBridge2[Ident, List[Expr], Call]
