@@ -77,14 +77,14 @@ object parser {
     ),
     Ops(InfixL)("+" #> ((x, y) => BinaryApp(Add, x, y)), "-" #> ((x, y) => BinaryApp(Sub, x, y))),
     Ops(InfixN)(
-      ">" #> ((x, y) => BinaryApp(Gt, x, y)),
       ">=" #> ((x, y) => BinaryApp(GtEq, x, y)),
-      "<" #> ((x, y) => BinaryApp(Lt, x, y)),
-      "<=" #> ((x, y) => BinaryApp(LtEq, x, y))
+      "<=" #> ((x, y) => BinaryApp(LtEq, x, y)),
+      ">" #> ((x, y) => BinaryApp(Gt, x, y)),
+      "<" #> ((x, y) => BinaryApp(Lt, x, y))
     ),
     Ops(InfixN)(
-      "==" #> ((x, y) => BinaryApp(Eq, x, y)),
-      "!=" #> ((x, y) => BinaryApp(NotEq, x, y))
+      "!=" #> ((x, y) => BinaryApp(NotEq, x, y)),
+      "==" #> ((x, y) => BinaryApp(Eq, x, y))
     ),
     Ops(InfixR)("&&" #> ((x, y) => BinaryApp(And, x, y))),
     Ops(InfixR)("||" #> ((x, y) => BinaryApp(Or, x, y)))

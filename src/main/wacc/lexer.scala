@@ -10,8 +10,8 @@ import parsley.token.symbol.ImplicitSymbol
 object lexer {
   private val desc = LexicalDesc.plain.copy(
     nameDesc = NameDesc.plain.copy(
-      identifierStart = predicate.Basic(_.isLetter),
-      identifierLetter = predicate.Basic(_.isLetterOrDigit)
+      identifierStart = predicate.Basic(x => x.isLetter || x == '_'),
+      identifierLetter = predicate.Basic(x => x.isLetterOrDigit || x == '_'),
     ),
     spaceDesc = SpaceDesc.plain.copy(
       lineCommentStart = "#"
