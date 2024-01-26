@@ -6,12 +6,14 @@ import parsley.token.descriptions._
 import parsley.token.descriptions.text.{EscapeDesc, TextDesc}
 import parsley.token.predicate.Unicode
 import parsley.token.symbol.ImplicitSymbol
+import parsley.token.descriptions.numeric.PlusSignPresence
+import parsley.token.descriptions.numeric.NumericDesc
 
 object lexer {
   private val desc = LexicalDesc.plain.copy(
     nameDesc = NameDesc.plain.copy(
       identifierStart = predicate.Basic(x => x.isLetter || x == '_'),
-      identifierLetter = predicate.Basic(x => x.isLetterOrDigit || x == '_'),
+      identifierLetter = predicate.Basic(x => x.isLetterOrDigit || x == '_')
     ),
     spaceDesc = SpaceDesc.plain.copy(
       lineCommentStart = "#"
@@ -66,7 +68,7 @@ object lexer {
   private val lexer = new Lexer(desc)
 
   val ident: Parsley[Ident] = Ident(lexer.lexeme.names.identifier)
-  val nat: Parsley[Int] = lexer.lexeme.natural.decimal.map(_.toInt)
+  val nat: Parsley[Int] = lexer.lexeme.integer.decimal.map(_.toInt)
   val character: Parsley[Char] = lexer.lexeme.character.latin1
   val string: Parsley[String] = lexer.lexeme.string.latin1
   val implicits: ImplicitSymbol = lexer.lexeme.symbol.implicits
