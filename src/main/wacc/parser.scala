@@ -46,7 +46,7 @@ object parser {
   private lazy val pairElemType: Parsley[PairElemType] =
     atomic(arrayType) | baseType | "pair" #> Pair
 
-  private lazy val lvalue: Parsley[LVal] = atomic(ident) | pairElem | arrayElem
+  private lazy val lvalue: Parsley[LVal] = atomic(arrayElem) | atomic(ident) | pairElem
   private lazy val rvalue: Parsley[RVal] = expr |
     ArrayLiter("[" ~> sepBy(expr, ",") <~ "]") |
     NewPair("newpair" ~> "(" ~> expr, "," ~> expr <~ ")") | pairElem |
