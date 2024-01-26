@@ -43,13 +43,14 @@ object parser {
       "char" #> CharType |
       "string" #> StringType
   private lazy val arrayType = ArrayType(baseType <~ "[" <~ "]")
-  private lazy val pairElemType: Parsley[PairElemType] = baseType | arrayType | "pair" #> Pair
+  private lazy val pairElemType: Parsley[PairElemType] =
+    atomic(arrayType) | baseType | "pair" #> Pair
 
   private lazy val lvalue: Parsley[LVal] = atomic(ident) | pairElem | arrayElem
   private lazy val rvalue: Parsley[RVal] = expr |
     ArrayLiter("[" ~> sepBy(expr, ",") <~ "]") |
     NewPair("newpair" ~> "(" ~> expr, "," ~> expr <~ ")") | pairElem |
-    Call("call" ~> ident, "(" ~> sepBy1(expr, ",") <~ ")")
+    Call("call" ~> ident, "(" ~> sepBy(expr, ",") <~ ")")
   private lazy val pairElem = Fst("fst" ~> lvalue) | Snd("snd" ~> lvalue)
 
   private lazy val expr: Parsley[Expr] = precedence(
