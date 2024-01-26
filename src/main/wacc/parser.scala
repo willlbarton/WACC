@@ -8,6 +8,7 @@ import parsley.{Parsley, Result}
 import src.main.wacc.lexer.implicits.implicitSymbol
 import src.main.wacc.lexer.{character, fully, ident, nat, string}
 import parsley.debug.DebugCombinators
+import parsley.character.{string => charString}
 
 object parser {
   def parse[Err: ErrorBuilder](input: String): Result[Err, Program] = parser.parse(input)
@@ -36,14 +37,21 @@ object parser {
       While("while" ~> expr <~ "do", statements <~ "done") |
       ScopedStmt("begin" ~> statements <~ "end")
 
-  private lazy val typ: Parsley[Type] = atomic(arrayType) | baseType |
+  private lazy val pairType: Parsley[PairType] =
     PairType("pair" ~> "(" ~> pairElemType, "," ~> pairElemType <~ ")")
+  private lazy val typ: Parsley[Type] = atomic(arrayType) | baseType |
+    pairType
   private lazy val baseType: Parsley[BaseType] =
     "int" #> IntType |
       "bool" #> BoolType |
       "char" #> CharType |
       "string" #> StringType
-  private lazy val arrayType = ArrayType(baseType <~ "[" <~ "]")
+  private lazy val arrayType: Parsley[ArrayType] = {
+    val brackets = ("[" <~ "]").as((t: Type) => ArrayType(t))
+    val baseOrPairType = atomic(baseType) | atomic(pairType)
+
+    chain.postfix1(baseOrPairType)(brackets)
+  }
   private lazy val pairElemType: Parsley[PairElemType] =
     atomic(arrayType) | baseType | "pair" #> Pair
 
