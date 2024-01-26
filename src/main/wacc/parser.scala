@@ -8,7 +8,6 @@ import parsley.{Parsley, Result}
 import src.main.wacc.lexer.implicits.implicitSymbol
 import src.main.wacc.lexer.{character, fully, ident, nat, string}
 import parsley.debug.DebugCombinators
-import parsley.character.{string => charString}
 
 object parser {
   def parse[Err: ErrorBuilder](input: String): Result[Err, Program] = parser.parse(input)
