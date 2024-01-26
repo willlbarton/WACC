@@ -24,17 +24,17 @@ object parser {
   private val statements = chain.left1(statement)(";" #> StmtChain)
   private lazy val statement: Parsley[Stmt] =
     "skip" #> Skip |
-      Decl(typ, ident, "=" ~> rvalue) |
-      Asgn(lvalue, "=" ~> rvalue) |
-      Read("read" ~> lvalue) |
-      Free("free" ~> expr) |
-      Return("return" ~> expr) |
-      Exit("exit" ~> expr) |
-      Print("print" ~> expr) |
-      PrintLn("println" ~> expr) |
-      IfStmt("if" ~> expr <~ "then", statements, "else" ~> statements <~ "fi") |
-      While("while" ~> expr <~ "do", statements <~ "done") |
-      ScopedStmt("begin" ~> statements <~ "end")
+    Decl(typ, ident, "=" ~> rvalue) |
+    Asgn(lvalue, "=" ~> rvalue) |
+    Read("read" ~> lvalue) |
+    Free("free" ~> expr) |
+    Return("return" ~> expr) |
+    Exit("exit" ~> expr) |
+    Print("print" ~> expr) |
+    PrintLn("println" ~> expr) |
+    IfStmt("if" ~> expr <~ "then", statements, "else" ~> statements <~ "fi") |
+    While("while" ~> expr <~ "do", statements <~ "done") |
+    ScopedStmt("begin" ~> statements <~ "end")
 
   private lazy val pairType: Parsley[PairType] =
     PairType("pair" ~> "(" ~> pairElemType, "," ~> pairElemType <~ ")")
@@ -42,15 +42,11 @@ object parser {
     pairType
   private lazy val baseType: Parsley[BaseType] =
     "int" #> IntType |
-      "bool" #> BoolType |
-      "char" #> CharType |
-      "string" #> StringType
-  private lazy val arrayType: Parsley[ArrayType] = {
-    val brackets = ("[" <~ "]").as((t: Type) => ArrayType(t))
-    val baseOrPairType = atomic(baseType) | atomic(pairType)
-
-    chain.postfix1(baseOrPairType)(brackets)
-  }
+    "bool" #> BoolType |
+    "char" #> CharType |
+    "string" #> StringType
+  private lazy val arrayType: Parsley[ArrayType] =
+    chain.postfix1(atomic(baseType) | atomic(pairType))(("[" <~ "]") #> ArrayType)
   private lazy val pairElemType: Parsley[PairElemType] =
     atomic(arrayType) | baseType | "pair" #> Pair
 
@@ -60,6 +56,7 @@ object parser {
     NewPair("newpair" ~> "(" ~> expr, "," ~> expr <~ ")") | pairElem |
     Call("call" ~> ident, "(" ~> sepBy(expr, ",") <~ ")")
   private lazy val pairElem = Fst("fst" ~> lvalue) | Snd("snd" ~> lvalue)
+  private lazy val arrayElem = ArrayElem(ident, some("[" ~> expr <~ "]"))
 
   private lazy val expr: Parsley[Expr] = precedence(
     Integer(nat),
@@ -97,5 +94,4 @@ object parser {
     Ops(InfixR)("&&" #> ((x, y) => BinaryApp(And, x, y))),
     Ops(InfixR)("||" #> ((x, y) => BinaryApp(Or, x, y)))
   )
-  private lazy val arrayElem = ArrayElem(ident, some("[" ~> expr <~ "]"))
 }
