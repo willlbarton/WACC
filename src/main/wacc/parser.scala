@@ -7,6 +7,7 @@ import parsley.expr._
 import parsley.{Parsley, Result}
 import src.main.wacc.lexer.implicits.implicitSymbol
 import src.main.wacc.lexer.{character, fully, ident, nat, string}
+import parsley.debug.DebugCombinators
 
 object parser {
   def parse[Err: ErrorBuilder](input: String): Result[Err, Program] = parser.parse(input)
@@ -59,8 +60,8 @@ object parser {
     Character(character),
     StringAtom(string),
     "null" #> Null,
+    atomic(arrayElem),
     ident,
-    arrayElem,
     BracketedExpr("(" ~> expr <~ ")")
   )(
     Ops(Prefix)(
