@@ -4,7 +4,7 @@ import parsley.Parsley
 import parsley.token.{Lexer, predicate}
 import parsley.token.descriptions._
 import parsley.token.descriptions.text.{EscapeDesc, TextDesc}
-import parsley.token.predicate.Unicode
+import parsley.token.predicate.Basic
 import parsley.token.symbol.ImplicitSymbol
 import parsley.token.descriptions.numeric.PlusSignPresence
 import parsley.token.descriptions.numeric.NumericDesc
@@ -30,8 +30,9 @@ object lexer {
           "r" -> '\r'.toInt
         )
       ),
-      graphicCharacter =
-        Unicode(c => c >= ' '.toInt && c != '\\'.toInt && c != '\"'.toInt && c != '\''.toInt)
+      graphicCharacter = Basic(c =>
+        c >= ' '.toInt && c != '\\'.toInt && c != '\"'.toInt && c != '\''.toInt && c.toInt <= 127
+      )
     ),
     symbolDesc = SymbolDesc.plain.copy(
       hardKeywords = Set(
