@@ -23,25 +23,25 @@ object parser {
   private val statements = chain.left1(statement)(";" #> StmtChain)
   private lazy val statement: Parsley[Stmt] =
     "skip" #> Skip |
-    Decl(typ, ident, "=" ~> rvalue) |
-    Asgn(lvalue, "=" ~> rvalue) |
-    Read("read" ~> lvalue) |
-    Free("free" ~> expr) |
-    Return("return" ~> expr) |
-    Exit("exit" ~> expr) |
-    Print("print" ~> expr) |
-    PrintLn("println" ~> expr) |
-    IfStmt("if" ~> expr <~ "then", statements, "else" ~> statements <~ "fi") |
-    While("while" ~> expr <~ "do", statements <~ "done") |
-    ScopedStmt("begin" ~> statements <~ "end")
+      Decl(typ, ident, "=" ~> rvalue) |
+      Asgn(lvalue, "=" ~> rvalue) |
+      Read("read" ~> lvalue) |
+      Free("free" ~> expr) |
+      Return("return" ~> expr) |
+      Exit("exit" ~> expr) |
+      Print("print" ~> expr) |
+      PrintLn("println" ~> expr) |
+      IfStmt("if" ~> expr <~ "then", statements, "else" ~> statements <~ "fi") |
+      While("while" ~> expr <~ "do", statements <~ "done") |
+      ScopedStmt("begin" ~> statements <~ "end")
 
-  private lazy val typ: Parsley[Type] = baseType | arrayType |
+  private lazy val typ: Parsley[Type] = atomic(arrayType) | baseType |
     PairType("pair" ~> "(" ~> pairElemType, "," ~> pairElemType <~ ")")
   private lazy val baseType: Parsley[BaseType] =
     "int" #> IntType |
-    "bool" #> BoolType |
-    "char" #> CharType |
-    "string" #> StringType
+      "bool" #> BoolType |
+      "char" #> CharType |
+      "string" #> StringType
   private lazy val arrayType = ArrayType(baseType <~ "[" <~ "]")
   private lazy val pairElemType: Parsley[PairElemType] = baseType | arrayType | "pair" #> Pair
 
