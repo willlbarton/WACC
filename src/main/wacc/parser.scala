@@ -7,7 +7,6 @@ import parsley.expr._
 import parsley.{Parsley, Result}
 import src.main.wacc.lexer.implicits.implicitSymbol
 import src.main.wacc.lexer.{character, fully, ident, nat, string}
-import parsley.debug.DebugCombinators
 
 object parser {
   def parse[Err: ErrorBuilder](input: String): Result[Err, Program] = parser.parse(input)
@@ -25,7 +24,7 @@ object parser {
   private lazy val statement: Parsley[Stmt] =
     "skip" #> Skip |
     Decl(typ, ident, "=" ~> rvalue) |
-    Asgn(ident, "=" ~> rvalue) |
+    Asgn(lvalue, "=" ~> rvalue) |
     Read("read" ~> lvalue) |
     Free("free" ~> expr) |
     Return("return" ~> expr) |
@@ -40,9 +39,9 @@ object parser {
     PairType("pair" ~> "(" ~> pairElemType, "," ~> pairElemType <~ ")")
   private lazy val baseType: Parsley[BaseType] =
     "int" #> IntType |
-      "bool" #> BoolType |
-      "char" #> CharType |
-      "string" #> StringType
+    "bool" #> BoolType |
+    "char" #> CharType |
+    "string" #> StringType
   private lazy val arrayType = ArrayType(baseType <~ "[" <~ "]")
   private lazy val pairElemType: Parsley[PairElemType] = baseType | arrayType | "pair" #> Pair
 

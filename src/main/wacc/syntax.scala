@@ -29,7 +29,7 @@ case class PairType(fst: PairElemType, snd: PairElemType) extends Type
 sealed trait Stmt
 case object Skip extends Stmt
 case class Decl(t: Type, name: Ident, value: RVal) extends Stmt
-case class Asgn(name: Ident, value: RVal) extends Stmt
+case class Asgn(left: LVal, value: RVal) extends Stmt
 case class Read(value: LVal) extends Stmt
 case class Free(expr: Expr) extends Stmt
 case class Return(expr: Expr) extends Stmt
@@ -97,7 +97,7 @@ object ArrayType extends generic.ParserBridge1[Type, ArrayType]
 object PairType extends generic.ParserBridge2[PairElemType, PairElemType, PairType]
 
 object Decl extends generic.ParserBridge3[Type, Ident, RVal, Stmt]
-object Asgn extends generic.ParserBridge2[Ident, RVal, Stmt]
+object Asgn extends generic.ParserBridge2[LVal, RVal, Stmt]
 object Read extends generic.ParserBridge1[LVal, Stmt]
 object Free extends generic.ParserBridge1[Expr, Stmt]
 object Return extends generic.ParserBridge1[Expr, Stmt]
