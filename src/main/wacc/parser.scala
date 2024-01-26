@@ -15,26 +15,26 @@ object parser {
   private lazy val parser = fully(program)
 
   private lazy val program: Parsley[Program] =
-    Program("begin" ~> many(atomic(function)), statement <~ "end")
+    Program("begin" ~> many(atomic(function)), statements <~ "end")
 
   private lazy val function: Parsley[Func] =
-    Func(typ, ident, "(" ~> sepBy(parameter, ",") <~ ")", "is" ~> statement <~ "end")
+    Func(typ, ident, "(" ~> sepBy(parameter, ",") <~ ")", "is" ~> statements <~ "end")
   private lazy val parameter = Param(typ, ident)
 
   private val statements = chain.left1(statement)(";" #> StmtChain)
   private lazy val statement: Parsley[Stmt] =
     "skip" #> Skip |
-      Decl(typ, ident, "=" ~> rvalue) |
-      Asgn(ident, "=" ~> rvalue) |
-      Read("read" ~> lvalue) |
-      Free("free" ~> expr) |
-      Return("return" ~> expr) |
-      Exit("exit" ~> expr) |
-      Print("print" ~> expr) |
-      PrintLn("println" ~> expr) |
-      IfStmt("if" ~> expr <~ "then", statements, "else" ~> statements <~ "fi") |
-      While("while" ~> expr <~ "do", statements <~ "done") |
-      ScopedStmt("begin" ~> statements <~ "end")
+    Decl(typ, ident, "=" ~> rvalue) |
+    Asgn(ident, "=" ~> rvalue) |
+    Read("read" ~> lvalue) |
+    Free("free" ~> expr) |
+    Return("return" ~> expr) |
+    Exit("exit" ~> expr) |
+    Print("print" ~> expr) |
+    PrintLn("println" ~> expr) |
+    IfStmt("if" ~> expr <~ "then", statements, "else" ~> statements <~ "fi") |
+    While("while" ~> expr <~ "do", statements <~ "done") |
+    ScopedStmt("begin" ~> statements <~ "end")
 
   private lazy val typ: Parsley[Type] = baseType | arrayType |
     PairType("pair" ~> "(" ~> pairElemType, "," ~> pairElemType <~ ")")
