@@ -8,7 +8,7 @@ import java.io.File
 
 class Invalid extends AnyFlatSpec with TableDrivenPropertyChecks {
 
-  private val testDir = "src/test/test_files/invalid/"
+  private val testDir = "src/test/test_files/invalid/syntaxErr"
 
   private def listFiles(directory: File): Seq[File] = {
     if (directory.isDirectory) {
