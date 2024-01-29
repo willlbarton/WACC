@@ -69,7 +69,7 @@ object lexer {
   private val lexer = new Lexer(desc)
 
   val ident: Parsley[Ident] = Ident(lexer.lexeme.names.identifier)
-  val nat: Parsley[Int] = lexer.lexeme.integer.decimal32.map(_.toInt)
+  val integer: Parsley[Int] = lexer.lexeme.integer.decimal32
   val character: Parsley[Char] = lexer.lexeme.character.latin1
   val string: Parsley[String] = lexer.lexeme.string.latin1
   val implicits: ImplicitSymbol = lexer.lexeme.symbol.implicits

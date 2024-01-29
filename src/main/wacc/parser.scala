@@ -6,7 +6,7 @@ import parsley.errors.ErrorBuilder
 import parsley.expr._
 import parsley.{Parsley, Result}
 import src.main.wacc.lexer.implicits.implicitSymbol
-import src.main.wacc.lexer.{character, fully, ident, nat, string}
+import src.main.wacc.lexer.{character, fully, ident, integer, string}
 import parsley.debug.DebugCombinators
 
 object parser {
@@ -59,7 +59,8 @@ object parser {
   private lazy val arrayElem = ArrayElem(ident, some("[" ~> expr <~ "]"))
 
   private lazy val expr: Parsley[Expr] = precedence(
-    Integer(nat),
+    Integer(integer),
+    ("-" ~> expr).map(x => UnaryApp(Neg, x)),
     Bool("true" #> true | "false" #> false),
     Character(character),
     StringAtom(string),
@@ -70,7 +71,6 @@ object parser {
   )(
     Ops(Prefix)(
       "!" #> (x => UnaryApp(Not, x)),
-      "-" #> (x => UnaryApp(Neg, x)),
       "len" #> (x => UnaryApp(Len, x)),
       "ord" #> (x => UnaryApp(Ord, x)),
       "chr" #> (x => UnaryApp(Chr, x))
