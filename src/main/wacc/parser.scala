@@ -7,7 +7,6 @@ import parsley.expr._
 import parsley.{Parsley, Result}
 import src.main.wacc.lexer.implicits.implicitSymbol
 import src.main.wacc.lexer.{character, fully, ident, integer, string}
-import parsley.debug.DebugCombinators
 
 object parser {
   def parse[Err: ErrorBuilder](input: String): Result[Err, Program] = parser.parse(input)
@@ -19,9 +18,9 @@ object parser {
 
   private lazy val function: Parsley[Func] =
     Func(typ, ident, "(" ~> sepBy(parameter, ",") <~ ")", "is" ~> statements <~ "end")
-  private lazy val parameter = Param(typ, ident)
+  private lazy val parameter: Parsley[Param] = Param(typ, ident)
 
-  private val statements = chain.left1(statement)(";" #> StmtChain)
+  private val statements = chain.right1(statement)(StmtChain <# ";")
   private lazy val statement: Parsley[Stmt] =
     "skip" #> Skip |
     Decl(typ, ident, "=" ~> rvalue) |

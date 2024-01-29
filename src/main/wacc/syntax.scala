@@ -96,6 +96,7 @@ object Param extends generic.ParserBridge2[Type, Ident, Param]
 // object ArrayType extends generic.ParserBridge1[Type, ArrayType]
 object PairType extends generic.ParserBridge2[PairElemType, PairElemType, PairType]
 
+object StmtChain extends generic.ParserBridge2[Stmt, Stmt, StmtChain]
 object Decl extends generic.ParserBridge3[Type, Ident, RVal, Stmt]
 object Asgn extends generic.ParserBridge2[LVal, RVal, Stmt]
 object Read extends generic.ParserBridge1[LVal, Stmt]
