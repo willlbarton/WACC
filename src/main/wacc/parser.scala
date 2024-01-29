@@ -27,10 +27,11 @@ object parser {
     Asgn(lvalue, "=" ~> rvalue) |
     Read("read" ~> lvalue) |
     Free("free" ~> expr) |
-    Return("return" ~> expr) |
-    Exit("exit" ~> expr) |
     Print("print" ~> expr) |
     PrintLn("println" ~> expr) |
+    // for functions, the last statement in a chain MUST be one of the below
+    Return("return" ~> expr) |
+    Exit("exit" ~> expr) |
     IfStmt("if" ~> expr <~ "then", statements, "else" ~> statements <~ "fi") |
     While("while" ~> expr <~ "do", statements <~ "done") |
     ScopedStmt("begin" ~> statements <~ "end")
