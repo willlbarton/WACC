@@ -15,8 +15,7 @@ class Parser extends AnyFlatSpec with TableDrivenPropertyChecks {
     }
   }
 
-  behavior of "parser-invalid"
-  forAll(Table("cases", TestFiles("invalid/syntaxerr/"): _*)) { file =>
+  forAll(Table("cases", TestFiles("invalid/syntaxErr/"): _*)) { file =>
     it should s"fail to parse ${file.getParentFile}/${file.getName}" in {
       parser.parse(TestFiles.getLines(file)) shouldBe a [Failure[_]]
     }
