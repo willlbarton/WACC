@@ -22,8 +22,8 @@ object analyser {
   private def checkFuncStmt(st: SymbolTable, stmt: Stmt): String = stmt match {
     case Skip => ""
     case Decl(t, name, value) => checkDecl(st, t, name, value)
-    case Asgn(left, value) => checkLVal(st, left) ++ checkRVal(st, value)
-    case Read(value) => checkLVal(st, value)
+    case Asgn(left, value) => checkAsgn(st, left, value)
+    case Read(value) => checkRead(st, value)
     case Free(expr) => checkExpr(st, expr)
     case Return(expr) => checkExpr(st, expr)
     case Exit(expr) => checkExpr(st, expr)
@@ -53,7 +53,42 @@ object analyser {
     }
     error.toString
   }
-  private def checkLVal(st: SymbolTable, value: LVal): String = ???
+
+  private def checkAsgn(st: SymbolTable, left: LVal, value: RVal) = {
+    val error = new StringBuilder()
+    var t1: Option[Type] = None
+    var t2: Option[Type] = None
+
+    checkLVal(st, left) match {
+      case (msg, Some(t)) =>
+        error ++= msg
+        t1 = Some(t)
+      case (msg, None) => error ++= msg
+    }
+
+    checkRVal(st, value) match {
+      case (msg, Some(t)) =>
+        error ++= msg
+        t2 = Some(t)
+      case (msg, None) => error ++= msg
+    }
+
+    (t1, t2) match {
+      case (Some(t1), Some(t2)) => error ++= checkCompatibleTypes(t1, t2)
+      case _ => ()
+    }
+
+    error.toString
+  }
+
+  private def checkRead(st: SymbolTable, value: LVal): String = checkLVal(st, value) match {
+    case (msg, Some(IntType)) => msg
+    case (msg, Some(CharType)) => msg
+    case (msg, _) => msg ++ "Read must take an int or a char\n"
+  }
+
+  // checkLVal and checkRVal should also attempt to find the type if possible
+  private def checkLVal(st: SymbolTable, value: LVal): (String, Option[Type]) = ???
   private def checkRVal(st: SymbolTable, value: RVal): (String, Option[Type]) = ???
   private def checkExpr(st: SymbolTable, expr: Expr): String = ???
   // etc.
