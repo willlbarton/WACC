@@ -8,6 +8,8 @@ class SymbolTable(parent: Option[SymbolTable]) {
   def update(ident: Ident, obj: Identifier): Unit = table += ident -> obj
   def apply(ident: Ident): Option[Identifier] =
     table.get(ident) orElse parent.flatMap(_.apply(ident))
+  // Only checks within the current scope; apply may return a value even if contains returns false
+  def contains(ident: Ident): Boolean = table.contains(ident)
 }
 
 object SymbolTable extends SymbolTable(None) {
@@ -17,3 +19,4 @@ object SymbolTable extends SymbolTable(None) {
 sealed trait Identifier
 case class FuncI(t: Type, params:List[ParamI]) extends Identifier
 case class ParamI(t: Type) extends Identifier
+case class VarI(t: Type) extends Identifier

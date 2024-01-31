@@ -37,13 +37,25 @@ object analyser {
   }
 
   private def checkMainStmt(st: SymbolTable, stmt: Stmt): String = stmt match {
-    case Return(_) => "Return not allowed in main"
+    case Return(_) => "Return not allowed in main\n"
     case _ => checkFuncStmt(st, stmt)
   }
 
-  private def checkDecl(st: SymbolTable, t: Type, name: Ident, value: RVal): String = ???
+  private def checkDecl(st: SymbolTable, t: Type, name: Ident, value: RVal): String = {
+    val error = new StringBuilder()
+    if (st.contains(name)) error ++= s"Variable $name already declared\n"
+    else st(name) = VarI(t)
+    checkRVal(st, value) match {
+      case (msg, Some(t2)) =>
+        error ++= msg
+        error ++= checkCompatibleTypes(t, t2)
+      case (msg, None) => error ++= msg
+    }
+    error.toString
+  }
   private def checkLVal(st: SymbolTable, value: LVal): String = ???
-  private def checkRVal(st: SymbolTable, value: RVal): String = ???
+  private def checkRVal(st: SymbolTable, value: RVal): (String, Option[Type]) = ???
   private def checkExpr(st: SymbolTable, expr: Expr): String = ???
   // etc.
+  private def checkCompatibleTypes(t1: Type, t2: Type): String = ???
 }
