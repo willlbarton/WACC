@@ -3,10 +3,11 @@ package src.main.wacc
 import scala.collection.mutable
 
 class SymbolTable(parent: Option[SymbolTable]) {
-  private var table: mutable.Map[String, Identifier] = mutable.Map()
+  private val table: mutable.Map[Ident, Identifier] = mutable.Map()
 
-  def update(ident: String, obj: Identifier) = table += ident -> obj
-  def apply(ident: String): Option[Identifier] = table.get(ident) orElse parent.flatMap(_.apply(ident))
+  def update(ident: Ident, obj: Identifier): Unit = table += ident -> obj
+  def apply(ident: Ident): Option[Identifier] =
+    table.get(ident) orElse parent.flatMap(_.apply(ident))
 }
 
 object SymbolTable extends SymbolTable(None) {
@@ -14,4 +15,5 @@ object SymbolTable extends SymbolTable(None) {
 }
 
 sealed trait Identifier
-// identifier objects
+case class FuncI(t: Type, params:List[ParamI]) extends Identifier
+case class ParamI(t: Type) extends Identifier
