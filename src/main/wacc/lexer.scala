@@ -6,8 +6,6 @@ import parsley.token.descriptions._
 import parsley.token.descriptions.text.{EscapeDesc, TextDesc}
 import parsley.token.predicate.Basic
 import parsley.token.symbol.ImplicitSymbol
-import parsley.token.descriptions.numeric.PlusSignPresence
-import parsley.token.descriptions.numeric.NumericDesc
 
 object lexer {
   private val desc = LexicalDesc.plain.copy(
@@ -70,8 +68,8 @@ object lexer {
 
   val ident: Parsley[Ident] = Ident(lexer.lexeme.names.identifier)
   val integer: Parsley[Int] = lexer.lexeme.integer.decimal32
-  val character: Parsley[Char] = lexer.lexeme.character.latin1
-  val string: Parsley[String] = lexer.lexeme.string.latin1
+  val character: Parsley[Char] = lexer.lexeme.character.ascii
+  val string: Parsley[String] = lexer.lexeme.string.ascii
   val implicits: ImplicitSymbol = lexer.lexeme.symbol.implicits
   def fully[A](p: Parsley[A]): Parsley[A] = lexer.fully(p)
 }
