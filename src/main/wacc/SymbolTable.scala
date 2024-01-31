@@ -17,6 +17,6 @@ object SymbolTable extends SymbolTable(None) {
 }
 
 sealed trait Identifier
-case class FuncI(t: Type, params:List[ParamI]) extends Identifier
+case class FuncI(t: Type, params: List[ParamI]) extends Identifier
 case class ParamI(t: Type) extends Identifier
 case class VarI(t: Type) extends Identifier
