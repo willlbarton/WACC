@@ -109,9 +109,9 @@ package src.main.wacc
 // }
 
 object analyser {
-  val error = new StringBuilder()
 
   def analyse(program: Program): String = {
+    val error = new StringBuilder()
     val mainSymTable = SymbolTable(None);
 
     // Functions may be used before declaration, so we need to do a first pass
@@ -141,5 +141,13 @@ object analyser {
   //   case _                     => checkLeafStatement(symTable, stmt)
   // }
 
-  private def checkAssignment(symTable: SymbolTable, left: LVal, value: RVal): Unit = {}
+  private def checkAssignment(symTable: SymbolTable, left: LVal, value: RVal): String = {
+    left match {
+      case Ident(name) =>
+        symTable(name) match {
+          case None      => s"Variable $name not declared\n"
+          case Some(obj) => ""
+        }
+    }
+  }
 }
