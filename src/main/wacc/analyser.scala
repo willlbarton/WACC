@@ -24,25 +24,34 @@ object analyser {
 
   // distinguish between function and main statements since return is not allowed in main
   private def checkFuncStmt(st: SymbolTable, stmt: Stmt): String = stmt match {
-    case Skip                 => ""
-    case Decl(t, name, value) => checkDecl(st, t, name, value)
-    case Asgn(left, value)    => checkAsgn(st, left, value)
-    case Read(value)          => checkRead(st, value)
-    case Free(expr)           => checkExpr(st, expr)
     case Return(expr)         => checkExpr(st, expr)
-    case Exit(expr)           => checkExpr(st, expr)
-    case Print(expr)          => checkExpr(st, expr)
-    case PrintLn(expr)        => checkExpr(st, expr)
     case IfStmt(cond, body1, body2) =>
       checkExpr(st, cond) ++ checkFuncStmt(st, body1) ++ checkFuncStmt(st, body2)
     case While(cond, body)     => checkExpr(st, cond) ++ checkFuncStmt(st, body)
     case ScopedStmt(stmt)      => checkFuncStmt(st.makeChild, stmt)
     case StmtChain(stmt, next) => checkFuncStmt(st, stmt) ++ checkFuncStmt(st, next)
+    case _                     => checkLeafStatement(st, stmt)
   }
 
   private def checkMainStmt(st: SymbolTable, stmt: Stmt): String = stmt match {
     case Return(_) => "Return not allowed in main\n"
-    case _         => checkFuncStmt(st, stmt)
+    case IfStmt(cond, body1, body2) =>
+      checkExpr(st, cond) ++ checkMainStmt(st, body1) ++ checkMainStmt(st, body2)
+    case While(cond, body) => checkExpr(st, cond) ++ checkMainStmt(st, body)
+    case ScopedStmt(stmt) => checkMainStmt(st.makeChild, stmt)
+    case StmtChain(stmt, next) => checkMainStmt(st, stmt) ++ checkMainStmt(st, next)
+    case _ => checkLeafStatement(st, stmt)
+  }
+
+  private def checkLeafStatement(st: SymbolTable, stmt: Stmt): String = stmt match {
+    case Skip                 => ""
+    case Decl(t, name, value) => checkDecl(st, t, name, value)
+    case Asgn(left, value)    => checkAsgn(st, left, value)
+    case Read(value)          => checkRead(st, value)
+    case Free(expr)           => checkExpr(st, expr)
+    case Exit(expr)           => checkExpr(st, expr)
+    case Print(expr)          => checkExpr(st, expr)
+    case PrintLn(expr)        => checkExpr(st, expr)
   }
 
   private def checkDecl(st: SymbolTable, t: Type, name: Ident, value: RVal): String = {
