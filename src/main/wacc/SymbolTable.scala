@@ -1,18 +1,20 @@
-// package src.main.wacc
+package src.main.wacc
 
-// import scala.collection.mutable
+import scala.collection.mutable
 
-// case class SymbolTable(parent: Option[SymbolTable]) {
-//   private val table: mutable.Map[String, SymbolTableValue] = mutable.HashMap()
+case class SymbolTable(parent: Option[SymbolTable]) {
+  private val table: mutable.Map[String, SymbolTableObj] = mutable.HashMap()
 
-//   def update(ident: Ident, obj: Identifier): Unit = table += ident -> obj
+  def put(key: String, obj: SymbolTableObj): Unit = {
+    table += key -> obj
+  }
 
-//   // Checks for the identifier in the current scope and all parent scopes
-//   def apply(ident: Ident): Option[Identifier] =
-//     table.get(ident) orElse parent.flatMap(_.apply(ident))
+  // Checks if the identifier is in the current scope or any parent scopes
+  def apply(key: String): Option[SymbolTableObj] =
+    table.get(key) orElse parent.flatMap(_.apply(key))
 
-//   // Only checks within the current scope; apply may return a value even if contains returns false
-//   def contains(ident: Ident): Boolean = table.contains(ident)
+  // Only checks within current scope
+  // Apply may still return a value if contains is false, if the identifier is in a parent scope
+  def contains(key: String): Boolean = table.contains(key)
 
-//   val makeChild: SymbolTable = SymbolTable(Some(this))
-// }
+}

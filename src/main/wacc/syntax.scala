@@ -2,11 +2,11 @@ package src.main.wacc
 
 import parsley.generic
 
-sealed trait SymbolTableValue {
+sealed trait SymbolTableObj {
   var typ: Option[Type] = None
 }
 
-case class Program(functions: List[Func], body: Stmt) extends SymbolTableValue
+case class Program(functions: List[Func], body: Stmt) extends SymbolTableObj
 
 // An empty 'params' list should be the same as no param-list in the syntax
 case class Func(t: Type, name: Ident, params: List[Param], body: Stmt)
@@ -46,7 +46,7 @@ case class ScopedStmt(stmt: Stmt) extends Stmt
 case class StmtChain(stmt: Stmt, next: Stmt) extends Stmt
 
 // <rvalue>
-sealed trait RVal extends SymbolTableValue
+sealed trait RVal extends SymbolTableObj
 case class ArrayLiter(elems: List[Expr]) extends RVal
 case class NewPair(fst: Expr, snd: Expr) extends RVal
 case class Call(name: Ident, args: List[Expr]) extends RVal
