@@ -150,4 +150,72 @@ object analyser {
         }
     }
   }
+
+  private def checkExpr(symTable: SymbolTable, expr: Expr): Either[String, Type] = expr match {
+    case UnaryApp(op, expr) => {
+      checkExpr(symTable, expr) match {
+        case Left(err) => Left(err)
+        case Right(typ) =>
+          op match {
+            case Chr =>
+              if (typ == IntType) Right(IntType)
+              else Left("Expected IntType for Unary Operator Chr")
+            case Len => ???
+            case Neg =>
+              if (typ == IntType) Right(IntType)
+              else Left("Expected IntType for Unary Operator Neg")
+            case Not =>
+              if (typ == BoolType) Right(BoolType)
+              else Left("Expected BoolType for Unary Operator Not")
+            case Ord =>
+              if (typ == CharType) Right(CharType)
+              else Left("Expected CharType for Unary Operator Ord")
+          }
+      }
+    }
+    case BinaryApp(op, left, right) => {
+      checkExpr(symTable, left) match {
+        case Left(err) => Left(err)
+        case Right(typ1) =>
+          checkExpr(symTable, right) match {
+            case Left(err) => Left(err)
+            case Right(typ2) =>
+              op match {
+                case And | Or =>
+                  if (typ1 == BoolType && typ2 == BoolType) Right(BoolType)
+                  else Left("Expected BoolType for Binary Operator And/Or")
+                case Eq | NotEq =>
+                  if (typ1 == typ2) Right(BoolType)
+                  else Left("Expected same type for Binary Operator Eq/Neq")
+                case Gt | GtEq | Lt | LtEq =>
+                  if (typ1 == IntType && typ2 == IntType) Right(BoolType)
+                  else Left("Expected IntType for Binary Operator Gt/Gte/Lt/Lte")
+                case Add =>
+                  if (typ1 == IntType && typ2 == IntType) Right(IntType)
+                  else if (typ1 == StringType && typ2 == StringType) Right(StringType)
+                  else Left("Expected IntType or StringType for Binary Operator Plus")
+                case Sub | Mul | Div | Mod =>
+                  if (typ1 == IntType && typ2 == IntType) Right(IntType)
+                  else Left("Expected IntType for Binary Operator Minus/Times/Div/Mod")
+              }
+          }
+      }
+    }
+    case Integer(_)    => Right(IntType)
+    case Bool(_)       => Right(BoolType)
+    case Character(_)  => Right(CharType)
+    case StringAtom(_) => Right(StringType)
+    case Ident(name) => {
+      symTable(name) match {
+        case None => Left(s"Variable $name not declared\n")
+        case Some(obj) =>
+          obj.typ match {
+            case None      => Left(s"Variable type of $name not declared\n")
+            case Some(typ) => Right(typ)
+          }
+      }
+    }
+    case ArrayElem(ident, exprs) => ???
+    case BracketedExpr(expr)     => ???
+  }
 }
