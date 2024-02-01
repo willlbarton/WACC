@@ -131,15 +131,12 @@ object analyser {
     error.toString
   }
 
-  // private def checkFuncStmt(symTable: SymbolTable, stmt: Stmt): String = stmt match {
-  //   case Return(expr) => checkExpr(symTable, expr)
-  //   case IfStmt(cond, body1, body2) =>
-  //     checkExpr(symTable, cond) ++ checkFuncStmt(symTable, body1) ++ checkFuncStmt(symTable, body2)
-  //   case While(cond, body)     => checkExpr(symTable, cond) ++ checkFuncStmt(symTable, body)
-  //   case ScopedStmt(stmt)      => checkFuncStmt(symTable.makeChild, stmt)
-  //   case StmtChain(stmt, next) => checkFuncStmt(symTable, stmt) ++ checkFuncStmt(symTable, next)
-  //   case _                     => checkLeafStatement(symTable, stmt)
-  // }
+  // use for testing a check function ########################
+  // just change for your needs
+  def main(args: Array[String]) = {
+    val mainSymTable = SymbolTable(None);
+    println(checkExpr(mainSymTable, BinaryApp(Add, Integer(1), Integer(1))))
+  }
 
   private def checkAssignment(symTable: SymbolTable, left: LVal, value: RVal): String = {
     left match {
@@ -152,6 +149,24 @@ object analyser {
   }
 
   private def checkExpr(symTable: SymbolTable, expr: Expr): Either[String, Type] = expr match {
+    case Integer(_)    => Right(IntType)
+    case Bool(_)       => Right(BoolType)
+    case Character(_)  => Right(CharType)
+    case StringAtom(_) => Right(StringType)
+    case Ident(name) => {
+      symTable(name) match {
+        case None => Left(s"Variable $name not declared\n")
+        case Some(obj) =>
+          obj.typ match {
+            case None      => Left(s"Variable type of $name not declared\n")
+            case Some(typ) => Right(typ)
+          }
+      }
+    }
+    case ArrayElem(ident, exprs) => ???
+    case BracketedExpr(expr)     => ???
+    case Null                    => ???
+
     case UnaryApp(op, expr) => {
       checkExpr(symTable, expr) match {
         case Left(err) => Left(err)
@@ -201,21 +216,6 @@ object analyser {
           }
       }
     }
-    case Integer(_)    => Right(IntType)
-    case Bool(_)       => Right(BoolType)
-    case Character(_)  => Right(CharType)
-    case StringAtom(_) => Right(StringType)
-    case Ident(name) => {
-      symTable(name) match {
-        case None => Left(s"Variable $name not declared\n")
-        case Some(obj) =>
-          obj.typ match {
-            case None      => Left(s"Variable type of $name not declared\n")
-            case Some(typ) => Right(typ)
-          }
-      }
-    }
-    case ArrayElem(ident, exprs) => ???
-    case BracketedExpr(expr)     => ???
+
   }
 }

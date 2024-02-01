@@ -17,5 +17,5 @@ case class SymbolTable(parent: Option[SymbolTable]) {
   // Apply may still return a value if contains is false, if the identifier is in a parent scope
   def contains(key: String): Boolean = table.contains(key)
 
-  val makeChild: SymbolTable = SymbolTable(Some(this))
+  lazy val makeChild: SymbolTable = SymbolTable(Some(this))
 }
