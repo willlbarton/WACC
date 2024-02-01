@@ -2,7 +2,11 @@ package src.main.wacc
 
 import parsley.generic
 
-case class Program(functions: List[Func], body: Stmt)
+sealed trait SymbolTableValue {
+  var typ: Option[Type] = None
+}
+
+case class Program(functions: List[Func], body: Stmt) extends SymbolTableValue
 
 // An empty 'params' list should be the same as no param-list in the syntax
 case class Func(t: Type, name: Ident, params: List[Param], body: Stmt)
@@ -42,7 +46,7 @@ case class ScopedStmt(stmt: Stmt) extends Stmt
 case class StmtChain(stmt: Stmt, next: Stmt) extends Stmt
 
 // <rvalue>
-sealed trait RVal
+sealed trait RVal extends SymbolTableValue
 case class ArrayLiter(elems: List[Expr]) extends RVal
 case class NewPair(fst: Expr, snd: Expr) extends RVal
 case class Call(name: Ident, args: List[Expr]) extends RVal
@@ -56,10 +60,20 @@ case class UnaryApp(op: UnaryOp, expr: Expr) extends Expr
 case class BinaryApp(op: BinaryOp, left: Expr, right: Expr) extends Expr
 
 // <atom>
-case class Integer(i: Int) extends Expr
-case class Bool(value: Boolean) extends Expr
-case class Character(c: Char) extends Expr
-case class StringAtom(s: String) extends Expr
+case class Integer(i: Int) extends Expr {
+  typ = Some(IntType)
+}
+case class Bool(value: Boolean) extends Expr {
+  typ = Some(BoolType)
+}
+case class Character(c: Char) extends Expr {
+  typ = Some(CharType)
+}
+
+case class StringAtom(s: String) extends Expr {
+  typ = Some(StringType)
+}
+
 case object Null extends Expr // <pair-liter>
 case class Ident(name: String) extends Expr with LVal
 case class ArrayElem(name: Ident, exprs: List[Expr]) extends Expr with LVal
