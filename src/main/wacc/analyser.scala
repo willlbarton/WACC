@@ -54,7 +54,7 @@ object analyser {
     case PrintLn(expr)        => checkExpr(st, expr)
   }
 
-  private def checkDecl(st: SymbolTable, t: Type, name: Ident, value: RVal): String = {
+  private def checkDecl(st: SymbolTable, t: Type, name: Var, value: RVal): String = {
     val error = new StringBuilder()
     if (st.contains(name)) error ++= s"Variable $name already declared\n"
     else st(name) = VarI(t)

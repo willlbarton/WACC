@@ -5,8 +5,8 @@ import parsley.generic
 case class Program(functions: List[Func], body: Stmt)
 
 // An empty 'params' list should be the same as no param-list in the syntax
-case class Func(t: Type, name: Ident, params: List[Param], body: Stmt)
-case class Param(t: Type, name: Ident)
+case class Func(t: Type, name: Var, params: List[Param], body: Stmt)
+case class Param(t: Type, name: Var)
 
 sealed trait Type
 sealed trait PairElemType extends Type
@@ -28,7 +28,7 @@ case class PairType(fst: PairElemType, snd: PairElemType) extends Type
 // <stmnt>
 sealed trait Stmt
 case object Skip extends Stmt
-case class Decl(t: Type, name: Ident, value: RVal) extends Stmt
+case class Decl(t: Type, name: Var, value: RVal) extends Stmt
 case class Asgn(left: LVal, value: RVal) extends Stmt
 case class Read(value: LVal) extends Stmt
 case class Free(expr: Expr) extends Stmt
@@ -45,7 +45,7 @@ case class StmtChain(stmt: Stmt, next: Stmt) extends Stmt
 sealed trait RVal
 case class ArrayLiter(elems: List[Expr]) extends RVal
 case class NewPair(fst: Expr, snd: Expr) extends RVal
-case class Call(name: Ident, args: List[Expr]) extends RVal
+case class Call(name: Var, args: List[Expr]) extends RVal
 
 // <lvalue>
 sealed trait LVal
@@ -61,8 +61,8 @@ case class Bool(value: Boolean) extends Expr
 case class Character(c: Char) extends Expr
 case class StringAtom(s: String) extends Expr
 case object Null extends Expr // <pair-liter>
-case class Ident(name: String) extends Expr with LVal
-case class ArrayElem(name: Ident, exprs: List[Expr]) extends Expr with LVal
+case class Var(name: String) extends Expr with LVal
+case class ArrayElem(name: Var, exprs: List[Expr]) extends Expr with LVal
 case class BracketedExpr(expr: Expr) extends Expr
 
 // <unary-oper>
@@ -90,14 +90,14 @@ case object And extends BinaryOp
 case object Or extends BinaryOp
 
 object Program extends generic.ParserBridge2[List[Func], Stmt, Program]
-object Func extends generic.ParserBridge4[Type, Ident, List[Param], Stmt, Func]
-object Param extends generic.ParserBridge2[Type, Ident, Param]
+object Func extends generic.ParserBridge4[Type, Var, List[Param], Stmt, Func]
+object Param extends generic.ParserBridge2[Type, Var, Param]
 
 // object ArrayType extends generic.ParserBridge1[Type, ArrayType]
 object PairType extends generic.ParserBridge2[PairElemType, PairElemType, PairType]
 
 object StmtChain extends generic.ParserBridge2[Stmt, Stmt, StmtChain]
-object Decl extends generic.ParserBridge3[Type, Ident, RVal, Stmt]
+object Decl extends generic.ParserBridge3[Type, Var, RVal, Stmt]
 object Asgn extends generic.ParserBridge2[LVal, RVal, Stmt]
 object Read extends generic.ParserBridge1[LVal, Stmt]
 object Free extends generic.ParserBridge1[Expr, Stmt]
@@ -109,17 +109,17 @@ object IfStmt extends generic.ParserBridge3[Expr, Stmt, Stmt, Stmt]
 object While extends generic.ParserBridge2[Expr, Stmt, Stmt]
 object ScopedStmt extends generic.ParserBridge1[Stmt, Stmt]
 
-object Ident extends generic.ParserBridge1[String, Ident]
+object Var extends generic.ParserBridge1[String, Var]
 object Integer extends generic.ParserBridge1[Int, Integer]
 object Bool extends generic.ParserBridge1[Boolean, Bool]
 object Character extends generic.ParserBridge1[Char, Character]
 object StringAtom extends generic.ParserBridge1[String, StringAtom]
 object BracketedExpr extends generic.ParserBridge1[Expr, BracketedExpr]
 
-object ArrayElem extends generic.ParserBridge2[Ident, List[Expr], ArrayElem]
+object ArrayElem extends generic.ParserBridge2[Var, List[Expr], ArrayElem]
 object Fst extends generic.ParserBridge1[LVal, Fst]
 object Snd extends generic.ParserBridge1[LVal, Snd]
 
 object ArrayLiter extends generic.ParserBridge1[List[Expr], ArrayLiter]
 object NewPair extends generic.ParserBridge2[Expr, Expr, NewPair]
-object Call extends generic.ParserBridge2[Ident, List[Expr], Call]
+object Call extends generic.ParserBridge2[Var, List[Expr], Call]

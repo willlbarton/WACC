@@ -66,7 +66,7 @@ object lexer {
   )
   private val lexer = new Lexer(desc)
 
-  val ident: Parsley[Ident] = Ident(lexer.lexeme.names.identifier)
+  val ident: Parsley[Var] = Var(lexer.lexeme.names.identifier)
   val integer: Parsley[Int] = lexer.lexeme.integer.decimal32
   val character: Parsley[Char] = lexer.lexeme.character.ascii
   val string: Parsley[String] = lexer.lexeme.string.ascii
