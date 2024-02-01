@@ -240,10 +240,10 @@ object analyser {
   }
 
   private def checkRVal(symTable: SymbolTable, value: RVal): Either[String, Type] = value match {
-    case Expr                     => checkExpr(symTable, expr)
     case ArrayLiter(elems)        => ???
     case NewPair(expr1, expr2)    => ???
     case Fst(_) | Snd(_)          => ???
     case Call(ident, List(exprs)) => ???
+    case _                        => checkExpr(symTable, value.asInstanceOf[Expr])
   }
 }
