@@ -3,16 +3,16 @@ package src.main.wacc
 import parsley.generic
 
 sealed trait SymbolTableObj {
-  var typ: Type
+  var typ: Option[Type] = None
 }
 
-case class Program(functions: List[Func], body: Stmt) extends SymbolTableObj
+case class Program(functions: List[Func], body: Stmt)
 
 // An empty 'params' list should be the same as no param-list in the syntax
 case class Func(t: Type, ident: Ident, params: List[Param], body: Stmt) extends SymbolTableObj {
-  typ = t
+  typ = Some(t)
 }
-case class Param(t: Type, ident: Ident)
+case class Param(t: Type, identa: Ident)
 
 sealed trait Type
 sealed trait PairElemType extends Type
@@ -63,17 +63,17 @@ case class BinaryApp(op: BinaryOp, left: Expr, right: Expr) extends Expr
 
 // <atom>
 case class Integer(i: Int) extends Expr {
-  typ: Type
+  typ = Some(IntType)
 }
 case class Bool(value: Boolean) extends Expr {
-  typ: Type
+  typ = Some(BoolType)
 }
 case class Character(c: Char) extends Expr {
-  typ: Type
+  typ = Some(CharType)
 }
 
 case class StringAtom(s: String) extends Expr {
-  typ: Type
+  typ = Some(StringType)
 }
 
 case object Null extends Expr // <pair-liter>
