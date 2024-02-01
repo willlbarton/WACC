@@ -282,11 +282,24 @@ object analyser {
   }
 
   private def checkRVal(symTable: SymbolTable, value: RVal): Either[String, Type] = value match {
-    case ArrayLiter(elems)        => ???
-    case NewPair(expr1, expr2)    => ???
-    case Fst(_) | Snd(_)          => ???
-    case Call(ident, List(exprs)) => ???
-    case _                        => checkExpr(symTable, value.asInstanceOf[Expr])
+    case ArrayLiter(exprs)     => ???
+    case NewPair(expr1, expr2) => ???
+    case Fst(_) | Snd(_)       => checkLVal(symTable, value.asInstanceOf[LVal])
+    case Call(ident, exprs) =>
+      symTable(ident.name) match {
+        case None => Left(s"Function $ident not declared\n")
+        case Some(fun) =>
+          fun.typ match {
+            case None      => Left(s"Function type of $ident not declared\n")
+            case Some(typ) => Right(typ)
+          }
+      }
+    case _ => checkExpr(symTable, value.asInstanceOf[Expr])
   }
+
+  private def checkCompatibleTypes(typ1: Type, typ2: Type): Boolean =
+    typ1 == typ2 || typ1 == StringType && typ2 == ArrayType(
+      CharType
+    ) || typ2 == StringType && typ1 == ArrayType(CharType)
 
 }

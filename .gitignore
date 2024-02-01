@@ -4,4 +4,3 @@
 .vscode/
 .idea/
 wacc-compiler
-.scalafmt.conf
