@@ -3,14 +3,16 @@ package src.main.wacc
 import parsley.generic
 
 sealed trait SymbolTableObj {
-  var typ: Option[Type] = None
+  var typ: Type
 }
 
 case class Program(functions: List[Func], body: Stmt) extends SymbolTableObj
 
 // An empty 'params' list should be the same as no param-list in the syntax
-case class Func(t: Type, name: Ident, params: List[Param], body: Stmt)
-case class Param(t: Type, name: Ident)
+case class Func(t: Type, ident: Ident, params: List[Param], body: Stmt) extends SymbolTableObj {
+  typ = t
+}
+case class Param(t: Type, ident: Ident)
 
 sealed trait Type
 sealed trait PairElemType extends Type
@@ -32,7 +34,7 @@ case class PairType(fst: PairElemType, snd: PairElemType) extends Type
 // <stmnt>
 sealed trait Stmt
 case object Skip extends Stmt
-case class Decl(t: Type, name: Ident, value: RVal) extends Stmt
+case class Decl(t: Type, ident: Ident, value: RVal) extends Stmt
 case class Asgn(left: LVal, value: RVal) extends Stmt
 case class Read(value: LVal) extends Stmt
 case class Free(expr: Expr) extends Stmt
@@ -49,7 +51,7 @@ case class StmtChain(stmt: Stmt, next: Stmt) extends Stmt
 sealed trait RVal extends SymbolTableObj
 case class ArrayLiter(elems: List[Expr]) extends RVal
 case class NewPair(fst: Expr, snd: Expr) extends RVal
-case class Call(name: Ident, args: List[Expr]) extends RVal
+case class Call(ident: Ident, args: List[Expr]) extends RVal
 
 // <lvalue>
 sealed trait LVal
@@ -61,22 +63,22 @@ case class BinaryApp(op: BinaryOp, left: Expr, right: Expr) extends Expr
 
 // <atom>
 case class Integer(i: Int) extends Expr {
-  typ = Some(IntType)
+  typ: Type
 }
 case class Bool(value: Boolean) extends Expr {
-  typ = Some(BoolType)
+  typ: Type
 }
 case class Character(c: Char) extends Expr {
-  typ = Some(CharType)
+  typ: Type
 }
 
 case class StringAtom(s: String) extends Expr {
-  typ = Some(StringType)
+  typ: Type
 }
 
 case object Null extends Expr // <pair-liter>
 case class Ident(name: String) extends Expr with LVal
-case class ArrayElem(name: Ident, exprs: List[Expr]) extends Expr with LVal
+case class ArrayElem(ident: Ident, exprs: List[Expr]) extends Expr with LVal
 case class BracketedExpr(expr: Expr) extends Expr
 
 // <unary-oper>

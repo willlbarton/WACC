@@ -1,4 +1,4 @@
-// package src.main.wacc
+package src.main.wacc
 
 // object analyser {
 //   def analyse(program: Program): String = {
@@ -107,3 +107,26 @@
 //   // etc.
 //   private def checkCompatibleTypes(t1: Type, t2: Type): String = ???
 // }
+
+object analyser {
+  def analyse(program: Program): String = {
+    val error = new StringBuilder()
+    val mainSymTable = SymbolTable(None);
+
+    // Functions may be used before declaration, so we need to do a first pass
+    // Add all functions to STop
+    for (f <- program.functions)
+      mainSymTable.put(f.ident.name, f)
+
+    // Adds child symbol table to function object
+    for (f <- program.functions) {
+      val symTable = mainSymTable.makeChild
+      f.params.foreach(p => symTable.put(f.ident.name, f))
+      // error ++= checkFuncStmt(st, f.body)
+    }
+
+    // error ++= checkMainStmt(STop, program.body)
+
+    error.toString
+  }
+}
