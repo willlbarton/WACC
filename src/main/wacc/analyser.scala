@@ -217,6 +217,7 @@ object analyser {
           }
       }
     }
+
   }
 
   private def checkArrayElem(symTable: SymbolTable, ident: Ident, exprs: List[Expr]) = ???
@@ -236,5 +237,13 @@ object analyser {
     case ArrayElem(ident, exprs) => checkArrayElem(symTable, ident, exprs)
     case Fst(value)              => checkLVal(symTable, value)
     case Snd(value)              => checkLVal(symTable, value)
+  }
+
+  private def checkRVal(symTable: SymbolTable, value: RVal): Either[String, Type] = value match {
+    case Expr                     => checkExpr(symTable, expr)
+    case ArrayLiter(elems)        => ???
+    case NewPair(expr1, expr2)    => ???
+    case Fst(_) | Snd(_)          => ???
+    case Call(ident, List(exprs)) => ???
   }
 }
