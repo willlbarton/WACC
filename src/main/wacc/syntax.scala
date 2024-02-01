@@ -12,7 +12,7 @@ case class Program(functions: List[Func], body: Stmt)
 case class Func(t: Type, ident: Ident, params: List[Param], body: Stmt) extends SymbolTableObj {
   typ = Some(t)
 }
-case class Param(t: Type, identa: Ident)
+case class Param(t: Type, ident: Ident)
 
 sealed trait Type
 sealed trait PairElemType extends Type
