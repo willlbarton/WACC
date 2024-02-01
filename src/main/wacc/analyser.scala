@@ -143,7 +143,7 @@ object analyser {
       case Ident(name) =>
         symTable(name) match {
           case None      => s"Variable $name not declared\n"
-          case Some(obj) => ""
+          case Some(obj) => ???
         }
     }
   }
@@ -163,8 +163,9 @@ object analyser {
           }
       }
     }
-    case ArrayElem(ident, exprs) => ???
-    case BracketedExpr(expr)     => ???
+
+    case ArrayElem(ident, exprs) => checkArrayElem(symTable, ident, exprs)
+    case BracketedExpr(expr)     => checkExpr(symTable, expr)
     case Null                    => ???
 
     case UnaryApp(op, expr) => {
@@ -216,6 +217,24 @@ object analyser {
           }
       }
     }
+  }
 
+  private def checkArrayElem(symTable: SymbolTable, ident: Ident, exprs: List[Expr]) = ???
+
+  private def checkPairElem(symTable: SymbolTable, pairElem: PairElemType) = ???
+
+  private def checkLVal(symTable: SymbolTable, lval: LVal): Either[String, Type] = lval match {
+    case Ident(name) =>
+      symTable(name) match {
+        case None => Left(s"Variable $name not declared\n")
+        case Some(obj) =>
+          obj.typ match {
+            case None      => Left(s"Variable type of $name not declared\n")
+            case Some(typ) => Right(typ)
+          }
+      }
+    case ArrayElem(ident, exprs) => checkArrayElem(symTable, ident, exprs)
+    case Fst(value)              => checkLVal(symTable, value)
+    case Snd(value)              => checkLVal(symTable, value)
   }
 }
