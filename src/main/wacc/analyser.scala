@@ -138,6 +138,45 @@ object analyser {
     println(checkExpr(mainSymTable, BinaryApp(Add, Integer(1), Integer(1))))
   }
 
+  private def handleDeclaration(
+      symTable: SymbolTable,
+      typ: Type,
+      ident: Ident,
+      value: RVal
+  ): String = {
+    val error = new StringBuilder()
+    if (symTable.inCurrentScope(ident.name)) {
+      error ++= s"Variable $ident already declared in scope\n"
+    } else {
+      symTable.put(
+        ident.name, {
+          typ match { // IDK WHAT TO SET THESE VALS - make them optional ????
+            case IntType    => Integer(69420)
+            case BoolType   => Bool(false)
+            case CharType   => Character('#')
+            case StringType => StringAtom("WACC")
+            case ArrayType(t) =>
+              ???
+            case PairType(fst, snd) =>
+              ???
+            case Pair => ???
+          }
+        }
+      )
+    }
+
+    error ++= {
+      checkRVal(symTable, value) match {
+        case Left(err) => err
+        case Right(typ2) =>
+          if (typ == typ2) ""
+          else s"Type mismatch: $typ and $typ2\n"
+      }
+    }
+
+    error.toString();
+  }
+
   private def checkAssignment(symTable: SymbolTable, left: LVal, value: RVal): String = {
     checkLVal(symTable, left) match {
       case Left(err) => err
