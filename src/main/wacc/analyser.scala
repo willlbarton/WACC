@@ -139,11 +139,14 @@ object analyser {
   }
 
   private def checkAssignment(symTable: SymbolTable, left: LVal, value: RVal): String = {
-    left match {
-      case Ident(name) =>
-        symTable(name) match {
-          case None      => s"Variable $name not declared\n"
-          case Some(obj) => ???
+    checkLVal(symTable, left) match {
+      case Left(err) => err
+      case Right(typ1) =>
+        checkRVal(symTable, value) match {
+          case Left(err) => err
+          case Right(typ2) =>
+            if (typ1 == typ2) ""
+            else s"Type mismatch: $typ1 and $typ2\n"
         }
     }
   }
@@ -246,4 +249,5 @@ object analyser {
     case Call(ident, List(exprs)) => ???
     case _                        => checkExpr(symTable, value.asInstanceOf[Expr])
   }
+
 }
