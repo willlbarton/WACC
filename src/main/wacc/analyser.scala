@@ -2,19 +2,22 @@ package src.main.wacc
 
 object analyser {
   def analyse(program: Program): String = {
-
     val error = new StringBuilder()
-    // Functions may be used before declaration, so we need to do a first pass
-    for (f <- program.functions)
-      SymbolTable.update(f.name, FuncI(f.t, f.params.map(x => ParamI(x.t))))
+    val STop = SymbolTable(None);
 
+    // Functions may be used before declaration, so we need to do a first pass
+    // Add all functions to STop
+    for (f <- program.functions)
+      STop.update(f.name, FuncI(f.t, f.params.map(x => ParamI(x.t))))
+
+    // Adds child symbol table to function object
     for (f <- program.functions) {
-      val st = SymbolTable(SymbolTable)
+      val st = STop.makeChild
       f.params.foreach(p => st.update(p.name, ParamI(p.t)))
       error ++= checkFuncStmt(st, f.body)
     }
 
-    error ++= checkMainStmt(SymbolTable, program.body)
+    error ++= checkMainStmt(STop, program.body)
 
     error.toString
   }
@@ -33,7 +36,7 @@ object analyser {
     case IfStmt(cond, body1, body2) =>
       checkExpr(st, cond) ++ checkFuncStmt(st, body1) ++ checkFuncStmt(st, body2)
     case While(cond, body)     => checkExpr(st, cond) ++ checkFuncStmt(st, body)
-    case ScopedStmt(stmt)      => checkFuncStmt(SymbolTable(st), stmt)
+    case ScopedStmt(stmt)      => checkFuncStmt(st.makeChild, stmt)
     case StmtChain(stmt, next) => checkFuncStmt(st, stmt) ++ checkFuncStmt(st, next)
   }
 
