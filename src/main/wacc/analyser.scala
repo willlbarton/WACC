@@ -109,8 +109,9 @@ package src.main.wacc
 // }
 
 object analyser {
+  val error = new StringBuilder()
+
   def analyse(program: Program): String = {
-    val error = new StringBuilder()
     val mainSymTable = SymbolTable(None);
 
     // Functions may be used before declaration, so we need to do a first pass
@@ -129,4 +130,16 @@ object analyser {
 
     error.toString
   }
+
+  // private def checkFuncStmt(symTable: SymbolTable, stmt: Stmt): String = stmt match {
+  //   case Return(expr) => checkExpr(symTable, expr)
+  //   case IfStmt(cond, body1, body2) =>
+  //     checkExpr(symTable, cond) ++ checkFuncStmt(symTable, body1) ++ checkFuncStmt(symTable, body2)
+  //   case While(cond, body)     => checkExpr(symTable, cond) ++ checkFuncStmt(symTable, body)
+  //   case ScopedStmt(stmt)      => checkFuncStmt(symTable.makeChild, stmt)
+  //   case StmtChain(stmt, next) => checkFuncStmt(symTable, stmt) ++ checkFuncStmt(symTable, next)
+  //   case _                     => checkLeafStatement(symTable, stmt)
+  // }
+
+  private def checkAssignment(symTable: SymbolTable, left: LVal, value: RVal): Unit = {}
 }
