@@ -19,17 +19,19 @@ sealed trait PairElemType extends Type
 sealed trait BaseType extends PairElemType
 
 // <base-type>
-case object IntType extends BaseType
-case object BoolType extends BaseType
-case object CharType extends BaseType
-case object StringType extends BaseType
+case object IntType extends BaseType { override def toString = "int" }
+case object BoolType extends BaseType { override def toString = "bool" }
+case object CharType extends BaseType { override def toString = "char" }
+case object StringType extends BaseType { override def toString = "string" }
 
 // <pair-elem-type)
-case class ArrayType(t: Type) extends PairElemType
-case object Pair extends PairElemType
+case class ArrayType(t: Type) extends PairElemType { override def toString = s"$t[]" }
+case object Pair extends PairElemType { override def toString = "pair" }
 
 // <pair-type>
-case class PairType(fst: PairElemType, snd: PairElemType) extends Type
+case class PairType(fst: PairElemType, snd: PairElemType) extends Type {
+  override def toString = s"pair($fst, $snd)"
+}
 
 // <stmnt>
 sealed trait Stmt

@@ -22,38 +22,6 @@ package src.main.wacc
 //     error.toString
 //   }
 
-//   // distinguish between function and main statements since return is not allowed in main
-//   private def checkFuncStmt(st: SymbolTable, stmt: Stmt): String = stmt match {
-//     case Return(expr)         => checkExpr(st, expr)
-//     case IfStmt(cond, body1, body2) =>
-//       checkExpr(st, cond) ++ checkFuncStmt(st, body1) ++ checkFuncStmt(st, body2)
-//     case While(cond, body)     => checkExpr(st, cond) ++ checkFuncStmt(st, body)
-//     case ScopedStmt(stmt)      => checkFuncStmt(st.makeChild, stmt)
-//     case StmtChain(stmt, next) => checkFuncStmt(st, stmt) ++ checkFuncStmt(st, next)
-//     case _                     => checkLeafStatement(st, stmt)
-//   }
-
-//   private def checkMainStmt(st: SymbolTable, stmt: Stmt): String = stmt match {
-//     case Return(_) => "Return not allowed in main\n"
-//     case IfStmt(cond, body1, body2) =>
-//       checkExpr(st, cond) ++ checkMainStmt(st, body1) ++ checkMainStmt(st, body2)
-//     case While(cond, body) => checkExpr(st, cond) ++ checkMainStmt(st, body)
-//     case ScopedStmt(stmt) => checkMainStmt(st.makeChild, stmt)
-//     case StmtChain(stmt, next) => checkMainStmt(st, stmt) ++ checkMainStmt(st, next)
-//     case _ => checkLeafStatement(st, stmt)
-//   }
-
-//   private def checkLeafStatement(st: SymbolTable, stmt: Stmt): String = stmt match {
-//     case Skip                 => ""
-//     case Decl(t, name, value) => checkDecl(st, t, name, value)
-//     case Asgn(left, value)    => checkAsgn(st, left, value)
-//     case Read(value)          => checkRead(st, value)
-//     case Free(expr)           => checkExpr(st, expr)
-//     case Exit(expr)           => checkExpr(st, expr)
-//     case Print(expr)          => checkExpr(st, expr)
-//     case PrintLn(expr)        => checkExpr(st, expr)
-//   }
-
 //   private def checkDecl(st: SymbolTable, t: Type, name: Ident, value: RVal): String = {
 //     val error = new StringBuilder()
 //     if (st.contains(name)) error ++= s"Variable $name already declared\n"
@@ -94,12 +62,6 @@ package src.main.wacc
 //     error.toString
 //   }
 
-//   private def checkRead(st: SymbolTable, value: LVal): String = checkLVal(st, value) match {
-//     case (msg, Some(IntType))  => msg
-//     case (msg, Some(CharType)) => msg
-//     case (msg, _)              => msg ++ "Read must take an int or a char\n"
-//   }
-
 //   // checkLVal and checkRVal should also attempt to find the type if possible
 //   private def checkLVal(st: SymbolTable, value: LVal): (String, Option[Type]) = ???
 //   private def checkRVal(st: SymbolTable, value: RVal): (String, Option[Type]) = ???
@@ -115,25 +77,62 @@ object analyser {
     val mainSymTable = SymbolTable(None);
 
     // Functions may be used before declaration, so we need to do a first pass
-    // Add all functions to STop
     for (f <- program.functions)
       mainSymTable.put(f.ident.name, f)
 
-    // Adds child symbol table to function object
     for (f <- program.functions) {
       val symTable = mainSymTable.makeChild
-      f.params.foreach(p => symTable.put(f.ident.name, f))
-      // error ++= checkFuncStmt(st, f.body)
+      f.params.foreach(p => symTable.put(p.ident.name, p.ident))
+       error ++= checkFuncStmt(symTable, f.body)
     }
 
-    // error ++= checkMainStmt(STop, program.body)
+    error ++= checkMainStmt(mainSymTable, program.body)
 
     error.toString
   }
 
+   // distinguish between function and main statements since return is not allowed in main
+   private def checkFuncStmt(st: SymbolTable, stmt: Stmt): String = stmt match {
+     case Return(expr)         => checkExpr(st, expr)._1
+     case IfStmt(cond, body1, body2) =>
+       checkExpr(st, cond)._1 ++ checkFuncStmt(st, body1) ++ checkFuncStmt(st, body2)
+     case While(cond, body)     =>
+       val (err, typ) = checkExpr(st, cond)
+       err ++ (if (typ.isEmpty || typ.get != BoolType) "Expected bool type for loop conditional\n"
+       else "") ++ checkFuncStmt(st, body)
+     case ScopedStmt(stmt)      => checkFuncStmt(st.makeChild, stmt)
+     case StmtChain(stmt, next) => checkFuncStmt(st, stmt) ++ checkFuncStmt(st, next)
+     case _                     => checkLeafStatement(st, stmt)
+   }
+
+   private def checkMainStmt(st: SymbolTable, stmt: Stmt): String = stmt match {
+     case Return(_) => "Return not allowed in main\n"
+     case IfStmt(cond, body1, body2) =>
+       checkExpr(st, cond)._1 ++ checkMainStmt(st, body1) ++ checkMainStmt(st, body2)
+     case While(cond, body) =>
+       val (err, typ) = checkExpr(st, cond)
+       err ++ (if (typ.isEmpty || typ.get != BoolType) "Expected bool type for loop conditional\n"
+       else "") ++ checkMainStmt(st, body)
+     case ScopedStmt(stmt) => checkMainStmt(st.makeChild, stmt)
+     case StmtChain(stmt, next) => checkMainStmt(st, stmt) ++ checkMainStmt(st, next)
+     case _ => checkLeafStatement(st, stmt)
+   }
+
+   private def checkLeafStatement(st: SymbolTable, stmt: Stmt): String = stmt match {
+     case Skip                 => ""
+     case Decl(t, name, value) => handleDeclaration(st, t, name, value)
+     case Asgn(left, value)    => checkAssignment(st, left, value)
+     case Read(value)          => checkRead(st, value)
+     case Free(expr)           => checkExpr(st, expr)._1
+     case Exit(expr)           => checkExpr(st, expr)._1
+     case Print(expr)          => checkExpr(st, expr)._1
+     case PrintLn(expr)        => checkExpr(st, expr)._1
+     case _ => throw new IllegalArgumentException("Non-leaf statement in checkLeafStatement\n")
+   }
+
   // use for testing a check function ########################
   // just change for your needs TODO: remove
-  def main(args: Array[String]) = {
+  def main(args: Array[String]): Unit = {
     val mainSymTable = SymbolTable(None);
     println(checkExpr(mainSymTable, BinaryApp(Add, Integer(1), Integer(1))))
   }
@@ -176,6 +175,16 @@ object analyser {
     error.toString()
   }
 
+   private def checkRead(st: SymbolTable, value: LVal): String = checkLVal(st, value) match {
+     case Left(err) => err
+     case Right(typ) => typ match {
+       case IntType  => ""
+       case CharType => ""
+       case _        => s"Expected int or a char type for read statement:\n  Got '$typ'\n"
+     }
+   }
+
+  @scala.annotation.tailrec
   private def checkExpr(symTable: SymbolTable, expr: Expr): (String, Option[Type]) = expr match {
     case Integer(_)    => ("" , Some(IntType))
     case Bool(_)       => ("" , Some(BoolType))
