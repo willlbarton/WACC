@@ -209,6 +209,28 @@ object analyser {
         Right(obj.typ.get)
     }
 
+  private def evalConst(expr: Expr): Option[BigInt] = expr match {
+    case Integer(i) => Some(i)
+    case UnaryApp(Neg, e) => evalConst(e).map(-_)
+    // TODO: ord and chr
+    case BinaryApp(op, e1, e2) =>
+      val val1 = evalConst(e1)
+      val val2 = evalConst(e2)
+      if (val1.isDefined && val2.isDefined) {
+        val v1 = val1.get
+        val v2 = val2.get
+        op match {
+          case Add => Some(v1 + v2)
+          case Sub => Some(v1 - v2)
+          case Mul => Some(v1 * v2)
+          case Div => if (v2 == 0) None else Some(v1 / v2)
+          case Mod => Some(v1 % v2)
+          case _ => None
+        }
+      } else None
+    case _ => None
+  }
+
   private def checkUnaryApp(symTable: SymbolTable, op: UnaryOp, expr: Expr): (String, Option[Type]) = {
     val error = new StringBuilder()
     val (err, typ) = checkExpr(symTable, expr)
@@ -225,7 +247,11 @@ object analyser {
           if (someType == StringType || someType.isInstanceOf[ArrayType]) retType = Some(IntType)
           else error ++= s"Expected string or array type for '$op' operator\n"
         case Neg =>
-          if (someType == IntType) retType = Some(IntType)
+          if (someType == IntType) {
+            if (evalConst(expr).contains(Int.MinValue))
+              error ++= "Negation of int literal would result in overflow\n"
+            retType = Some(IntType)
+          }
           else error ++= s"Expected int type for '$op' operator\n"
         case Not =>
           if (someType == BoolType) retType = Some(BoolType)
@@ -236,6 +262,25 @@ object analyser {
       }
     }
     (error.toString, retType)
+  }
+
+  private def checkConstantApplication(left: Expr, right: Expr, op: BinaryOp): String = {
+    val leftv = evalConst(left)
+    val rightv = evalConst(right)
+    if (leftv.isDefined && rightv.isDefined) {
+      val lv = leftv.get
+      val rv = rightv.get
+      op match {
+        case Add => if (lv + rv > Int.MaxValue || lv + rv < Int.MinValue)
+          "Addition of int literals would result in overflow\n" else ""
+        case Sub => if (lv - rv < Int.MinValue || lv - rv > Int.MaxValue)
+          "Subtraction of int literals would result in underflow\n" else ""
+        case Mul => if (lv * rv > Int.MaxValue || lv * rv < Int.MinValue)
+          "Multiplication of int literals would result in overflow\n" else ""
+        case Div => if (rv == 0) "Division by zero in integer literal\n" else ""
+        case _ => ""
+      }
+    } else ""
   }
 
   private def checkBinaryApp(symTable: SymbolTable, op: BinaryOp, left: Expr, right: Expr): (String, Option[Type]) = {
@@ -260,13 +305,13 @@ object analyser {
           else error ++= s"Expected int type in application of '$op' operator\n"
         case Add =>
           if (someType1 == IntType && someType2 == IntType) {
-            // TODO: check for overflow
+            error ++= checkConstantApplication(left, right, Add)
             retType = Some(IntType)
           } else if (someType1 == StringType && someType2 == StringType) retType = Some(StringType)
           else error ++= s"Expected int or string type in application of '$op' operator\n"
         case Sub | Mul | Div | Mod =>
           if (someType1 == IntType && someType2 == IntType) {
-            // TODO: check for overflow
+            error ++= checkConstantApplication(left, right, op)
             retType = Some(IntType)
           } else error ++= s"Expected int type in application of '$op' operator\n"
       }
