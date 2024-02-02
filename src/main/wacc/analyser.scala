@@ -145,32 +145,18 @@ object analyser {
       value: RVal
   ): String = {
     val error = new StringBuilder()
-    if (symTable.inCurrentScope(ident.name)) {
-      error ++= s"Variable $ident already declared in scope\n"
-    } else {
-      symTable.put(
-        ident.name, {
-          typ match { // IDK WHAT TO SET THESE VALS - make them optional ????
-            case IntType    => Integer(69420)
-            case BoolType   => Bool(false)
-            case CharType   => Character('#')
-            case StringType => StringAtom("WACC")
-            case ArrayType(t) =>
-              ???
-            case PairType(fst, snd) =>
-              ???
-            case Pair => ???
-          }
-        }
-      )
-    }
+    if (symTable.inCurrentScope(ident.name))
+      error ++= s"Attempted redeclaration of variable $ident in the same scope\n"
+    else
+      symTable.put(ident.name, value)
 
     error ++= {
       checkRVal(symTable, value) match {
         case Left(err) => err
         case Right(typ2) =>
           if (typ == typ2) ""
-          else s"Type mismatch: $typ and $typ2\n"
+          else s"Type mismatch in declaration of variable ${ident.name}:" +
+               s"  Expected $typ but got $typ2\n"
       }
     }
 
@@ -185,7 +171,8 @@ object analyser {
           case Left(err) => err
           case Right(typ2) =>
             if (typ1 == typ2) ""
-            else s"Type mismatch: $typ1 and $typ2\n"
+            else s"Type mismatch in assignment:" +
+                 s"  Expected $typ1 but got $typ2\n"
         }
     }
   }
@@ -201,15 +188,14 @@ object analyser {
     case Null                    => ???
     case UnaryApp(op, expr) => checkUnaryApp(symTable, op, expr)
     case BinaryApp(op, left, right) => checkBinaryApp(symTable, op, left, right)
-
   }
 
   private def checkIdent(symTable: SymbolTable, name: String) =
     symTable(name) match {
-      case None => Left(s"Variable $name not declared\n")
+      case None => Left(s"Variable $name used before declaration!\n")
       case Some(obj) =>
         obj.typ match {
-          case None => Left(s"Variable type of $name not declared\n")
+          case None => Left(s"Variable type of $name used before declaration!\n")
           case Some(typ) => Right(typ)
         }
     }
@@ -221,17 +207,17 @@ object analyser {
         op match {
           case Chr =>
             if (typ == IntType) Right(IntType)
-            else Left(s"Expected int type for '$op' operator ")
+            else Left(s"Expected int type for '$op' operator\n")
           case Len => ???
           case Neg =>
             if (typ == IntType) Right(IntType)
-            else Left(s"Expected int type for '$op' operator")
+            else Left(s"Expected int type for '$op' operator\n")
           case Not =>
             if (typ == BoolType) Right(BoolType)
-            else Left(s"Expected bool type for '$op' operator")
+            else Left(s"Expected bool type for '$op' operator\n")
           case Ord =>
             if (typ == CharType) Right(CharType)
-            else Left(s"Expected char type for '$op' operator")
+            else Left(s"Expected char type for '$op' operator\n")
         }
     }
 
@@ -245,20 +231,20 @@ object analyser {
             op match {
               case And | Or =>
                 if (typ1 == BoolType && typ2 == BoolType) Right(BoolType)
-                else Left(s"Expected bool type for '$op' operator\n")
+                else Left(s"Expected bool type in application of '$op' operator\n")
               case Eq | NotEq =>
                 if (isCompatibleTypes(typ1, typ2)) Right(BoolType)
-                else Left(s"Expected compatible types for '$op' operator\n")
+                else Left(s"Expected compatible types in application of '$op' operator\n")
               case Gt | GtEq | Lt | LtEq =>
                 if (typ1 == IntType && typ2 == IntType) Right(BoolType)
-                else Left(s"Expected int type for '$op' operator\n")
+                else Left(s"Expected int type in application of '$op' operator\n")
               case Add =>
                 if (typ1 == IntType && typ2 == IntType) Right(IntType)
                 else if (typ1 == StringType && typ2 == StringType) Right(StringType)
-                else Left(s"Expected int or string type for '$op' operator\n")
+                else Left(s"Expected int or string type in application of '$op' operator\n")
               case Sub | Mul | Div | Mod =>
                 if (typ1 == IntType && typ2 == IntType) Right(IntType)
-                else Left(s"Expected int type for '$op' operator\n")
+                else Left(s"Expected int type in application of '$op' operator\n")
             }
         }
     }
@@ -280,12 +266,10 @@ object analyser {
     case Fst(_) | Snd(_)       => checkLVal(symTable, value.asInstanceOf[LVal])
     case Call(ident, exprs) =>
       symTable(ident.name) match {
-        case None => Left(s"Function $ident not declared\n")
+        case None => Left(s"Usage of undeclared function: $ident!\n")
         case Some(fun) =>
-          fun.typ match {
-            case None      => Left(s"Function type of $ident not declared\n")
-            case Some(typ) => Right(typ)
-          }
+          assert(fun.typ.isDefined) // Function type should be defined
+          Right(fun.typ.get)
       }
     case _ => checkExpr(symTable, value.asInstanceOf[Expr])
   }
