@@ -74,7 +74,7 @@ object analyser {
 
   def analyse(program: Program): String = {
     val error = new StringBuilder()
-    val mainSymTable = SymbolTable(None);
+    val mainSymTable = SymbolTable(None)
 
     // Functions may be used before declaration, so we need to do a first pass
     for (f <- program.functions)
@@ -138,7 +138,7 @@ object analyser {
   // use for testing a check function ########################
   // just change for your needs TODO: remove
   def main(args: Array[String]): Unit = {
-    val mainSymTable = SymbolTable(None);
+    val mainSymTable = SymbolTable(None)
     println(checkExpr(mainSymTable, BinaryApp(Add, Integer(1), Integer(1))))
   }
 
@@ -161,7 +161,7 @@ object analyser {
         s"  Expected $typ but got $typ2\n"
     }
 
-    error.toString();
+    error.toString
   }
 
   private def checkAssignment(symTable: SymbolTable, left: LVal, value: RVal): String = {
@@ -177,7 +177,7 @@ object analyser {
       error ++= s"Type mismatch in assignment:\n" +
         s"  Expected ${typ1.get} but got $typ2\n"
     }
-    error.toString()
+    error.toString
   }
 
    private def checkRead(st: SymbolTable, value: LVal): String = checkLVal(st, value) match {
@@ -236,6 +236,25 @@ object analyser {
     case _ => None
   }
 
+  private def checkConstantApplication(left: Expr, right: Expr, op: BinaryOp): String = {
+    val leftv = evalConst(left)
+    val rightv = evalConst(right)
+    if (leftv.isDefined && rightv.isDefined) {
+      val lv = leftv.get
+      val rv = rightv.get
+      op match {
+        case Add => if (lv + rv > Int.MaxValue || lv + rv < Int.MinValue)
+          "Addition of int literals would result in overflow\n" else ""
+        case Sub => if (lv - rv < Int.MinValue || lv - rv > Int.MaxValue)
+          "Subtraction of int literals would result in underflow\n" else ""
+        case Mul => if (lv * rv > Int.MaxValue || lv * rv < Int.MinValue)
+          "Multiplication of int literals would result in overflow\n" else ""
+        case Div => if (rv == 0) "Division by zero in integer literal\n" else ""
+        case _ => ""
+      }
+    } else ""
+  }
+
   private def checkUnaryApp(symTable: SymbolTable, op: UnaryOp, expr: Expr): (String, Option[Type]) = {
     val error = new StringBuilder()
     val (err, typ) = checkExpr(symTable, expr)
@@ -267,25 +286,6 @@ object analyser {
       }
     }
     (error.toString, retType)
-  }
-
-  private def checkConstantApplication(left: Expr, right: Expr, op: BinaryOp): String = {
-    val leftv = evalConst(left)
-    val rightv = evalConst(right)
-    if (leftv.isDefined && rightv.isDefined) {
-      val lv = leftv.get
-      val rv = rightv.get
-      op match {
-        case Add => if (lv + rv > Int.MaxValue || lv + rv < Int.MinValue)
-          "Addition of int literals would result in overflow\n" else ""
-        case Sub => if (lv - rv < Int.MinValue || lv - rv > Int.MaxValue)
-          "Subtraction of int literals would result in underflow\n" else ""
-        case Mul => if (lv * rv > Int.MaxValue || lv * rv < Int.MinValue)
-          "Multiplication of int literals would result in overflow\n" else ""
-        case Div => if (rv == 0) "Division by zero in integer literal\n" else ""
-        case _ => ""
-      }
-    } else ""
   }
 
   private def checkBinaryApp(symTable: SymbolTable, op: BinaryOp, left: Expr, right: Expr): (String, Option[Type]) = {
