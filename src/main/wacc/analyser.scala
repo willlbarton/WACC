@@ -96,14 +96,14 @@ object analyser {
      case Return(expr) =>
        val (err, expType) = checkExpr(st, expr)
        err ++ (if (expType.isDefined && !isCompatibleTypes(expType.get, typ))
-         s"Type mismatch in function return:  Expected $typ\n"
+         s"Type mismatch in function return:\n  Expected '$typ', but got '$expType'\n"
        else "")
      case IfStmt(cond, body1, body2) =>
        checkExpr(st, cond)._1 ++ checkFuncStmt(st, body1, typ) ++ checkFuncStmt(st, body2, typ)
      case While(cond, body)     =>
        val (err, expType) = checkExpr(st, cond)
-       err ++ (if (expType.isEmpty || expType.get != BoolType)
-         "Expected bool type for loop conditional\n"
+       err ++ (if (expType.isDefined && expType.get != BoolType)
+         s"Type mismatch in loop conditional:\n  Expected 'bool', but got '${expType.get}'\n"
        else "") ++ checkFuncStmt(st, body, typ)
      case ScopedStmt(stmt)      => checkFuncStmt(st.makeChild, stmt, typ)
      case StmtChain(stmt, next) => checkFuncStmt(st, stmt, typ) ++ checkFuncStmt(st, next, typ)
@@ -116,7 +116,8 @@ object analyser {
        checkExpr(st, cond)._1 ++ checkMainStmt(st, body1) ++ checkMainStmt(st, body2)
      case While(cond, body) =>
        val (err, typ) = checkExpr(st, cond)
-       err ++ (if (typ.isEmpty || typ.get != BoolType) "Expected bool type for loop conditional\n"
+       err ++ (if (typ.isDefined && typ.get != BoolType)
+         s"Type mismatch in loop conditional:\n  Expected 'bool', but got '${typ.get}'\n"
        else "") ++ checkMainStmt(st, body)
      case ScopedStmt(stmt) => checkMainStmt(st.makeChild, stmt)
      case StmtChain(stmt, next) => checkMainStmt(st, stmt) ++ checkMainStmt(st, next)
@@ -150,7 +151,7 @@ object analyser {
   ): String = {
     val error = new StringBuilder()
     if (symTable.inCurrentScope(ident.name))
-      error ++= s"Attempted redeclaration of variable $ident in same scope\n"
+      error ++= s"Attempted redeclaration of variable '$ident' in same scope\n"
     else
       symTable.put(ident.name, value)
 
@@ -158,7 +159,7 @@ object analyser {
     error ++= err
     if (typ2.isDefined && !isCompatibleTypes(typ, typ2.get)) {
       error ++= s"Type mismatch in assignment:\n" +
-        s"  Expected $typ but got ${typ2.get}\n"
+        s"  Expected '$typ' but got '${typ2.get}'\n"
     }
 
     error.toString
@@ -175,7 +176,7 @@ object analyser {
     error ++= err
     if (typ1.isDefined && typ2.isDefined && !isCompatibleTypes(typ1.get, typ2.get)) {
       error ++= s"Type mismatch in assignment:\n" +
-        s"  Expected ${typ1.get} but got ${typ2.get}\n"
+        s"  Expected '${typ1.get}' but got '${typ2.get}'\n"
     }
     error.toString
   }
@@ -185,7 +186,8 @@ object analyser {
      case Right(typ) => typ match {
        case IntType  => ""
        case CharType => ""
-       case _        => s"Expected int or a char type for read statement:\n  Got '$typ'\n"
+       case _        => s"Type mismatch in read statement:\n" +
+         s"  Expected 'int' or 'char', but got '$typ'\n"
      }
    }
 
@@ -208,7 +210,7 @@ object analyser {
 
   private def checkIdent(symTable: SymbolTable, name: String): Either[String, Type] =
     symTable(name) match {
-      case None => Left(s"Variable $name used before declaration!\n")
+      case None => Left(s"Variable '$name' used before declaration!\n")
       case Some(obj) =>
         assert(obj.typ.isDefined) // Everything in symbol table should have a type
         Right(obj.typ.get)
@@ -244,18 +246,22 @@ object analyser {
       val rv = rightv.get
       op match {
         case Add => if (lv + rv > Int.MaxValue || lv + rv < Int.MinValue)
-          "Addition of int literals would result in overflow\n" else ""
-        case Sub => if (lv - rv < Int.MinValue || lv - rv > Int.MaxValue)
-          "Subtraction of int literals would result in underflow\n" else ""
+          s"Overflow error in expression: $left + $right:\n" +
+            "  Addition of int literals would result in overflow\n" else ""
+        case Sub => if (lv - rv < Int.MinValue || lv - rv > Int.MaxValue) {
+          s"Overflow error in expression: $left - $right:\n" +
+          "  Subtraction of int literals would result in underflow\n"
+        } else ""
         case Mul => if (lv * rv > Int.MaxValue || lv * rv < Int.MinValue)
-          "Multiplication of int literals would result in overflow\n" else ""
-        case Div => if (rv == 0) "Division by zero in integer literal\n" else ""
+          s"Overflow error in expression: $left * $right:\n" +
+          "  Multiplication of int literals would result in overflow\n" else ""
+        case Div => if (rv == 0) s"Division by zero error in expression: $left / $right\n" else ""
         case _ => ""
       }
     } else ""
   }
 
-  private def unaryAppErrMsg(op: UnaryOp, typ: Type): String = {
+  private def unaryAppErrMsg(op: UnaryOp, typ: Type, expr: Expr): String = {
     val expected: String = op match {
       case Chr | Neg => IntType.toString
       case Ord => CharType.toString
@@ -263,7 +269,8 @@ object analyser {
       case Not => BoolType.toString
     }
     s"Type mismatch in application of '$op' operator\n" +
-      s"  Expected $expected, but got '$typ'\n"
+      s"  in expression: $expr\n" +
+      s"  Expected '$expected', but got '$typ'\n"
   }
 
   private def checkUnaryApp(symTable: SymbolTable, op: UnaryOp, expr: Expr): (String, Option[Type]) = {
@@ -277,29 +284,29 @@ object analyser {
       op match {
         case Chr =>
           if (someType == IntType) retType = Some(CharType)
-          else error ++= unaryAppErrMsg(Chr, someType)
+          else error ++= unaryAppErrMsg(Chr, someType, expr)
         case Len =>
           if (someType == StringType || someType.isInstanceOf[ArrayType]) retType = Some(IntType)
-          else error ++= unaryAppErrMsg(Len, someType)
+          else error ++= unaryAppErrMsg(Len, someType, expr)
         case Neg =>
           if (someType == IntType) {
             if (evalConst(expr).contains(Int.MinValue))
               error ++= "Negation of int literal would result in overflow\n"
             retType = Some(IntType)
           }
-          else error ++= unaryAppErrMsg(Neg, someType)
+          else error ++= unaryAppErrMsg(Neg, someType, expr)
         case Not =>
           if (someType == BoolType) retType = Some(BoolType)
-          else error ++= unaryAppErrMsg(Not, someType)
+          else error ++= unaryAppErrMsg(Not, someType, expr)
         case Ord =>
           if (someType == CharType) retType = Some(IntType)
-          else error ++= unaryAppErrMsg(Ord, someType)
+          else error ++= unaryAppErrMsg(Ord, someType, expr)
       }
     }
     (error.toString, retType)
   }
 
-  private def binaryAppErrMsg(op: BinaryOp, typ1: Type, typ2: Type): String = {
+  private def binaryAppErrMsg(op: BinaryOp, typ1: Type, typ2: Type, expr: Expr): String = {
     val expected: String = op match {
       case And | Or => BoolType.toString
       case Eq | NotEq => "compatible types"
@@ -307,7 +314,8 @@ object analyser {
       case Gt | GtEq | Lt | LtEq | Sub | Mul | Div | Mod => IntType.toString
     }
     s"Type mismatch in application of '$op' operator\n" +
-      s"  Expected $expected, but got '$typ1' and '$typ2'\n"
+      s"  in expression: $expr\n" +
+      s"  Expected '$expected', but got '$typ1' and '$typ2'\n"
   }
 
   private def checkBinaryApp(symTable: SymbolTable, op: BinaryOp, left: Expr, right: Expr): (String, Option[Type]) = {
@@ -323,24 +331,24 @@ object analyser {
       op match {
         case And | Or =>
           if (someType1 == BoolType && someType2 == BoolType) retType = Some(BoolType)
-          else error ++= binaryAppErrMsg(op, someType1, someType2)
+          else error ++= binaryAppErrMsg(op, someType1, someType2, BinaryApp(op, left, right))
         case Eq | NotEq =>
           if (isCompatibleTypes(someType1, someType2)) retType = Some(BoolType)
-          else error ++= binaryAppErrMsg(op, someType1, someType2)
+          else error ++= binaryAppErrMsg(op, someType1, someType2, BinaryApp(op, left, right))
         case Gt | GtEq | Lt | LtEq =>
           if (someType1 == IntType && someType2 == IntType) retType = Some(BoolType)
-          else error ++= binaryAppErrMsg(op, someType1, someType2)
+          else error ++= binaryAppErrMsg(op, someType1, someType2, BinaryApp(op, left, right))
         case Add =>
           if (someType1 == IntType && someType2 == IntType) {
             error ++= checkConstantApplication(left, right, Add)
             retType = Some(IntType)
           } else if (someType1 == StringType && someType2 == StringType) retType = Some(StringType)
-          else error ++= binaryAppErrMsg(op, someType1, someType2)
+          else error ++= binaryAppErrMsg(op, someType1, someType2, BinaryApp(op, left, right))
         case Sub | Mul | Div | Mod =>
           if (someType1 == IntType && someType2 == IntType) {
             error ++= checkConstantApplication(left, right, op)
             retType = Some(IntType)
-          } else error ++= binaryAppErrMsg(op, someType1, someType2)
+          } else error ++= binaryAppErrMsg(op, someType1, someType2, BinaryApp(op, left, right))
       }
     }
     (error.toString, retType)

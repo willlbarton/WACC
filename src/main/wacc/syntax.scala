@@ -60,28 +60,38 @@ sealed trait LVal
 case class Fst(value: LVal) extends LVal with RVal // <pair-elem>
 case class Snd(value: LVal) extends LVal with RVal // <pair-elem>
 sealed trait Expr extends RVal
-case class UnaryApp(op: UnaryOp, expr: Expr) extends Expr
-case class BinaryApp(op: BinaryOp, left: Expr, right: Expr) extends Expr
+case class UnaryApp(op: UnaryOp, expr: Expr) extends Expr {
+  override def toString: String = s"$op $expr"
+}
+case class BinaryApp(op: BinaryOp, left: Expr, right: Expr) extends Expr {
+  override def toString: String = s"$left $op $right"
+}
 
 // <atom>
 case class Integer(i: Int) extends Expr {
+  override def toString: String = i.toString
   typ = Some(IntType)
 }
 case class Bool(value: Boolean) extends Expr {
+  override def toString: String = value.toString
   typ = Some(BoolType)
 }
 case class Character(c: Char) extends Expr {
+  override def toString: String = c.toString
   typ = Some(CharType)
 }
 
 case class StringAtom(s: String) extends Expr {
+  override def toString: String = s
   typ = Some(StringType)
 }
 
-case object Null extends Expr // <pair-liter>
-case class Ident(name: String) extends Expr with LVal
-case class ArrayElem(ident: Ident, exprs: List[Expr]) extends Expr with LVal
-case class BracketedExpr(expr: Expr) extends Expr
+case object Null extends Expr { override def toString = "null" } // <pair-liter>
+case class Ident(name: String) extends Expr with LVal { override def toString: String = name }
+case class ArrayElem(ident: Ident, exprs: List[Expr]) extends Expr with LVal {
+  override def toString: String = s"$ident[${exprs.mkString("][")}]"
+}
+case class BracketedExpr(expr: Expr) extends Expr { override def toString: String = s"($expr)" }
 
 // <unary-oper>
 trait UnaryOp
