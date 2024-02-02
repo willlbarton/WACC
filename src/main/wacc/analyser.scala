@@ -25,16 +25,16 @@ object analyser {
    private def checkFuncStmt(st: SymbolTable, stmt: Stmt, typ: Type): String = stmt match {
      case Return(expr) =>
        val (err, expType) = checkExpr(st, expr)
-       err ++ (if (expType.isDefined && !isCompatibleTypes(expType.get, typ))
-         s"Type mismatch in function return:\n  Expected '$typ', but got '$expType'\n"
-       else "")
+       err ++ (if (expType.isDefined && !isCompatibleTypes(expType.get, typ)) {
+         typeErrorMsg("function return", None, s"$typ", s"${expType.get}")
+       } else "")
      case IfStmt(cond, body1, body2) =>
        checkExpr(st, cond)._1 ++ checkFuncStmt(st, body1, typ) ++ checkFuncStmt(st, body2, typ)
      case While(cond, body)     =>
        val (err, expType) = checkExpr(st, cond)
-       err ++ (if (expType.isDefined && expType.get != BoolType)
-         s"Type mismatch in loop conditional:\n  Expected 'bool', but got '${expType.get}'\n"
-       else "") ++ checkFuncStmt(st, body, typ)
+       err ++ (if (expType.isDefined && expType.get != BoolType) {
+         typeErrorMsg("loop conditional", None, "bool", s"${expType.get}")
+       } else "") ++ checkFuncStmt(st, body, typ)
      case ScopedStmt(stmt)      => checkFuncStmt(st.makeChild, stmt, typ)
      case StmtChain(stmt, next) => checkFuncStmt(st, stmt, typ) ++ checkFuncStmt(st, next, typ)
      case _                     => checkLeafStatement(st, stmt)
@@ -46,9 +46,9 @@ object analyser {
        checkExpr(st, cond)._1 ++ checkMainStmt(st, body1) ++ checkMainStmt(st, body2)
      case While(cond, body) =>
        val (err, typ) = checkExpr(st, cond)
-       err ++ (if (typ.isDefined && typ.get != BoolType)
-         s"Type mismatch in loop conditional:\n  Expected 'bool', but got '${typ.get}'\n"
-       else "") ++ checkMainStmt(st, body)
+       err ++ (if (typ.isDefined && typ.get != BoolType) {
+         typeErrorMsg("loop conditional", None, "bool", s"${typ.get}")
+       } else "") ++ checkMainStmt(st, body)
      case ScopedStmt(stmt) => checkMainStmt(st.makeChild, stmt)
      case StmtChain(stmt, next) => checkMainStmt(st, stmt) ++ checkMainStmt(st, next)
      case _ => checkLeafStatement(st, stmt)
@@ -81,8 +81,8 @@ object analyser {
     val (err, typ2) = checkRVal(symTable, value)
     error ++= err
     if (typ2.isDefined && !isCompatibleTypes(typ, typ2.get)) {
-      error ++= s"Type mismatch in declaration of variable $ident:\n" +
-        s"  Expected '$typ' but got '${typ2.get}'\n"
+      error ++= typeErrorMsg(
+        s"declaration of variable $ident", None, s"$typ", s"${typ2.get}")
     }
 
     error.toString
@@ -97,10 +97,9 @@ object analyser {
     }
     val (err, typ2) = checkRVal(symTable, value)
     error ++= err
-    if (typ1.isDefined && typ2.isDefined && !isCompatibleTypes(typ1.get, typ2.get)) {
-      error ++= s"Type mismatch in assignment:\n" +
-        s"  Expected '${typ1.get}' but got '${typ2.get}'\n"
-    }
+    if (typ1.isDefined && typ2.isDefined && !isCompatibleTypes(typ1.get, typ2.get))
+      // TODO: toString for lval and rval
+      error ++= typeErrorMsg("assignment", None, s"$typ1", s"$typ2")
     error.toString
   }
 
@@ -109,8 +108,8 @@ object analyser {
      case Right(typ) => typ match {
        case IntType  => ""
        case CharType => ""
-       case _        => s"Type mismatch in read statement:\n" +
-         s"  Expected 'int' or 'char', but got '$typ'\n"
+       case _        =>
+         typeErrorMsg("read statement", None, "int' or 'char", s"$typ")
      }
    }
 
@@ -191,12 +190,15 @@ object analyser {
       case Len => s"$StringType or array"
       case Not => BoolType.toString
     }
-    s"Type mismatch in application of '$op' operator\n" +
-      s"  in expression: $expr\n" +
-      s"  Expected '$expected', but got '$typ'\n"
+    typeErrorMsg(s"application of $op operator",
+      Some(s"expression: $expr"),
+      expected,
+      s"$typ")
   }
 
-  private def checkUnaryApp(symTable: SymbolTable, op: UnaryOp, expr: Expr): (String, Option[Type]) = {
+  private def checkUnaryApp(
+    symTable: SymbolTable, op: UnaryOp, expr: Expr
+  ): (String, Option[Type]) = {
     val error = new StringBuilder()
     val (err, typ) = checkExpr(symTable, expr)
     error ++= err
@@ -234,15 +236,18 @@ object analyser {
     val expected: String = op match {
       case And | Or => BoolType.toString
       case Eq | NotEq => "compatible types"
-      case Add => s"$IntType or $StringType"
+      case Add => s"$IntType' or '$StringType"
       case Gt | GtEq | Lt | LtEq | Sub | Mul | Div | Mod => IntType.toString
     }
-    s"Type mismatch in application of '$op' operator\n" +
-      s"  in expression: $expr\n" +
-      s"  Expected '$expected', but got '$typ1' and '$typ2'\n"
+    typeErrorMsg(s"application of '$op' operator",
+      Some(s"expression: $expr"),
+      expected,
+      s"$typ1' and '$typ2")
   }
 
-  private def checkBinaryApp(symTable: SymbolTable, op: BinaryOp, left: Expr, right: Expr): (String, Option[Type]) = {
+  private def checkBinaryApp(
+    symTable: SymbolTable, op: BinaryOp, left: Expr, right: Expr
+  ): (String, Option[Type]) = {
     val error = new StringBuilder()
     val (err1, typ1) = checkExpr(symTable, left)
     error ++= err1
@@ -312,4 +317,10 @@ object analyser {
       CharType
     ) || typ2 == StringType && typ1 == ArrayType(CharType)
 
+  private def typeErrorMsg(
+    situation: String, scope: Option[String], expected: String, got: String
+  ): String =
+    s"Type mismatch error in $situation\n" +
+      (if (scope.isDefined) s"  in ${scope.get}\n" else "") +
+      s"  Expected '$expected', but got '$got'\n"
 }
