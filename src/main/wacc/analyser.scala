@@ -132,7 +132,7 @@ object analyser {
   }
 
   // use for testing a check function ########################
-  // just change for your needs
+  // just change for your needs TODO: remove
   def main(args: Array[String]) = {
     val mainSymTable = SymbolTable(None);
     println(checkExpr(mainSymTable, BinaryApp(Add, Integer(1), Integer(1))))
@@ -150,39 +150,41 @@ object analyser {
     else
       symTable.put(ident.name, value)
 
-    error ++= {
-      checkRVal(symTable, value) match {
-        case Left(err) => err
-        case Right(typ2) =>
-          if (typ == typ2) ""
-          else s"Type mismatch in declaration of variable ${ident.name}:" +
-               s"  Expected $typ but got $typ2\n"
-      }
+    val (err, typ2) = checkRVal(symTable, value)
+    error ++= err
+    if (typ2.isDefined && !isCompatibleTypes(typ, typ2.get)) {
+      error ++= s"Type mismatch in assignment:\n" +
+        s"  Expected ${typ} but got $typ2\n"
     }
 
     error.toString();
   }
 
   private def checkAssignment(symTable: SymbolTable, left: LVal, value: RVal): String = {
+    val error = new StringBuilder()
+    var typ1: Option[Type] = None
     checkLVal(symTable, left) match {
-      case Left(err) => err
-      case Right(typ1) =>
-        checkRVal(symTable, value) match {
-          case Left(err) => err
-          case Right(typ2) =>
-            if (typ1 == typ2) ""
-            else s"Type mismatch in assignment:" +
-                 s"  Expected $typ1 but got $typ2\n"
-        }
+      case Left(err) => error ++= err
+      case Right(typ) => typ1 = Some(typ)
     }
+    val (err, typ2) = checkRVal(symTable, value)
+    error ++= err
+    if (typ1.isDefined && typ2.isDefined && !isCompatibleTypes(typ1.get, typ2.get)) {
+      error ++= s"Type mismatch in assignment:\n" +
+        s"  Expected ${typ1.get} but got $typ2\n"
+    }
+    error.toString()
   }
 
-  private def checkExpr(symTable: SymbolTable, expr: Expr): Either[String, Type] = expr match {
-    case Integer(_)    => Right(IntType)
-    case Bool(_)       => Right(BoolType)
-    case Character(_)  => Right(CharType)
-    case StringAtom(_) => Right(StringType)
-    case Ident(name)   => checkIdent(symTable, name)
+  private def checkExpr(symTable: SymbolTable, expr: Expr): (String, Option[Type]) = expr match {
+    case Integer(_)    => ("" , Some(IntType))
+    case Bool(_)       => ("" , Some(BoolType))
+    case Character(_)  => ("" , Some(CharType))
+    case StringAtom(_) => ("" , Some(StringType))
+    case Ident(name)   => checkIdent(symTable, name) match {
+      case Left(err) => (err, None)
+      case Right(typ) => ("", Some(typ))
+    }
     case ArrayElem(ident, exprs) => checkArrayElem(symTable, ident, exprs)
     case BracketedExpr(expr)     => checkExpr(symTable, expr)
     case Null                    => ???
@@ -190,64 +192,78 @@ object analyser {
     case BinaryApp(op, left, right) => checkBinaryApp(symTable, op, left, right)
   }
 
-  private def checkIdent(symTable: SymbolTable, name: String) =
+  private def checkIdent(symTable: SymbolTable, name: String): Either[String, Type] =
     symTable(name) match {
       case None => Left(s"Variable $name used before declaration!\n")
       case Some(obj) =>
-        obj.typ match {
-          case None => Left(s"Variable type of $name used before declaration!\n")
-          case Some(typ) => Right(typ)
-        }
+        assert(obj.typ.isDefined) // Everything in symbol table should have a type
+        Right(obj.typ.get)
     }
 
-  private def checkUnaryApp(symTable: SymbolTable, op: UnaryOp, expr: Expr) =
-    checkExpr(symTable, expr) match {
-      case Left(err) => Left(err)
-      case Right(typ) =>
-        op match {
-          case Chr =>
-            if (typ == IntType) Right(IntType)
-            else Left(s"Expected int type for '$op' operator\n")
-          case Len => ???
-          case Neg =>
-            if (typ == IntType) Right(IntType)
-            else Left(s"Expected int type for '$op' operator\n")
-          case Not =>
-            if (typ == BoolType) Right(BoolType)
-            else Left(s"Expected bool type for '$op' operator\n")
-          case Ord =>
-            if (typ == CharType) Right(CharType)
-            else Left(s"Expected char type for '$op' operator\n")
-        }
-    }
+  private def checkUnaryApp(symTable: SymbolTable, op: UnaryOp, expr: Expr): (String, Option[Type]) = {
+    val error = new StringBuilder()
+    val (err, typ) = checkExpr(symTable, expr)
+    error ++= err
 
-  private def checkBinaryApp(symTable: SymbolTable, op: BinaryOp, left: Expr, right: Expr) =
-    checkExpr(symTable, left) match {
-      case Left(err) => Left(err)
-      case Right(typ1) =>
-        checkExpr(symTable, right) match {
-          case Left(err) => Left(err)
-          case Right(typ2) =>
-            op match {
-              case And | Or =>
-                if (typ1 == BoolType && typ2 == BoolType) Right(BoolType)
-                else Left(s"Expected bool type in application of '$op' operator\n")
-              case Eq | NotEq =>
-                if (isCompatibleTypes(typ1, typ2)) Right(BoolType)
-                else Left(s"Expected compatible types in application of '$op' operator\n")
-              case Gt | GtEq | Lt | LtEq =>
-                if (typ1 == IntType && typ2 == IntType) Right(BoolType)
-                else Left(s"Expected int type in application of '$op' operator\n")
-              case Add =>
-                if (typ1 == IntType && typ2 == IntType) Right(IntType)
-                else if (typ1 == StringType && typ2 == StringType) Right(StringType)
-                else Left(s"Expected int or string type in application of '$op' operator\n")
-              case Sub | Mul | Div | Mod =>
-                if (typ1 == IntType && typ2 == IntType) Right(IntType)
-                else Left(s"Expected int type in application of '$op' operator\n")
-            }
-        }
+    var retType: Option[Type] = None
+    if (typ.isDefined) {
+      val someType = typ.get
+      op match {
+        case Chr =>
+          if (someType == IntType) retType = Some(CharType)
+          else error ++= s"Expected int type for '$op' operator\n"
+        case Len =>
+          if (someType == StringType || someType.isInstanceOf[ArrayType]) retType = Some(IntType)
+          else error ++= s"Expected string or array type for '$op' operator\n"
+        case Neg =>
+          if (someType == IntType) retType = Some(IntType)
+          else error ++= s"Expected int type for '$op' operator\n"
+        case Not =>
+          if (someType == BoolType) retType = Some(BoolType)
+          else error ++= s"Expected bool type for '$op' operator\n"
+        case Ord =>
+          if (someType == CharType) retType = Some(IntType)
+          else error ++= s"Expected char type for '$op' operator\n"
+      }
     }
+    (error.toString, retType)
+  }
+
+  private def checkBinaryApp(symTable: SymbolTable, op: BinaryOp, left: Expr, right: Expr): (String, Option[Type]) = {
+    val error = new StringBuilder()
+    val (err1, typ1) = checkExpr(symTable, left)
+    error ++= err1
+    val (err2, typ2) = checkExpr(symTable, right)
+    error ++= err2
+    var retType: Option[Type] = None
+    if (typ1.isDefined && typ2.isDefined) {
+      val someType1 = typ1.get
+      val someType2 = typ2.get
+      op match {
+        case And | Or =>
+          if (someType1 == BoolType && someType2 == BoolType) retType = Some(BoolType)
+          else error ++= s"Expected bool type in application of '$op' operator\n"
+        case Eq | NotEq =>
+          if (isCompatibleTypes(someType1, someType2)) retType = Some(BoolType)
+          else error ++= s"Expected compatible types in application of '$op' operator\n"
+        case Gt | GtEq | Lt | LtEq =>
+          if (someType1 == IntType && someType2 == IntType) retType = Some(BoolType)
+          else error ++= s"Expected int type in application of '$op' operator\n"
+        case Add =>
+          if (someType1 == IntType && someType2 == IntType) {
+            // TODO: check for overflow
+            retType = Some(IntType)
+          } else if (someType1 == StringType && someType2 == StringType) retType = Some(StringType)
+          else error ++= s"Expected int or string type in application of '$op' operator\n"
+        case Sub | Mul | Div | Mod =>
+          if (someType1 == IntType && someType2 == IntType) {
+            // TODO: check for overflow
+            retType = Some(IntType)
+          } else error ++= s"Expected int type in application of '$op' operator\n"
+      }
+    }
+    (error.toString, retType)
+  }
 
   private def checkArrayElem(symTable: SymbolTable, ident: Ident, exprs: List[Expr]) = ???
 
@@ -260,16 +276,19 @@ object analyser {
     case Snd(value)              => checkLVal(symTable, value)
   }
 
-  private def checkRVal(symTable: SymbolTable, value: RVal): Either[String, Type] = value match {
+  private def checkRVal(symTable: SymbolTable, value: RVal): (String, Option[Type]) = value match {
     case ArrayLiter(exprs)     => ???
     case NewPair(expr1, expr2) => ???
-    case Fst(_) | Snd(_)       => checkLVal(symTable, value.asInstanceOf[LVal])
+    case Fst(_) | Snd(_)       => checkLVal(symTable, value.asInstanceOf[LVal]) match {
+      case Left(err) => (err, None) // couldn't infer type
+      case Right(typ) => ("", Some(typ))
+    }
     case Call(ident, exprs) =>
       symTable(ident.name) match {
-        case None => Left(s"Usage of undeclared function: $ident!\n")
+        case None => (s"Usage of undeclared function: $ident!\n", None)
         case Some(fun) =>
-          assert(fun.typ.isDefined) // Function type should be defined
-          Right(fun.typ.get)
+          assert(fun.typ.isDefined) // Everything in symbol table should have a type
+          ("", fun.typ)
       }
     case _ => checkExpr(symTable, value.asInstanceOf[Expr])
   }
