@@ -83,27 +83,27 @@ case class BracketedExpr(expr: Expr) extends Expr
 
 // <unary-oper>
 trait UnaryOp
-case object Not extends UnaryOp
-case object Neg extends UnaryOp
-case object Len extends UnaryOp
-case object Ord extends UnaryOp
-case object Chr extends UnaryOp
+case object Not extends UnaryOp { override def toString = "!" }
+case object Neg extends UnaryOp { override def toString = "-" }
+case object Len extends UnaryOp { override def toString = "len" }
+case object Ord extends UnaryOp { override def toString = "ord" }
+case object Chr extends UnaryOp { override def toString = "chr" }
 
 // <binary-oper>
 trait BinaryOp
-case object Mul extends BinaryOp
-case object Div extends BinaryOp
-case object Mod extends BinaryOp
-case object Add extends BinaryOp
-case object Sub extends BinaryOp
-case object Gt extends BinaryOp
-case object GtEq extends BinaryOp
-case object Lt extends BinaryOp
-case object LtEq extends BinaryOp
-case object Eq extends BinaryOp
-case object NotEq extends BinaryOp
-case object And extends BinaryOp
-case object Or extends BinaryOp
+case object Mul extends BinaryOp { override def toString = "*" }
+case object Div extends BinaryOp { override def toString = "/" }
+case object Mod extends BinaryOp { override def toString = "%" }
+case object Add extends BinaryOp { override def toString = "+" }
+case object Sub extends BinaryOp { override def toString = "-" }
+case object Gt extends BinaryOp { override def toString = ">" }
+case object GtEq extends BinaryOp { override def toString = ">=" }
+case object Lt extends BinaryOp { override def toString = "<" }
+case object LtEq extends BinaryOp { override def toString = "<=" }
+case object Eq extends BinaryOp { override def toString = "==" }
+case object NotEq extends BinaryOp { override def toString = "!=" }
+case object And extends BinaryOp { override def toString = "&&" }
+case object Or extends BinaryOp { override def toString = "||" }
 
 object Program extends generic.ParserBridge2[List[Func], Stmt, Program]
 object Func extends generic.ParserBridge4[Type, Ident, List[Param], Stmt, Func]

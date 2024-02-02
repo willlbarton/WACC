@@ -195,87 +195,80 @@ object analyser {
     case Bool(_)       => Right(BoolType)
     case Character(_)  => Right(CharType)
     case StringAtom(_) => Right(StringType)
-    case Ident(name) => {
-      symTable(name) match {
-        case None => Left(s"Variable $name not declared\n")
-        case Some(obj) =>
-          obj.typ match {
-            case None      => Left(s"Variable type of $name not declared\n")
-            case Some(typ) => Right(typ)
-          }
-      }
-    }
-
+    case Ident(name)   => checkIdent(symTable, name)
     case ArrayElem(ident, exprs) => checkArrayElem(symTable, ident, exprs)
     case BracketedExpr(expr)     => checkExpr(symTable, expr)
     case Null                    => ???
-
-    case UnaryApp(op, expr) => {
-      checkExpr(symTable, expr) match {
-        case Left(err) => Left(err)
-        case Right(typ) =>
-          op match {
-            case Chr =>
-              if (typ == IntType) Right(IntType)
-              else Left("Expected IntType for Unary Operator Chr")
-            case Len => ???
-            case Neg =>
-              if (typ == IntType) Right(IntType)
-              else Left("Expected IntType for Unary Operator Neg")
-            case Not =>
-              if (typ == BoolType) Right(BoolType)
-              else Left("Expected BoolType for Unary Operator Not")
-            case Ord =>
-              if (typ == CharType) Right(CharType)
-              else Left("Expected CharType for Unary Operator Ord")
-          }
-      }
-    }
-    case BinaryApp(op, left, right) => {
-      checkExpr(symTable, left) match {
-        case Left(err) => Left(err)
-        case Right(typ1) =>
-          checkExpr(symTable, right) match {
-            case Left(err) => Left(err)
-            case Right(typ2) =>
-              op match {
-                case And | Or =>
-                  if (typ1 == BoolType && typ2 == BoolType) Right(BoolType)
-                  else Left("Expected BoolType for Binary Operator And/Or")
-                case Eq | NotEq =>
-                  if (typ1 == typ2) Right(BoolType)
-                  else Left("Expected same type for Binary Operator Eq/Neq")
-                case Gt | GtEq | Lt | LtEq =>
-                  if (typ1 == IntType && typ2 == IntType) Right(BoolType)
-                  else Left("Expected IntType for Binary Operator Gt/Gte/Lt/Lte")
-                case Add =>
-                  if (typ1 == IntType && typ2 == IntType) Right(IntType)
-                  else if (typ1 == StringType && typ2 == StringType) Right(StringType)
-                  else Left("Expected IntType or StringType for Binary Operator Plus")
-                case Sub | Mul | Div | Mod =>
-                  if (typ1 == IntType && typ2 == IntType) Right(IntType)
-                  else Left("Expected IntType for Binary Operator Minus/Times/Div/Mod")
-              }
-          }
-      }
-    }
+    case UnaryApp(op, expr) => checkUnaryApp(symTable, op, expr)
+    case BinaryApp(op, left, right) => checkBinaryApp(symTable, op, left, right)
 
   }
+
+  private def checkIdent(symTable: SymbolTable, name: String) =
+    symTable(name) match {
+      case None => Left(s"Variable $name not declared\n")
+      case Some(obj) =>
+        obj.typ match {
+          case None => Left(s"Variable type of $name not declared\n")
+          case Some(typ) => Right(typ)
+        }
+    }
+
+  private def checkUnaryApp(symTable: SymbolTable, op: UnaryOp, expr: Expr) =
+    checkExpr(symTable, expr) match {
+      case Left(err) => Left(err)
+      case Right(typ) =>
+        op match {
+          case Chr =>
+            if (typ == IntType) Right(IntType)
+            else Left(s"Expected int type for '$op' operator ")
+          case Len => ???
+          case Neg =>
+            if (typ == IntType) Right(IntType)
+            else Left(s"Expected int type for '$op' operator")
+          case Not =>
+            if (typ == BoolType) Right(BoolType)
+            else Left(s"Expected bool type for '$op' operator")
+          case Ord =>
+            if (typ == CharType) Right(CharType)
+            else Left(s"Expected char type for '$op' operator")
+        }
+    }
+
+  private def checkBinaryApp(symTable: SymbolTable, op: BinaryOp, left: Expr, right: Expr) =
+    checkExpr(symTable, left) match {
+      case Left(err) => Left(err)
+      case Right(typ1) =>
+        checkExpr(symTable, right) match {
+          case Left(err) => Left(err)
+          case Right(typ2) =>
+            op match {
+              case And | Or =>
+                if (typ1 == BoolType && typ2 == BoolType) Right(BoolType)
+                else Left(s"Expected bool type for '$op' operator\n")
+              case Eq | NotEq =>
+                if (isCompatibleTypes(typ1, typ2)) Right(BoolType)
+                else Left(s"Expected compatible types for '$op' operator\n")
+              case Gt | GtEq | Lt | LtEq =>
+                if (typ1 == IntType && typ2 == IntType) Right(BoolType)
+                else Left(s"Expected int type for '$op' operator\n")
+              case Add =>
+                if (typ1 == IntType && typ2 == IntType) Right(IntType)
+                else if (typ1 == StringType && typ2 == StringType) Right(StringType)
+                else Left(s"Expected int or string type for '$op' operator\n")
+              case Sub | Mul | Div | Mod =>
+                if (typ1 == IntType && typ2 == IntType) Right(IntType)
+                else Left(s"Expected int type for '$op' operator\n")
+            }
+        }
+    }
 
   private def checkArrayElem(symTable: SymbolTable, ident: Ident, exprs: List[Expr]) = ???
 
   private def checkPairElem(symTable: SymbolTable, pairElem: PairElemType) = ???
 
   private def checkLVal(symTable: SymbolTable, lval: LVal): Either[String, Type] = lval match {
-    case Ident(name) =>
-      symTable(name) match {
-        case None => Left(s"Variable $name not declared\n")
-        case Some(obj) =>
-          obj.typ match {
-            case None      => Left(s"Variable type of $name not declared\n")
-            case Some(typ) => Right(typ)
-          }
-      }
+    case Ident(name) => checkIdent(symTable, name)
     case ArrayElem(ident, exprs) => checkArrayElem(symTable, ident, exprs)
     case Fst(value)              => checkLVal(symTable, value)
     case Snd(value)              => checkLVal(symTable, value)
@@ -297,7 +290,7 @@ object analyser {
     case _ => checkExpr(symTable, value.asInstanceOf[Expr])
   }
 
-  private def checkCompatibleTypes(typ1: Type, typ2: Type): Boolean =
+  private def isCompatibleTypes(typ1: Type, typ2: Type): Boolean =
     typ1 == typ2 || typ1 == StringType && typ2 == ArrayType(
       CharType
     ) || typ2 == StringType && typ1 == ArrayType(CharType)
