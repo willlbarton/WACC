@@ -1,75 +1,5 @@
 package src.main.wacc
 
-// object analyser {
-//   def analyse(program: Program): String = {
-//     val error = new StringBuilder()
-//     val STop = SymbolTable(None);
-
-//     // Functions may be used before declaration, so we need to do a first pass
-//     // Add all functions to STop
-//     for (f <- program.functions)
-//       STop.update(f.name, FuncI(f.t, f.params.map(x => ParamI(x.t))))
-
-//     // Adds child symbol table to function object
-//     for (f <- program.functions) {
-//       val st = STop.makeChild
-//       f.params.foreach(p => st.update(p.name, ParamI(p.t)))
-//       error ++= checkFuncStmt(st, f.body)
-//     }
-
-//     error ++= checkMainStmt(STop, program.body)
-
-//     error.toString
-//   }
-
-//   private def checkDecl(st: SymbolTable, t: Type, name: Ident, value: RVal): String = {
-//     val error = new StringBuilder()
-//     if (st.contains(name)) error ++= s"Variable $name already declared\n"
-//     else st(name) = VarI(t)
-//     checkRVal(st, value) match {
-//       case (msg, Some(t2)) =>
-//         error ++= msg
-//         error ++= checkCompatibleTypes(t, t2)
-//       case (msg, None) => error ++= msg
-//     }
-//     error.toString
-//   }
-
-//   private def checkAsgn(st: SymbolTable, left: LVal, value: RVal) = {
-//     val error = new StringBuilder()
-//     var t1: Option[Type] = None
-//     var t2: Option[Type] = None
-
-//     checkLVal(st, left) match {
-//       case (msg, Some(t)) =>
-//         error ++= msg
-//         t1 = Some(t)
-//       case (msg, None) => error ++= msg
-//     }
-
-//     checkRVal(st, value) match {
-//       case (msg, Some(t)) =>
-//         error ++= msg
-//         t2 = Some(t)
-//       case (msg, None) => error ++= msg
-//     }
-
-//     (t1, t2) match {
-//       case (Some(t1), Some(t2)) => error ++= checkCompatibleTypes(t1, t2)
-//       case _                    => ()
-//     }
-
-//     error.toString
-//   }
-
-//   // checkLVal and checkRVal should also attempt to find the type if possible
-//   private def checkLVal(st: SymbolTable, value: LVal): (String, Option[Type]) = ???
-//   private def checkRVal(st: SymbolTable, value: RVal): (String, Option[Type]) = ???
-//   private def checkExpr(st: SymbolTable, expr: Expr): String = ???
-//   // etc.
-//   private def checkCompatibleTypes(t1: Type, t2: Type): String = ???
-// }
-
 object analyser {
 
   def analyse(program: Program): String = {
@@ -136,13 +66,6 @@ object analyser {
      case _ => throw new IllegalArgumentException("Non-leaf statement in checkLeafStatement\n")
    }
 
-  // use for testing a check function ########################
-  // just change for your needs TODO: remove
-  def main(args: Array[String]): Unit = {
-    val mainSymTable = SymbolTable(None)
-    println(checkExpr(mainSymTable, BinaryApp(Add, Integer(1), Integer(1))))
-  }
-
   private def handleDeclaration(
       symTable: SymbolTable,
       typ: Type,
@@ -158,7 +81,7 @@ object analyser {
     val (err, typ2) = checkRVal(symTable, value)
     error ++= err
     if (typ2.isDefined && !isCompatibleTypes(typ, typ2.get)) {
-      error ++= s"Type mismatch in assignment:\n" +
+      error ++= s"Type mismatch in declaration of variable $ident:\n" +
         s"  Expected '$typ' but got '${typ2.get}'\n"
     }
 
@@ -291,7 +214,8 @@ object analyser {
         case Neg =>
           if (someType == IntType) {
             if (evalConst(expr).contains(Int.MinValue))
-              error ++= "Negation of int literal would result in overflow\n"
+              error ++= "Negation of int literal would result in overflow\n" +
+                s"  in expression: $expr\n"
             retType = Some(IntType)
           }
           else error ++= unaryAppErrMsg(Neg, someType, expr)
