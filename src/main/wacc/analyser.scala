@@ -83,7 +83,7 @@ object analyser {
     for (f <- program.functions) {
       val symTable = mainSymTable.makeChild
       f.params.foreach(p => symTable.put(p.ident.name, p.ident))
-       error ++= checkFuncStmt(symTable, f.body)
+       error ++= checkFuncStmt(symTable, f.body, f.t)
     }
 
     error ++= checkMainStmt(mainSymTable, program.body)
@@ -92,16 +92,21 @@ object analyser {
   }
 
    // distinguish between function and main statements since return is not allowed in main
-   private def checkFuncStmt(st: SymbolTable, stmt: Stmt): String = stmt match {
-     case Return(expr)         => checkExpr(st, expr)._1
+   private def checkFuncStmt(st: SymbolTable, stmt: Stmt, typ: Type): String = stmt match {
+     case Return(expr) =>
+       val (err, expType) = checkExpr(st, expr)
+       err ++ (if (expType.isDefined && !isCompatibleTypes(expType.get, typ))
+         s"Type mismatch in function return:  Expected $typ\n"
+       else "")
      case IfStmt(cond, body1, body2) =>
-       checkExpr(st, cond)._1 ++ checkFuncStmt(st, body1) ++ checkFuncStmt(st, body2)
+       checkExpr(st, cond)._1 ++ checkFuncStmt(st, body1, typ) ++ checkFuncStmt(st, body2, typ)
      case While(cond, body)     =>
-       val (err, typ) = checkExpr(st, cond)
-       err ++ (if (typ.isEmpty || typ.get != BoolType) "Expected bool type for loop conditional\n"
-       else "") ++ checkFuncStmt(st, body)
-     case ScopedStmt(stmt)      => checkFuncStmt(st.makeChild, stmt)
-     case StmtChain(stmt, next) => checkFuncStmt(st, stmt) ++ checkFuncStmt(st, next)
+       val (err, expType) = checkExpr(st, cond)
+       err ++ (if (expType.isEmpty || expType.get != BoolType)
+         "Expected bool type for loop conditional\n"
+       else "") ++ checkFuncStmt(st, body, typ)
+     case ScopedStmt(stmt)      => checkFuncStmt(st.makeChild, stmt, typ)
+     case StmtChain(stmt, next) => checkFuncStmt(st, stmt, typ) ++ checkFuncStmt(st, next, typ)
      case _                     => checkLeafStatement(st, stmt)
    }
 
@@ -153,7 +158,7 @@ object analyser {
     error ++= err
     if (typ2.isDefined && !isCompatibleTypes(typ, typ2.get)) {
       error ++= s"Type mismatch in assignment:\n" +
-        s"  Expected ${typ} but got $typ2\n"
+        s"  Expected $typ but got $typ2\n"
     }
 
     error.toString();
