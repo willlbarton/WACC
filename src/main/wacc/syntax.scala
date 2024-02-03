@@ -51,14 +51,20 @@ case class StmtChain(stmt: Stmt, next: Stmt) extends Stmt
 
 // <rvalue>
 sealed trait RVal extends SymbolTableObj
-case class ArrayLiter(elems: List[Expr]) extends RVal
-case class NewPair(fst: Expr, snd: Expr) extends RVal
-case class Call(ident: Ident, args: List[Expr]) extends RVal
+case class ArrayLiter(elems: List[Expr]) extends RVal {
+  override def toString: String = elems.mkString("[", ", ", "]")
+}
+case class NewPair(fst: Expr, snd: Expr) extends RVal {
+  override def toString: String = s"newpair($fst, $snd)"
+}
+case class Call(ident: Ident, args: List[Expr]) extends RVal {
+  override def toString: String = s"call $ident(${args.mkString(", ")})"
+}
 
 // <lvalue>
 sealed trait LVal
-case class Fst(value: LVal) extends LVal with RVal // <pair-elem>
-case class Snd(value: LVal) extends LVal with RVal // <pair-elem>
+case class Fst(value: LVal) extends LVal with RVal { override def toString: String = s"fst $value" }
+case class Snd(value: LVal) extends LVal with RVal { override def toString: String = s"snd $value" }
 sealed trait Expr extends RVal
 case class UnaryApp(op: UnaryOp, expr: Expr) extends Expr {
   override def toString: String = s"$op $expr"
@@ -116,6 +122,8 @@ case object Eq extends BinaryOp { override def toString = "==" }
 case object NotEq extends BinaryOp { override def toString = "!=" }
 case object And extends BinaryOp { override def toString = "&&" }
 case object Or extends BinaryOp { override def toString = "||" }
+
+// parser bridges
 
 object Program extends generic.ParserBridge2[List[Func], Stmt, Program]
 object Func extends generic.ParserBridge4[Type, Ident, List[Param], Stmt, Func]

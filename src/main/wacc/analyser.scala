@@ -26,15 +26,15 @@ object analyser {
      case Return(expr) =>
        val (err, expType) = checkExpr(st, expr)
        err ++ (if (expType.isDefined && !isCompatibleTypes(expType.get, typ)) {
-         typeErrorMsg("function return", None, s"$typ", s"${expType.get}")
+         typeErrorMsg("function return", Some(s"return $expr"), s"$typ", s"${expType.get}")
        } else "")
      case IfStmt(cond, body1, body2) =>
        checkExpr(st, cond)._1 ++ checkFuncStmt(st, body1, typ) ++ checkFuncStmt(st, body2, typ)
      case While(cond, body)     =>
        val (err, expType) = checkExpr(st, cond)
-       err ++ (if (expType.isDefined && expType.get != BoolType) {
-         typeErrorMsg("loop conditional", None, "bool", s"${expType.get}")
-       } else "") ++ checkFuncStmt(st, body, typ)
+       err ++ (if (expType.isDefined && expType.get != BoolType)
+         typeErrorMsg("loop conditional", Some(s"while ($cond) do"), "bool", s"${expType.get}")
+       else "") ++ checkFuncStmt(st, body, typ)
      case ScopedStmt(stmt)      => checkFuncStmt(st.makeChild, stmt, typ)
      case StmtChain(stmt, next) => checkFuncStmt(st, stmt, typ) ++ checkFuncStmt(st, next, typ)
      case _                     => checkLeafStatement(st, stmt)
@@ -43,12 +43,15 @@ object analyser {
    private def checkMainStmt(st: SymbolTable, stmt: Stmt): String = stmt match {
      case Return(_) => "Return not allowed in main\n"
      case IfStmt(cond, body1, body2) =>
-       checkExpr(st, cond)._1 ++ checkMainStmt(st, body1) ++ checkMainStmt(st, body2)
+       val (err, typ) = checkExpr(st, cond)
+       err ++ (if (typ.isDefined && typ.get != BoolType)
+         typeErrorMsg("if statement conditional", Some(s"if ($cond) then"), "bool", s"${typ.get}")
+       else "") ++ checkMainStmt(st, body1) ++ checkMainStmt(st, body2)
      case While(cond, body) =>
        val (err, typ) = checkExpr(st, cond)
-       err ++ (if (typ.isDefined && typ.get != BoolType) {
-         typeErrorMsg("loop conditional", None, "bool", s"${typ.get}")
-       } else "") ++ checkMainStmt(st, body)
+       err ++ (if (typ.isDefined && typ.get != BoolType)
+         typeErrorMsg("loop conditional", Some(s"while ($cond) do"), "bool", s"${typ.get}")
+       else "") ++ checkMainStmt(st, body)
      case ScopedStmt(stmt) => checkMainStmt(st.makeChild, stmt)
      case StmtChain(stmt, next) => checkMainStmt(st, stmt) ++ checkMainStmt(st, next)
      case _ => checkLeafStatement(st, stmt)
@@ -82,7 +85,7 @@ object analyser {
     error ++= err
     if (typ2.isDefined && !isCompatibleTypes(typ, typ2.get)) {
       error ++= typeErrorMsg(
-        s"declaration of variable $ident", None, s"$typ", s"${typ2.get}")
+        s"declaration of variable $ident", Some(s"$typ $ident = $value"), s"$typ", s"${typ2.get}")
     }
 
     error.toString
@@ -98,8 +101,7 @@ object analyser {
     val (err, typ2) = checkRVal(symTable, value)
     error ++= err
     if (typ1.isDefined && typ2.isDefined && !isCompatibleTypes(typ1.get, typ2.get))
-      // TODO: toString for lval and rval
-      error ++= typeErrorMsg("assignment", None, s"$typ1", s"$typ2")
+      error ++= typeErrorMsg("assignment", Some(s"$left = $value"), s"$typ1", s"$typ2")
     error.toString
   }
 
@@ -109,7 +111,7 @@ object analyser {
        case IntType  => ""
        case CharType => ""
        case _        =>
-         typeErrorMsg("read statement", None, "int' or 'char", s"$typ")
+         typeErrorMsg("read statement", Some(s"read $value"), "int' or 'char", s"$typ")
      }
    }
 
@@ -318,9 +320,9 @@ object analyser {
     ) || typ2 == StringType && typ1 == ArrayType(CharType)
 
   private def typeErrorMsg(
-    situation: String, scope: Option[String], expected: String, got: String
+     situation: String, context: Option[String], expected: String, got: String
   ): String =
     s"Type mismatch error in $situation\n" +
-      (if (scope.isDefined) s"  in ${scope.get}\n" else "") +
+      (if (context.isDefined) s"  in ${context.get}\n" else "") +
       s"  Expected '$expected', but got '$got'\n"
 }
