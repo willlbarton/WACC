@@ -87,7 +87,7 @@ object analyser {
       error ++= typeErrorMsg(
         s"declaration of variable $ident", Some(s"$typ $ident = $value"), s"$typ", s"${typ2.get}")
     }
-
+    value.typ = typ2
     error.toString
   }
 

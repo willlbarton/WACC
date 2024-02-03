@@ -76,23 +76,21 @@ case class BinaryApp(op: BinaryOp, left: Expr, right: Expr) extends Expr {
 // <atom>
 case class Integer(i: Int) extends Expr {
   override def toString: String = i.toString
-  typ = Some(IntType)
 }
 case class Bool(value: Boolean) extends Expr {
   override def toString: String = value.toString
-  typ = Some(BoolType)
 }
 case class Character(c: Char) extends Expr {
-  override def toString: String = s"'$c''"
-  typ = Some(CharType)
+  override def toString: String = s"'$c'"
 }
 
 case class StringAtom(s: String) extends Expr {
   override def toString: String = s
-  typ = Some(StringType)
 }
 
-case object Null extends Expr { override def toString = "null" } // <pair-liter>
+case object Null extends Expr {
+  override def toString = "null"
+} // <pair-liter>
 case class Ident(name: String) extends Expr with LVal { override def toString: String = name }
 case class ArrayElem(ident: Ident, exprs: List[Expr]) extends Expr with LVal {
   override def toString: String = s"$ident[${exprs.mkString("][")}]"
