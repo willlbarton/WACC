@@ -125,9 +125,12 @@ object analyser {
       case Left(err) => (err, None)
       case Right(typ) => ("", Some(typ))
     }
-    case ArrayElem(ident, exprs) => checkArrayElem(symTable, ident, exprs)
+    case ArrayElem(ident, exprs) => checkArrayElem(symTable, ident, exprs) match {
+      case Left(err) => (err, None)
+      case Right(typ) => ("", Some(typ))
+    }
     case BracketedExpr(expr)     => checkExpr(symTable, expr)
-    case Null                    => ???
+    case Null                    => ("", Some(Pair))
     case UnaryApp(op, expr) => checkUnaryApp(symTable, op, expr)
     case BinaryApp(op, left, right) => checkBinaryApp(symTable, op, left, right)
   }
@@ -285,7 +288,26 @@ object analyser {
     (error.toString, retType)
   }
 
-  private def checkArrayElem(symTable: SymbolTable, ident: Ident, exprs: List[Expr]) = ???
+  private def checkArrayElem(
+    symTable: SymbolTable, ident: Ident, exprs: List[Expr]
+  ): Either[String, Type] = {
+    val error = new StringBuilder()
+    var typ: Option[Type] = None
+    checkIdent(symTable, ident.name) match {
+      case Left(err) => error ++= err
+      case Right(ArrayType(typ2)) => typ = Some(typ2)
+      case Right(typ2) => error ++= typeErrorMsg(
+        "array access", Some(s"$ident[${exprs.mkString("][")}]"), "array", s"$typ2")
+    }
+    exprs.foreach(expr => {
+      val (err, typ2) = checkExpr(symTable, expr)
+      error ++= err
+      if (typ2.isDefined && typ2.get != IntType)
+        error ++= typeErrorMsg(
+          "array index", Some(s"$ident[${exprs.mkString("][")}]"), "int", s"${typ2.get}")
+    })
+    if (error.isEmpty) Right(ArrayType(typ.get)) else Left(error.toString)
+  }
 
   private def checkPairElem(symTable: SymbolTable, pairElem: PairElemType) = ???
 
