@@ -83,7 +83,7 @@ case class Bool(value: Boolean) extends Expr {
   typ = Some(BoolType)
 }
 case class Character(c: Char) extends Expr {
-  override def toString: String = c.toString
+  override def toString: String = s"'$c''"
   typ = Some(CharType)
 }
 
