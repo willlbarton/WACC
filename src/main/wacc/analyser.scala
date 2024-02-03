@@ -309,8 +309,6 @@ object analyser {
     if (error.isEmpty) Right(ArrayType(typ.get)) else Left(error.toString)
   }
 
-  private def checkPairElem(symTable: SymbolTable, pairElem: PairElemType) = ???
-
   @scala.annotation.tailrec
   private def checkLVal(symTable: SymbolTable, lval: LVal): Either[String, Type] = lval match {
     case Ident(name) => checkIdent(symTable, name)
@@ -320,7 +318,7 @@ object analyser {
   }
 
   private def checkRVal(symTable: SymbolTable, value: RVal): (String, Option[Type]) = value match {
-    case ArrayLiter(exprs)     => ???
+    case ArrayLiter(exprs)     => checkArrayLiteral(symTable, exprs)
     case NewPair(expr1, expr2) => ???
     case Fst(_) | Snd(_)       => checkLVal(symTable, value.asInstanceOf[LVal]) match {
       case Left(err) => (err, None) // couldn't infer type
@@ -328,6 +326,28 @@ object analyser {
     }
     case Call(ident, exprs) => checkCall(symTable, ident, exprs)
     case _ => checkExpr(symTable, value.asInstanceOf[Expr])
+  }
+
+  private def checkArrayLiteral(symTable: SymbolTable, exprs: List[Expr]): (String, Option[Type]) = {
+    val errors = new StringBuilder()
+    val errTyps = exprs.map(expr => checkExpr(symTable, expr))
+    for ((err, _) <- errTyps) errors ++= err
+    val typs = errTyps.map(_._2)
+    if (typs.nonEmpty && typs.forall(_.isDefined)) {
+      var typ = typs.head.get
+      for (t <- typs.tail) {
+        if (!isCompatibleTypes(t.get, typ)) {
+          if (isCompatibleTypes(typ, t.get)) {
+            typ = t.get // weaken type
+          } else {
+            errors ++= s"Non-compatible types in array literal\n" +
+              s"  in [${exprs.mkString(", ")}]\n"
+            return (errors.toString, None)
+          }
+        }
+      }
+      (errors.toString, Some(ArrayType(typ)))
+    } else (errors.toString, None)
   }
 
   private def checkCall(symTable: SymbolTable, ident: Ident, exprs: List[Expr]) = {
