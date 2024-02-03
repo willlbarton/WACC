@@ -21,43 +21,41 @@ object analyser {
     error.toString
   }
 
-   // distinguish between function and main statements since return is not allowed in main
-   private def checkFuncStmt(st: SymbolTable, stmt: Stmt, typ: Type): String = stmt match {
-     case Return(expr) =>
-       val (err, expType) = checkExpr(st, expr)
-       err ++ (if (expType.isDefined && !isCompatibleTypes(expType.get, typ)) {
-         typeErrorMsg("function return", Some(s"return $expr"), s"$typ", s"${expType.get}")
-       } else "")
-     case IfStmt(cond, body1, body2) =>
-       checkExpr(st, cond)._1 ++ checkFuncStmt(st, body1, typ) ++ checkFuncStmt(st, body2, typ)
-     case While(cond, body)     =>
-       val (err, expType) = checkExpr(st, cond)
-       err ++ (if (expType.isDefined && expType.get != BoolType)
-         typeErrorMsg("loop conditional", Some(s"while ($cond) do"), "bool", s"${expType.get}")
-       else "") ++ checkFuncStmt(st, body, typ)
-     case ScopedStmt(stmt)      => checkFuncStmt(st.makeChild, stmt, typ)
-     case StmtChain(stmt, next) => checkFuncStmt(st, stmt, typ) ++ checkFuncStmt(st, next, typ)
-     case _                     => checkLeafStatement(st, stmt)
-   }
+  // distinguish between function and main statements since return is not allowed in main
+  private def checkFuncStmt(st: SymbolTable, stmt: Stmt, typ: Type): String = stmt match {
+    case Return(expr) =>
+      val (err, expType) = checkExpr(st, expr)
+      err ++ (if (expType.isDefined && !isCompatibleTypes(expType.get, typ)) {
+        typeErrorMsg("function return", Some(s"return $expr"), s"$typ", s"${expType.get}")
+      } else "")
+    case IfStmt(cond, body1, body2) =>
+      checkCond(st, cond, isIf = true) ++
+        checkFuncStmt(st, body1, typ) ++ checkFuncStmt(st, body2, typ)
+    case While(cond, body)     => checkCond(st, cond, isIf = false) ++ checkFuncStmt(st, body, typ)
+    case ScopedStmt(stmt)      => checkFuncStmt(st.makeChild, stmt, typ)
+    case StmtChain(stmt, next) => checkFuncStmt(st, stmt, typ) ++ checkFuncStmt(st, next, typ)
+    case _                     => checkLeafStatement(st, stmt)
+  }
 
-   private def checkMainStmt(st: SymbolTable, stmt: Stmt): String = stmt match {
-     case Return(_) => "Return not allowed in main\n"
-     case IfStmt(cond, body1, body2) =>
-       val (err, typ) = checkExpr(st, cond)
-       err ++ (if (typ.isDefined && typ.get != BoolType)
-         typeErrorMsg("if statement conditional", Some(s"if ($cond) then"), "bool", s"${typ.get}")
-       else "") ++ checkMainStmt(st, body1) ++ checkMainStmt(st, body2)
-     case While(cond, body) =>
-       val (err, typ) = checkExpr(st, cond)
-       err ++ (if (typ.isDefined && typ.get != BoolType)
-         typeErrorMsg("loop conditional", Some(s"while ($cond) do"), "bool", s"${typ.get}")
-       else "") ++ checkMainStmt(st, body)
-     case ScopedStmt(stmt) => checkMainStmt(st.makeChild, stmt)
-     case StmtChain(stmt, next) => checkMainStmt(st, stmt) ++ checkMainStmt(st, next)
-     case _ => checkLeafStatement(st, stmt)
-   }
+  private def checkMainStmt(st: SymbolTable, stmt: Stmt): String = stmt match {
+    case Return(_) => "Return not allowed in main\n"
+    case IfStmt(cond, body1, body2) =>
+      checkCond(st, cond, isIf = true) ++ checkMainStmt(st, body1) ++ checkMainStmt(st, body2)
+    case While(cond, body) => checkCond(st, cond, isIf = false) ++ checkMainStmt(st, body)
+    case ScopedStmt(stmt) => checkMainStmt(st.makeChild, stmt)
+    case StmtChain(stmt, next) => checkMainStmt(st, stmt) ++ checkMainStmt(st, next)
+    case _ => checkLeafStatement(st, stmt)
+  }
 
-   private def checkLeafStatement(st: SymbolTable, stmt: Stmt): String = stmt match {
+  private def checkCond(st: SymbolTable, cond: Expr, isIf: Boolean) = {
+    val (err, typ) = checkExpr(st, cond)
+    err ++ (if (typ.isDefined && typ.get != BoolType)
+      typeErrorMsg((if (isIf) "if statement" else "loop") + " conditional",
+        Some(if (isIf) s"if $cond then" else s"while $cond do"), "bool", s"${typ.get}")
+    else "")
+  }
+
+  private def checkLeafStatement(st: SymbolTable, stmt: Stmt): String = stmt match {
      case Skip                 => ""
      case Decl(t, name, value) => handleDeclaration(st, t, name, value)
      case Asgn(left, value)    => checkAssignment(st, left, value)
@@ -384,7 +382,7 @@ object analyser {
           (errors.toString, Some(typ))
 
         case obj => (typeErrorMsg("Function call",
-          Some("call $ident(${exprs.mkString(\", \")})"), "function", s"${obj.typ.get}"),
+          Some(s"call $ident(${exprs.mkString(", ")})"), "function", s"${obj.typ.get}"),
           None)
       }
     }
