@@ -319,13 +319,26 @@ object analyser {
 
   private def checkRVal(symTable: SymbolTable, value: RVal): (String, Option[Type]) = value match {
     case ArrayLiter(exprs)     => checkArrayLiteral(symTable, exprs)
-    case NewPair(expr1, expr2) => ???
+    case NewPair(expr1, expr2) => checkNewPair(symTable, expr1, expr2)
     case Fst(_) | Snd(_)       => checkLVal(symTable, value.asInstanceOf[LVal]) match {
       case Left(err) => (err, None) // couldn't infer type
       case Right(typ) => ("", Some(typ))
     }
     case Call(ident, exprs) => checkCall(symTable, ident, exprs)
     case _ => checkExpr(symTable, value.asInstanceOf[Expr])
+  }
+
+  private def checkNewPair(symTable: SymbolTable, expr1: Expr, expr2: Expr) = {
+    val (err1, typ1) = checkExpr(symTable, expr1)
+    val (err2, typ2) = checkExpr(symTable, expr2)
+    val err = err1 ++ err2
+    if (typ1.isDefined && typ2.isDefined) {
+      val ltype = if (!typ1.get.isInstanceOf[PairElemType]) Pair
+                  else typ1.get.asInstanceOf[PairElemType]
+      val rtype = if (!typ2.get.isInstanceOf[PairElemType]) Pair
+                  else typ2.get.asInstanceOf[PairElemType]
+      (err, Some(PairType(ltype, rtype)))
+    } else (err, None)
   }
 
   private def checkArrayLiteral(symTable: SymbolTable, exprs: List[Expr]): (String, Option[Type]) = {
