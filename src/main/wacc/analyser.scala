@@ -326,32 +326,35 @@ object analyser {
       case Left(err) => (err, None) // couldn't infer type
       case Right(typ) => ("", Some(typ))
     }
-    case Call(ident, exprs) =>
-      symTable(ident.name) match {
-        case None => (s"Usage of undeclared function: $ident!\n", None)
-        case Some(fun) => fun match {
-          case Func(typ, _, params, _) =>
-            val errors = new StringBuilder()
-            if (params.length != exprs.length)
-              errors ++=
-                s"Incorrect number of arguments in:\n  call $ident(${exprs.mkString(", ")})\n"
-            for ((param, expr) <- params.zip(exprs)) {
-              val (err, ptype) = checkExpr(symTable, expr)
-              errors ++= err
-              if (ptype.isDefined && !isCompatibleTypes(param.t, ptype.get))
-                errors ++= typeErrorMsg(
-                  s"function argument ${param.ident.name}",
-                  Some(s"$ident(${exprs.mkString(", ")})"),
-                  s"${param.t}", s"${ptype.get}")
-            }
-            (errors.toString, Some(typ))
-
-          case obj => (typeErrorMsg("Function call",
-            Some("call $ident(${exprs.mkString(\", \")})"), "function", s"${obj.typ.get}"),
-            None)
-        }
-      }
+    case Call(ident, exprs) => checkCall(symTable, ident, exprs)
     case _ => checkExpr(symTable, value.asInstanceOf[Expr])
+  }
+
+  private def checkCall(symTable: SymbolTable, ident: Ident, exprs: List[Expr]) = {
+    symTable(ident.name) match {
+      case None => (s"Usage of undeclared function: $ident!\n", None)
+      case Some(fun) => fun match {
+        case Func(typ, _, params, _) =>
+          val errors = new StringBuilder()
+          if (params.length != exprs.length)
+            errors ++=
+              s"Incorrect number of arguments in:\n  call $ident(${exprs.mkString(", ")})\n"
+          for ((param, expr) <- params.zip(exprs)) {
+            val (err, ptype) = checkExpr(symTable, expr)
+            errors ++= err
+            if (ptype.isDefined && !isCompatibleTypes(param.t, ptype.get))
+              errors ++= typeErrorMsg(
+                s"function argument ${param.ident.name}",
+                Some(s"$ident(${exprs.mkString(", ")})"),
+                s"${param.t}", s"${ptype.get}")
+          }
+          (errors.toString, Some(typ))
+
+        case obj => (typeErrorMsg("Function call",
+          Some("call $ident(${exprs.mkString(\", \")})"), "function", s"${obj.typ.get}"),
+          None)
+      }
+    }
   }
 
   private def isCompatibleTypes(typ1: Type, typ2: Type): Boolean =
