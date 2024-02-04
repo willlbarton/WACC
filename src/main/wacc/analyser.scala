@@ -25,7 +25,7 @@ object analyser {
   private def checkFuncStmt(st: SymbolTable, stmt: Stmt, typ: Type): String = stmt match {
     case Return(expr) =>
       val (err, expType) = checkExpr(st, expr)
-      err ++ (if (expType.isDefined && !isCompatibleTypes(expType.get, typ)) {
+      err ++ (if (expType.isDefined && !isWeakerType(typ, expType.get)) {
         typeErrorMsg("function return", Some(s"return $expr"), s"$typ", s"${expType.get}")
       } else "")
     case IfStmt(cond, body1, body2) =>
@@ -74,6 +74,14 @@ object analyser {
       value: RVal
   ): String = {
     val error = new StringBuilder()
+
+    val (err, typ2) = checkRVal(symTable, value)
+    error ++= err
+    if (typ2.isDefined && !isWeakerType(typ, typ2.get)) {
+      error ++= typeErrorMsg(
+        s"declaration of variable $ident", Some(s"$typ $ident = $value"), s"$typ", s"${typ2.get}")
+    }
+
     if (symTable.inCurrentScope(ident.name))
       error ++= s"Attempted redeclaration of variable '$ident' in same scope\n"
     else
@@ -81,20 +89,11 @@ object analyser {
         case Ident(name) => checkIdent(symTable, name) match {
           case Left(err) => error ++= err
           case Right(typ2) =>
-            if (!isCompatibleTypes(typ, typ2))
-              error ++= typeErrorMsg(
-                s"declaration of variable $ident", Some(s"$typ $ident = $value"), s"$typ", s"$typ2")
-            else symTable.put(ident.name, symTable(name).get)
+            if (isWeakerType(typ, typ2)) symTable.put(ident.name, symTable(name).get)
         }
         case _ => symTable.put(ident.name, value)
       }
 
-    val (err, typ2) = checkRVal(symTable, value)
-    error ++= err
-    if (typ2.isDefined && !isCompatibleTypes(typ, typ2.get)) {
-      error ++= typeErrorMsg(
-        s"declaration of variable $ident", Some(s"$typ $ident = $value"), s"$typ", s"${typ2.get}")
-    }
     value.typ = typ2
     error.toString
   }
@@ -108,7 +107,7 @@ object analyser {
     }
     val (err, typ2) = checkRVal(symTable, value)
     error ++= err
-    if (typ1.isDefined && typ2.isDefined && !isCompatibleTypes(typ1.get, typ2.get))
+    if (typ1.isDefined && typ2.isDefined && !isWeakerType(typ1.get, typ2.get))
       error ++= typeErrorMsg("assignment", Some(s"$left = $value"), s"$typ1", s"$typ2")
     error.toString
   }
@@ -358,8 +357,8 @@ object analyser {
     if (typs.nonEmpty && typs.forall(_.isDefined)) {
       var typ = typs.head.get
       for (t <- typs.tail) {
-        if (!isCompatibleTypes(t.get, typ)) {
-          if (isCompatibleTypes(typ, t.get)) {
+        if (!isWeakerType(typ, t.get)) {
+          if (isWeakerType(t.get, typ)) {
             typ = t.get // weaken type
           } else {
             errors ++= s"Non-compatible types in array literal\n" +
@@ -385,7 +384,7 @@ object analyser {
             val (err, ptype) = checkExpr(symTable, expr)
             errors ++= err
             if (ptype.isDefined) {
-              if (!isCompatibleTypes(param.t, ptype.get))
+              if (!isWeakerType(param.t, ptype.get))
                 errors ++= typeErrorMsg(
                   s"function argument ${param.ident.name}",
                   Some(s"$ident(${exprs.mkString(", ")})"),
@@ -402,10 +401,13 @@ object analyser {
     }
   }
 
-  private def isCompatibleTypes(typ1: Type, typ2: Type): Boolean =
-    typ1 == typ2 || typ1 == StringType && typ2 == ArrayType(
+  private def isWeakerType(weaker: Type, stronger: Type): Boolean =
+    weaker == stronger || weaker == StringType && stronger == ArrayType(
       CharType
-    ) || typ2 == StringType && typ1 == ArrayType(CharType)
+    ) || stronger == StringType && weaker == ArrayType(CharType)
+
+  private def isCompatibleTypes(typ1: Type, typ2: Type): Boolean =
+    isWeakerType(typ1, typ2) || isWeakerType(typ2, typ1)
 
   private def typeErrorMsg(
      situation: String, context: Option[String], expected: String, got: String
