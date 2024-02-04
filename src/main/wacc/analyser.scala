@@ -154,7 +154,8 @@ object analyser {
   private def evalConst(expr: Expr): Option[BigInt] = expr match {
     case Integer(i) => Some(i)
     case UnaryApp(Neg, e) => evalConst(e).map(-_)
-    // TODO: ord and chr
+    case UnaryApp(Ord, Character(c)) => Some(c.toInt)
+    case UnaryApp(Ord, UnaryApp(Chr, e)) => evalConst(e)
     case BinaryApp(op, e1, e2) =>
       val val1 = evalConst(e1)
       val val2 = evalConst(e2)
