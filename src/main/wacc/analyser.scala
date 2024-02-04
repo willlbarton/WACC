@@ -66,7 +66,13 @@ object analyser {
      case Decl(t, name, value) => handleDeclaration(st, t, name, value)
      case Asgn(left, value)    => checkAssignment(st, left, value)
      case Read(value)          => checkRead(st, value)
-     case Free(expr)           => checkExpr(st, expr)._1
+     case Free(expr)           => checkExpr(st, expr) match {
+       case (err, Some(PairType(_, _))) => err
+       case (err, Some(ArrayType(_)))   => err
+       case (err, None)                 => err
+       case (err, Some(typ)) =>
+         err ++ typeErrorMsg("free statement", s"free $expr", "pair' or 'array", s"$typ")
+     }
      case Exit(expr)           => checkExpr(st, expr) match {
        case (err, Some(t)) if t != IntType =>
          err ++ typeErrorMsg("exit statement", s"exit $expr", "int", s"$t")
