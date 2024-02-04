@@ -10,22 +10,22 @@ object analyser {
 
     // Functions may be used before declaration, so we need to do a first pass
     for (f <- program.functions) {
-      if (mainSymTable.inCurrentScope(f.ident.name))
+      if (mainSymTable.inCurrentScope(f.ident))
         error ++= s"Attempted redeclaration of function '${f.ident}'\n"
       else
-        mainSymTable.put(f.ident.name, f)
+        mainSymTable.put(f.ident, f)
     }
 
     for (f <- program.functions) {
       val symTable = mainSymTable.makeChild
-      f.params.foreach(p => if (symTable.inCurrentScope(p.ident.name))
+      f.params.foreach(p => if (symTable.inCurrentScope(p.ident))
           error ++= s"Attempted redeclaration of parameter '${p.ident}'\n" +
             s"  in function '${f.ident}'(${f.params.mkString(", ")})\n"
         else {
           p.ident.typ = Some(p.t)
-          symTable.put(p.ident.name, p.ident)
+          symTable.put(p.ident, p.ident)
         })
-       error ++= checkFuncStmt(symTable, f.body, f.t)
+      error ++= checkFuncStmt(symTable, f.body, f.t)
     }
 
     error ++= checkMainStmt(mainSymTable, program.body)
@@ -100,16 +100,16 @@ object analyser {
         s"declaration of variable $ident", s"$typ $ident = $value", s"$typ", s"${typ2.get}")
     }
 
-    if (symTable.inCurrentScope(ident.name))
+    if (symTable.inCurrentScope(ident))
       error ++= s"Attempted redeclaration of variable '$ident' in same scope\n"
     else
       value match {
-        case Ident(name) => checkIdent(symTable, name) match {
+        case id@Ident(_) => checkIdent(symTable, id) match {
           case Left(err) => error ++= err
           case Right(typ2) =>
-            if (isWeakerType(typ, typ2)) symTable.put(ident.name, symTable(name).get)
+            if (isWeakerType(typ, typ2)) symTable.put(ident, symTable(id).get)
         }
-        case _ => symTable.put(ident.name, value)
+        case _ => symTable.put(ident, value)
       }
 
     value.typ = typ2
@@ -158,7 +158,7 @@ object analyser {
     case Bool(_)       => ("" , Some(BoolType))
     case Character(_)  => ("" , Some(CharType))
     case StringAtom(_) => ("" , Some(StringType))
-    case Ident(name)   => checkIdent(symTable, name) match {
+    case id@Ident(_)   => checkIdent(symTable, id) match {
       case Left(err) => (err, None)
       case Right(typ) => ("", Some(typ))
     }
@@ -172,10 +172,10 @@ object analyser {
     case BinaryApp(op, left, right) => checkBinaryApp(symTable, op, left, right)
   }
 
-  private def checkIdent(symTable: SymbolTable, name: String): Either[String, Type] =
-    symTable(name) match {
-      case None => Left(s"Variable '$name' used before declaration!\n")
-      case Some(Func(_, _, _, _)) => Left(s"Function '$name' used as variable!\n")
+  private def checkIdent(symTable: SymbolTable, ident: Ident): Either[String, Type] =
+    symTable(ident) match {
+      case None => Left(s"Variable '$ident' used before declaration!\n")
+      case Some(Func(_, _, _, _)) => Left(s"Function '$ident' used as variable!\n")
       case Some(obj) =>
         assert(obj.typ.isDefined) // Everything in symbol table should have a type
         Right(obj.typ.get)
@@ -332,7 +332,7 @@ object analyser {
   ): Either[String, Type] = {
     val error = new StringBuilder()
     var typ: Option[Type] = None
-    checkIdent(symTable, ident.name) match {
+    checkIdent(symTable, ident) match {
       case Left(err) => error ++= err
       case Right(ArrayType(typ2)) => typ = Some(typ2)
       case Right(typ2) => error ++= typeErrorMsg(
@@ -349,7 +349,7 @@ object analyser {
   }
 
   private def checkLVal(symTable: SymbolTable, lval: LVal): Either[String, Type] = lval match {
-    case Ident(name) => checkIdent(symTable, name)
+    case id@Ident(_) => checkIdent(symTable, id)
     case ArrayElem(ident, exprs) => checkArrayElem(symTable, ident, exprs)
     case Fst(value)              => checkLVal(symTable, value) match {
       case Left(err) => Left(err)
@@ -414,7 +414,7 @@ object analyser {
   }
 
   private def checkCall(symTable: SymbolTable, ident: Ident, exprs: List[Expr]) = {
-    symTable(ident.name) match {
+    symTable(ident) match {
       case None => (s"Usage of undeclared function: $ident!\n", None)
       case Some(fun) => fun match {
         case Func(typ, _, params, _) =>
@@ -431,7 +431,7 @@ object analyser {
                   s"function argument ${param.ident.name}",
                   s"$ident(${exprs.mkString(", ")})",
                   s"${param.t}", s"${ptype.get}")
-              else symTable.put(param.ident.name, expr)
+              else symTable.put(param.ident, expr)
             }
           }
           (errors.toString, Some(typ))
