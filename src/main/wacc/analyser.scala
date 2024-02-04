@@ -428,12 +428,13 @@ object analyser {
   }
 
   private def isWeakerType(weaker: Type, stronger: Type): Boolean = {
-    weaker == stronger || weaker == Pair || stronger == Pair ||
+    weaker == stronger ||
+      (weaker == Pair && stronger.isInstanceOf[PairType]) ||
+      (stronger == Pair && weaker.isInstanceOf[PairType]) ||
       weaker == StringType && stronger == ArrayType(CharType) ||
       ((weaker, stronger) match {
       case (ArrayType(t1), ArrayType(t2)) => isWeakerType(t1, t2)
-      case (PairType(f1, s1), PairType(f2, s2)) =>
-        isWeakerType(f1, f2) && isWeakerType(s1, s2)
+      case (PairType(f1, s1), PairType(f2, s2)) => f1 == f2 && s1 == s2
       case _ => false
     })
   }
