@@ -27,6 +27,7 @@ case object StringType extends BaseType { override def toString = "string" }
 // <pair-elem-type)
 case class ArrayType(t: Type) extends PairElemType { override def toString = s"$t[]" }
 case object Pair extends PairElemType { override def toString = "pair" }
+case object NullType extends Type { override def toString = "unknown" }
 
 // <pair-type>
 case class PairType(fst: PairElemType, snd: PairElemType) extends Type {

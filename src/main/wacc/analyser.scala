@@ -72,13 +72,7 @@ object analyser {
      case Decl(t, name, value) => handleDeclaration(st, t, name, value)
      case Asgn(left, value)    => checkAssignment(st, left, value)
      case Read(value)          => checkRead(st, value)
-     case Free(expr)           => checkExpr(st, expr) match {
-       case (err, Some(PairType(_, _))) => err
-       case (err, Some(ArrayType(_)))   => err
-       case (err, None)                 => err
-       case (err, Some(typ)) =>
-         err ++ typeErrorMsg("free statement", s"free $expr", "pair' or 'array", s"$typ")
-     }
+     case Free(expr)           => checkFree(st, expr)
      case Exit(expr)           => checkExpr(st, expr) match {
        case (err, Some(t)) if t != IntType =>
          err ++ typeErrorMsg("exit statement", s"exit $expr", "int", s"$t")
@@ -139,8 +133,20 @@ object analyser {
     case Right(typ) => typ match {
       case IntType  => ""
       case CharType => ""
+      case NullType  => ""
       case _        =>
         typeErrorMsg("read statement", s"read $value", "int' or 'char", s"$typ")
+    }
+  }
+
+  private def checkFree(st: SymbolTable, expr: Expr) = {
+    checkExpr(st, expr) match {
+      case (err, Some(PairType(_, _))) => err
+      case (err, Some(ArrayType(_))) => err
+      case (err, Some(Pair)) => err
+      case (err, None) => err
+      case (err, Some(typ)) =>
+        err ++ typeErrorMsg("free statement", s"free $expr", "pair' or 'array", s"$typ")
     }
   }
 
@@ -347,12 +353,14 @@ object analyser {
     case Fst(value)              => checkLVal(symTable, value) match {
       case Left(err) => Left(err)
       case Right(PairType(typ, _)) => Right(typ)
+      case Right(Pair) => Right(NullType)
       case Right(typ) => Left(typeErrorMsg(
         "pair element access", s"fst $value", "pair", s"$typ"))
     }
     case Snd(value)              => checkLVal(symTable, value) match {
       case Left(err) => Left(err)
       case Right(PairType(_, typ)) => Right(typ)
+      case Right(Pair) => Right(NullType)
       case Right(typ) => Left(typeErrorMsg(
         "pair element access", s"snd $value", "pair", s"$typ"))
     }
@@ -435,7 +443,7 @@ object analyser {
   }
 
   private def isWeakerType(weaker: Type, stronger: Type): Boolean = {
-    weaker == stronger ||
+    weaker == stronger || weaker == NullType || stronger == NullType ||
       (weaker == Pair && stronger.isInstanceOf[PairType]) ||
       (stronger == Pair && weaker.isInstanceOf[PairType]) ||
       weaker == StringType && stronger == ArrayType(CharType) ||
