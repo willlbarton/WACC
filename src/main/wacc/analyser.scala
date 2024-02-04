@@ -288,7 +288,8 @@ object analyser {
           if (isCompatibleTypes(someType1, someType2)) retType = Some(BoolType)
           else error ++= binaryAppErrMsg(op, someType1, someType2, BinaryApp(op, left, right))
         case Gt | GtEq | Lt | LtEq =>
-          if (someType1 == IntType && someType2 == IntType) retType = Some(BoolType)
+          if (someType1 == IntType && someType2 == IntType ||
+            someType1 == CharType && someType2 == CharType) retType = Some(BoolType)
           else error ++= binaryAppErrMsg(op, someType1, someType2, BinaryApp(op, left, right))
         case Add =>
           if (someType1 == IntType && someType2 == IntType) {
