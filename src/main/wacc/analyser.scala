@@ -7,8 +7,12 @@ object analyser {
     val mainSymTable = SymbolTable(None)
 
     // Functions may be used before declaration, so we need to do a first pass
-    for (f <- program.functions)
-      mainSymTable.put(f.ident.name, f)
+    for (f <- program.functions) {
+      if (mainSymTable.inCurrentScope(f.ident.name))
+        error ++= s"Attempted redeclaration of function '${f.ident}'\n"
+      else
+        mainSymTable.put(f.ident.name, f)
+    }
 
     for (f <- program.functions) {
       val symTable = mainSymTable.makeChild
@@ -161,6 +165,7 @@ object analyser {
   private def checkIdent(symTable: SymbolTable, name: String): Either[String, Type] =
     symTable(name) match {
       case None => Left(s"Variable '$name' used before declaration!\n")
+      case Some(Func(_, _, _, _)) => Left(s"Function '$name' used as variable!\n")
       case Some(obj) =>
         assert(obj.typ.isDefined) // Everything in symbol table should have a type
         Right(obj.typ.get)
