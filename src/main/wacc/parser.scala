@@ -71,9 +71,9 @@ object parser {
   )(
     Ops(Prefix)(
       "!" #> (x => UnaryApp(Not, x)),
-      "len" #> (x => UnaryApp(Len, x)),
-      "ord" #> (x => UnaryApp(Ord, x)),
-      "chr" #> (x => UnaryApp(Chr, x))
+      "len " #> (x => UnaryApp(Len, x)),
+      "ord " #> (x => UnaryApp(Ord, x)),
+      "chr " #> (x => UnaryApp(Chr, x))
     ),
     Ops(InfixL)(
       "*" #> ((x, y) => BinaryApp(Mul, x, y)),
