@@ -40,8 +40,9 @@ object analyser {
       } else "")
     case IfStmt(cond, body1, body2) =>
       checkCond(st, cond, isIf = true) ++
-        checkFuncStmt(st, body1, typ) ++ checkFuncStmt(st, body2, typ)
-    case While(cond, body)     => checkCond(st, cond, isIf = false) ++ checkFuncStmt(st, body, typ)
+        checkFuncStmt(st.makeChild, body1, typ) ++ checkFuncStmt(st.makeChild, body2, typ)
+    case While(cond, body)     =>
+      checkCond(st, cond, isIf = false) ++ checkFuncStmt(st.makeChild, body, typ)
     case ScopedStmt(stmt)      => checkFuncStmt(st.makeChild, stmt, typ)
     case StmtChain(stmt, next) => checkFuncStmt(st, stmt, typ) ++ checkFuncStmt(st, next, typ)
     case _                     => checkLeafStatement(st, stmt)
@@ -50,8 +51,9 @@ object analyser {
   private def checkMainStmt(st: SymbolTable, stmt: Stmt): String = stmt match {
     case Return(_) => "Return not allowed in main\n"
     case IfStmt(cond, body1, body2) =>
-      checkCond(st, cond, isIf = true) ++ checkMainStmt(st, body1) ++ checkMainStmt(st, body2)
-    case While(cond, body) => checkCond(st, cond, isIf = false) ++ checkMainStmt(st, body)
+      checkCond(st, cond, isIf = true) ++
+        checkMainStmt(st.makeChild, body1) ++ checkMainStmt(st.makeChild, body2)
+    case While(cond, body) => checkCond(st, cond, isIf = false) ++ checkMainStmt(st.makeChild, body)
     case ScopedStmt(stmt) => checkMainStmt(st.makeChild, stmt)
     case StmtChain(stmt, next) => checkMainStmt(st, stmt) ++ checkMainStmt(st, next)
     case _ => checkLeafStatement(st, stmt)
