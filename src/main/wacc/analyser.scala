@@ -26,7 +26,7 @@ object analyser {
     case Return(expr) =>
       val (err, expType) = checkExpr(st, expr)
       err ++ (if (expType.isDefined && !isWeakerType(typ, expType.get)) {
-        typeErrorMsg("function return", Some(s"return $expr"), s"$typ", s"${expType.get}")
+        typeErrorMsg("function return", s"return $expr", s"$typ", s"${expType.get}")
       } else "")
     case IfStmt(cond, body1, body2) =>
       checkCond(st, cond, isIf = true) ++
@@ -51,7 +51,7 @@ object analyser {
     val (err, typ) = checkExpr(st, cond)
     err ++ (if (typ.isDefined && typ.get != BoolType)
       typeErrorMsg((if (isIf) "if statement" else "loop") + " conditional",
-        Some(if (isIf) s"if $cond then" else s"while $cond do"), "bool", s"${typ.get}")
+        if (isIf) s"if $cond then" else s"while $cond do", "bool", s"${typ.get}")
     else "")
   }
 
@@ -61,7 +61,11 @@ object analyser {
      case Asgn(left, value)    => checkAssignment(st, left, value)
      case Read(value)          => checkRead(st, value)
      case Free(expr)           => checkExpr(st, expr)._1
-     case Exit(expr)           => checkExpr(st, expr)._1
+     case Exit(expr)           => checkExpr(st, expr) match {
+       case (err, Some(t)) if t != IntType =>
+         err ++ typeErrorMsg("exit statement", s"exit $expr", "int", s"$t")
+       case (err, _) => err
+     }
      case Print(expr)          => checkExpr(st, expr)._1
      case PrintLn(expr)        => checkExpr(st, expr)._1
      case _ => throw new IllegalArgumentException("Non-leaf statement in checkLeafStatement\n")
@@ -79,7 +83,7 @@ object analyser {
     error ++= err
     if (typ2.isDefined && !isWeakerType(typ, typ2.get)) {
       error ++= typeErrorMsg(
-        s"declaration of variable $ident", Some(s"$typ $ident = $value"), s"$typ", s"${typ2.get}")
+        s"declaration of variable $ident", s"$typ $ident = $value", s"$typ", s"${typ2.get}")
     }
 
     if (symTable.inCurrentScope(ident.name))
@@ -108,7 +112,7 @@ object analyser {
     val (err, typ2) = checkRVal(symTable, value)
     error ++= err
     if (typ1.isDefined && typ2.isDefined && !isWeakerType(typ1.get, typ2.get))
-      error ++= typeErrorMsg("assignment", Some(s"$left = $value"), s"$typ1", s"$typ2")
+      error ++= typeErrorMsg("assignment", s"$left = $value", s"$typ1", s"$typ2")
     error.toString
   }
 
@@ -118,7 +122,7 @@ object analyser {
       case IntType  => ""
       case CharType => ""
       case _        =>
-        typeErrorMsg("read statement", Some(s"read $value"), "int' or 'char", s"$typ")
+        typeErrorMsg("read statement", s"read $value", "int' or 'char", s"$typ")
     }
   }
 
@@ -204,7 +208,7 @@ object analyser {
       case Not => BoolType.toString
     }
     typeErrorMsg(s"application of $op operator",
-      Some(s"expression: $expr"),
+      s"expression: $expr",
       expected,
       s"$typ")
   }
@@ -253,7 +257,7 @@ object analyser {
       case Gt | GtEq | Lt | LtEq | Sub | Mul | Div | Mod => IntType.toString
     }
     typeErrorMsg(s"application of '$op' operator",
-      Some(s"expression: $expr"),
+      s"expression: $expr",
       expected,
       s"$typ1' and '$typ2")
   }
@@ -305,14 +309,14 @@ object analyser {
       case Left(err) => error ++= err
       case Right(ArrayType(typ2)) => typ = Some(typ2)
       case Right(typ2) => error ++= typeErrorMsg(
-        "array access", Some(s"$ident[${exprs.mkString("][")}]"), "array", s"$typ2")
+        "array access", s"$ident[${exprs.mkString("][")}]", "array", s"$typ2")
     }
     exprs.foreach(expr => {
       val (err, typ2) = checkExpr(symTable, expr)
       error ++= err
       if (typ2.isDefined && typ2.get != IntType)
         error ++= typeErrorMsg(
-          "array index", Some(s"$ident[${exprs.mkString("][")}]"), "int", s"${typ2.get}")
+          "array index", s"$ident[${exprs.mkString("][")}]", "int", s"${typ2.get}")
     })
     if (error.isEmpty) Right(ArrayType(typ.get)) else Left(error.toString)
   }
@@ -387,7 +391,7 @@ object analyser {
               if (!isWeakerType(param.t, ptype.get))
                 errors ++= typeErrorMsg(
                   s"function argument ${param.ident.name}",
-                  Some(s"$ident(${exprs.mkString(", ")})"),
+                  s"$ident(${exprs.mkString(", ")})",
                   s"${param.t}", s"${ptype.get}")
               else symTable.put(param.ident.name, expr)
             }
@@ -395,7 +399,7 @@ object analyser {
           (errors.toString, Some(typ))
 
         case obj => (typeErrorMsg("Function call",
-          Some(s"call $ident(${exprs.mkString(", ")})"), "function", s"${obj.typ.get}"),
+          s"call $ident(${exprs.mkString(", ")})", "function", s"${obj.typ.get}"),
           None)
       }
     }
@@ -416,9 +420,9 @@ object analyser {
     isWeakerType(typ1, typ2) || isWeakerType(typ2, typ1)
 
   private def typeErrorMsg(
-     situation: String, context: Option[String], expected: String, got: String
+     situation: String, context: String, expected: String, got: String
   ): String =
     s"Type mismatch error in $situation\n" +
-      (if (context.isDefined) s"  in ${context.get}\n" else "") +
+      s"  in $context\n" +
       s"  Expected '$expected', but got '$got'\n"
 }
