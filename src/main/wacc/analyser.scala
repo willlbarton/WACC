@@ -12,7 +12,13 @@ object analyser {
 
     for (f <- program.functions) {
       val symTable = mainSymTable.makeChild
-      f.params.foreach(p => symTable.put(p.ident.name, p.ident))
+      f.params.foreach(p => if (symTable.inCurrentScope(p.ident.name))
+          error ++= s"Attempted redeclaration of parameter '${p.ident}'\n" +
+            s"  in function '${f.ident}'(${f.params.mkString(", ")})\n"
+        else {
+          p.ident.typ = Some(p.t)
+          symTable.put(p.ident.name, p.ident)
+        })
        error ++= checkFuncStmt(symTable, f.body, f.t)
     }
 
