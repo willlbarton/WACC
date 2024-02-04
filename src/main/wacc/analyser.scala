@@ -321,12 +321,21 @@ object analyser {
     if (error.isEmpty) Right(ArrayType(typ.get)) else Left(error.toString)
   }
 
-  @scala.annotation.tailrec
   private def checkLVal(symTable: SymbolTable, lval: LVal): Either[String, Type] = lval match {
     case Ident(name) => checkIdent(symTable, name)
     case ArrayElem(ident, exprs) => checkArrayElem(symTable, ident, exprs)
-    case Fst(value)              => checkLVal(symTable, value)
-    case Snd(value)              => checkLVal(symTable, value)
+    case Fst(value)              => checkLVal(symTable, value) match {
+      case Left(err) => Left(err)
+      case Right(PairType(typ, _)) => Right(typ)
+      case Right(typ) => Left(typeErrorMsg(
+        "pair element access", s"fst $value", "pair", s"$typ"))
+    }
+    case Snd(value)              => checkLVal(symTable, value) match {
+      case Left(err) => Left(err)
+      case Right(PairType(_, typ)) => Right(typ)
+      case Right(typ) => Left(typeErrorMsg(
+        "pair element access", s"snd $value", "pair", s"$typ"))
+    }
   }
 
   private def checkRVal(symTable: SymbolTable, value: RVal): (String, Option[Type]) = value match {
