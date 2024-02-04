@@ -22,13 +22,12 @@ object analyser {
           error ++= s"Attempted redeclaration of parameter '${p.ident}'\n" +
             s"  in function '${f.ident}'(${f.params.mkString(", ")})\n"
         else {
-          p.ident.typ = Some(p.t)
-          symTable.put(p.ident, p.ident)
+          symTable.put(p.ident, p)
         })
       error ++= checkFuncStmt(symTable, f.body, f.t)
     }
 
-    error ++= checkMainStmt(mainSymTable, program.body)
+    error ++= checkMainStmt(mainSymTable.makeChild, program.body)
 
     error.toString
   }
@@ -374,7 +373,7 @@ object analyser {
       case Left(err) => (err, None) // couldn't infer type
       case Right(typ) => ("", Some(typ))
     }
-    case Call(ident, exprs) => checkCall(symTable, ident, exprs)
+    case Call(ident, exprs) => checkCall(symTable.makeChild, ident, exprs)
     case _ => checkExpr(symTable, value.asInstanceOf[Expr])
   }
 
