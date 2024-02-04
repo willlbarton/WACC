@@ -11,11 +11,11 @@ object Main {
                 case Success(x) => analyser.analyse(x) match {
                     case ""  => ??? // generate code
                     case msg =>
-                      println(msg)
+                      println(s"Errors detected during compilation! Exit code 200 returned: $msg")
                       exit(200)
                 }
                 case Failure(msg) =>
-                  println(msg)
+                  println(s"Errors detected during compilation! Exit code 100 returned: $msg")
                   exit(100)
             }
             case None => println("please enter an expression")

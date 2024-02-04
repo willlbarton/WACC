@@ -1,0 +1,9 @@
+image: docker.io/gumjoe/wacc-ci-scala:slim
+
+stages:
+  - test
+
+test:
+  stage: test
+  script:
+    - scala-cli test .
