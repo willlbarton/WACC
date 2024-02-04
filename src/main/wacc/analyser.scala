@@ -318,7 +318,7 @@ object analyser {
         error ++= typeErrorMsg(
           "array index", s"$ident[${exprs.mkString("][")}]", "int", s"${typ2.get}")
     })
-    if (error.isEmpty) Right(ArrayType(typ.get)) else Left(error.toString)
+    if (error.isEmpty) Right(typ.get) else Left(error.toString)
   }
 
   private def checkLVal(symTable: SymbolTable, lval: LVal): Either[String, Type] = lval match {
