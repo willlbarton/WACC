@@ -77,7 +77,17 @@ object analyser {
     if (symTable.inCurrentScope(ident.name))
       error ++= s"Attempted redeclaration of variable '$ident' in same scope\n"
     else
-      symTable.put(ident.name, value)
+      value match {
+        case Ident(name) => checkIdent(symTable, name) match {
+          case Left(err) => error ++= err
+          case Right(typ2) =>
+            if (!isCompatibleTypes(typ, typ2))
+              error ++= typeErrorMsg(
+                s"declaration of variable $ident", Some(s"$typ $ident = $value"), s"$typ", s"$typ2")
+            else symTable.put(ident.name, symTable(name).get)
+        }
+        case _ => symTable.put(ident.name, value)
+      }
 
     val (err, typ2) = checkRVal(symTable, value)
     error ++= err
@@ -103,15 +113,15 @@ object analyser {
     error.toString
   }
 
-   private def checkRead(st: SymbolTable, value: LVal): String = checkLVal(st, value) match {
-     case Left(err) => err
-     case Right(typ) => typ match {
-       case IntType  => ""
-       case CharType => ""
-       case _        =>
-         typeErrorMsg("read statement", Some(s"read $value"), "int' or 'char", s"$typ")
-     }
-   }
+  private def checkRead(st: SymbolTable, value: LVal): String = checkLVal(st, value) match {
+    case Left(err) => err
+    case Right(typ) => typ match {
+      case IntType  => ""
+      case CharType => ""
+      case _        =>
+        typeErrorMsg("read statement", Some(s"read $value"), "int' or 'char", s"$typ")
+    }
+  }
 
   @scala.annotation.tailrec
   private def checkExpr(symTable: SymbolTable, expr: Expr): (String, Option[Type]) = expr match {
@@ -373,11 +383,14 @@ object analyser {
           for ((param, expr) <- params.zip(exprs)) {
             val (err, ptype) = checkExpr(symTable, expr)
             errors ++= err
-            if (ptype.isDefined && !isCompatibleTypes(param.t, ptype.get))
-              errors ++= typeErrorMsg(
-                s"function argument ${param.ident.name}",
-                Some(s"$ident(${exprs.mkString(", ")})"),
-                s"${param.t}", s"${ptype.get}")
+            if (ptype.isDefined) {
+              if (!isCompatibleTypes(param.t, ptype.get))
+                errors ++= typeErrorMsg(
+                  s"function argument ${param.ident.name}",
+                  Some(s"$ident(${exprs.mkString(", ")})"),
+                  s"${param.t}", s"${ptype.get}")
+              else symTable.put(param.ident.name, expr)
+            }
           }
           (errors.toString, Some(typ))
 
