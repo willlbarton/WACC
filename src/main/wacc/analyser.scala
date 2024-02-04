@@ -1,5 +1,7 @@
 package src.main.wacc
 
+import scala.annotation.tailrec
+
 object analyser {
 
   def analyse(program: Program): String = {
@@ -219,7 +221,6 @@ object analyser {
         case Mul => if (lv * rv > Int.MaxValue || lv * rv < Int.MinValue)
           s"Overflow error in expression: $left * $right:\n" +
           "  Multiplication of int literals would result in overflow\n" else ""
-        case Div => if (rv == 0) s"Division by zero error in expression: $left / $right\n" else ""
         case _ => ""
       }
     } else ""
@@ -442,6 +443,7 @@ object analyser {
     }
   }
 
+  @tailrec
   private def isWeakerType(weaker: Type, stronger: Type): Boolean = {
     weaker == stronger || weaker == NullType || stronger == NullType ||
       (weaker == Pair && stronger.isInstanceOf[PairType]) ||
