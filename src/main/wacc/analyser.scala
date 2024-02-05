@@ -113,7 +113,7 @@ object analyser {
         case _ => symTable.put(ident, value)
       }
 
-    value.typ = typ2
+    value.typ = Some(typ)
     error.toString
   }
 
