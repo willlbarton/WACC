@@ -26,7 +26,7 @@ object analyser {
         else {
           symTable.put(p.ident, p)
         })
-      error ++= checkFuncStmt(symTable, f.body, f.t)
+      error ++= checkFuncStmt(symTable.makeChild, f.body, f.t)
     }
 
     error ++= checkMainStmt(rootSymbolTable.makeChild, program.body)
