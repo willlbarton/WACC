@@ -11,6 +11,8 @@ case class Program(functions: List[Func], body: Stmt)
 // An empty 'params' list should be the same as no param-list in the syntax
 case class Func(t: Type, ident: Ident, params: List[Param], body: Stmt) extends SymbolTableObj {
   typ = Some(t)
+  override def toString: String =
+    s"$ident(${(for (p <- params) yield {s"${p.t} ${p.ident}"}).mkString(", ")})"
 }
 case class Param(t: Type, ident: Ident) extends SymbolTableObj { typ = Some(t) }
 
@@ -36,19 +38,31 @@ case class PairType(fst: PairElemType, snd: PairElemType) extends Type {
 
 // <stmnt>
 sealed trait Stmt
-case object Skip extends Stmt
-case class Decl(t: Type, ident: Ident, value: RVal) extends Stmt
-case class Asgn(left: LVal, value: RVal) extends Stmt
-case class Read(value: LVal) extends Stmt
-case class Free(expr: Expr) extends Stmt
-case class Return(expr: Expr) extends Stmt
-case class Exit(expr: Expr) extends Stmt
-case class Print(expr: Expr) extends Stmt
-case class PrintLn(expr: Expr) extends Stmt
-case class IfStmt(cond: Expr, body1: Stmt, body2: Stmt) extends Stmt
-case class While(cond: Expr, body: Stmt) extends Stmt
-case class ScopedStmt(stmt: Stmt) extends Stmt
-case class StmtChain(stmt: Stmt, next: Stmt) extends Stmt
+case object Skip extends Stmt { override def toString = "skip" }
+case class Decl(t: Type, ident: Ident, value: RVal) extends Stmt {
+  override def toString: String = s"$t $ident = $value"
+}
+case class Asgn(left: LVal, value: RVal) extends Stmt {
+  override def toString: String = s"$left = $value"
+}
+case class Read(value: LVal) extends Stmt { override def toString: String = s"read $value" }
+case class Free(expr: Expr) extends Stmt { override def toString: String = s"free $expr" }
+case class Return(expr: Expr) extends Stmt { override def toString: String = s"return $expr" }
+case class Exit(expr: Expr) extends Stmt { override def toString: String = s"exit $expr" }
+case class Print(expr: Expr) extends Stmt { override def toString: String = s"print $expr" }
+case class PrintLn(expr: Expr) extends Stmt { override def toString: String = s"println $expr" }
+case class IfStmt(cond: Expr, body1: Stmt, body2: Stmt) extends Stmt {
+  override def toString: String = s"if $cond then $body1 else $body2 fi"
+}
+case class While(cond: Expr, body: Stmt) extends Stmt {
+  override def toString: String = s"while $cond do $body done"
+}
+case class ScopedStmt(stmt: Stmt) extends Stmt {
+  override def toString: String = s"begin $stmt end"
+}
+case class StmtChain(stmt: Stmt, next: Stmt) extends Stmt {
+  override def toString: String = s"$stmt; $next"
+}
 
 // <rvalue>
 sealed trait RVal extends SymbolTableObj

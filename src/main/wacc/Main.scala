@@ -9,13 +9,13 @@ object Main {
         args.headOption match {
             case Some(expr) => parser.parse(expr) match {
                 case Success(x) => analyser.analyse(x) match {
-                    case ""  => ??? // generate code
+                    case ""  => println("No errors detected!") // generate code
                     case msg =>
-                      println(s"Errors detected during compilation! Exit code 200 returned: $msg")
+                      println(s"Semantic errors detected during compilation!\nExit code 200 returned:\n$msg")
                       exit(200)
                 }
                 case Failure(msg) =>
-                  println(s"Errors detected during compilation! Exit code 100 returned: $msg")
+                  println(s"Errors detected during compilation!\nExit code 100 returned:\n$msg")
                   exit(100)
             }
             case None => println("please enter an expression")
