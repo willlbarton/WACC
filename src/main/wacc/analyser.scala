@@ -443,7 +443,8 @@ object analyser {
 
   @tailrec
   private def isWeakerType(weaker: Type, stronger: Type): Boolean = {
-    weaker == stronger || weaker == NullType || stronger == NullType ||
+    ((weaker != NullType || stronger != NullType) &&
+      (weaker == stronger || weaker == NullType || stronger == NullType)) ||
       (weaker == Pair && stronger.isInstanceOf[PairType]) ||
       (stronger == Pair && weaker.isInstanceOf[PairType]) ||
       weaker == StringType && stronger == ArrayType(CharType) ||
