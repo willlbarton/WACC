@@ -113,7 +113,7 @@ object analyser {
         case _ => symTable.put(ident, value)
       }
 
-    value.typ = typ2
+    value.typ = Some(typ)
     error.toString
   }
 
@@ -136,7 +136,6 @@ object analyser {
     case Right(typ) => typ match {
       case IntType  => ""
       case CharType => ""
-      case NullType  => ""
       case _        =>
         typeErrorMsg("read statement", s"read $value", "int' or 'char", s"$typ")
     }
@@ -441,14 +440,16 @@ object analyser {
     }
   }
 
-  @tailrec
   private def isWeakerType(weaker: Type, stronger: Type): Boolean = {
-    weaker == stronger || weaker == NullType || stronger == NullType ||
+    ((weaker != NullType || stronger != NullType) &&
+      (weaker == stronger || weaker == NullType || stronger == NullType)) ||
       (weaker == Pair && stronger.isInstanceOf[PairType]) ||
       (stronger == Pair && weaker.isInstanceOf[PairType]) ||
       weaker == StringType && stronger == ArrayType(CharType) ||
       ((weaker, stronger) match {
-      case (ArrayType(t1), ArrayType(t2)) => isWeakerType(t1, t2)
+      case (ArrayType(t1), ArrayType(t2)) => t1 == t2 ||
+        t1 == Pair && t2.isInstanceOf[PairType] ||
+        t2 == Pair && t1.isInstanceOf[PairType]
       case (PairType(f1, s1), PairType(f2, s2)) => f1 == f2 && s1 == s2
       case _ => false
     })
