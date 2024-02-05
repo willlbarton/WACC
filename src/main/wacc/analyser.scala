@@ -1,5 +1,6 @@
 package src.main.wacc
 
+import src.main.wacc.ErrMsg._
 import scala.annotation.tailrec
 
 object analyser {
@@ -21,12 +22,12 @@ object analyser {
     for (f <- program.functions) {
       val symTable = rootSymbolTable.makeChild
       f.params.foreach(p => if (symTable.inCurrentScope(p.ident))
-          error ++= s"Attempted redeclaration of parameter '${p.ident}'\n" +
-            s"  in function '${f.ident}'(${f.params.mkString(", ")})\n"
+          error ++=
+            s"Attempted redeclaration of parameter '${p.ident}'\n" withContext s"function $f"
         else {
           symTable.put(p.ident, p)
         })
-      error ++= checkFuncStmt(symTable.makeChild, f.body, f.t)
+      error ++= checkFuncStmt(symTable.makeChild, f.body, f.t) withContext s"function $f"
     }
 
     error ++= checkMainStmt(rootSymbolTable.makeChild, program.body)
@@ -38,9 +39,10 @@ object analyser {
   private def checkFuncStmt(st: SymbolTable, stmt: Stmt, typ: Type): String = stmt match {
     case Return(expr) =>
       val (err, expType) = checkExpr(st, expr)
-      err ++ (if (expType.isDefined && !isWeakerType(typ, expType.get)) {
-        typeErrorMsg("function return", s"return $expr", s"$typ", s"${expType.get}")
-      } else "")
+      err + (if (err.nonEmpty) s"in $stmt" else "") +
+        (if (expType.isDefined && !isWeakerType(typ, expType.get)) {
+        typeErrorMsg("function return", s"return $expr", s"$typ", s"${expType.get}") withContext
+          stmt} else "")
     case IfStmt(cond, body1, body2) =>
       checkCond(st, cond, isIf = true) ++
         checkFuncStmt(st.makeChild, body1, typ) ++ checkFuncStmt(st.makeChild, body2, typ)
@@ -52,10 +54,10 @@ object analyser {
   }
 
   private def checkMainStmt(st: SymbolTable, stmt: Stmt): String = stmt match {
-    case Return(expr) => s"Return not allowed in main\n  in $expr\n"
+    case Return(_) => s"Return not allowed in main\n" withContext stmt
     case IfStmt(cond, body1, body2) =>
-      checkCond(st, cond, isIf = true) ++
-        checkMainStmt(st.makeChild, body1) ++ checkMainStmt(st.makeChild, body2)
+      checkCond(st, cond, isIf = true) +
+        checkMainStmt(st.makeChild, body1) + checkMainStmt(st.makeChild, body2)
     case While(cond, body) => checkCond(st, cond, isIf = false) ++ checkMainStmt(st.makeChild, body)
     case ScopedStmt(stmt) => checkMainStmt(st.makeChild, stmt)
     case StmtChain(stmt, next) => checkMainStmt(st, stmt) ++ checkMainStmt(st, next)
@@ -78,7 +80,7 @@ object analyser {
      case Free(expr)           => checkFree(st, expr)
      case Exit(expr)           => checkExpr(st, expr) match {
        case (err, Some(t)) if t != IntType =>
-         err ++ typeErrorMsg("exit statement", s"exit $expr", "int", s"$t")
+         (err withContext stmt) + typeErrorMsg("exit statement", s"exit $expr", "int", s"$t")
        case (err, _) => err
      }
      case Print(expr)          => checkExpr(st, expr)._1
@@ -102,7 +104,8 @@ object analyser {
     }
 
     if (symTable.inCurrentScope(ident))
-      error ++= s"Attempted redeclaration of variable '$ident' in same scope\n"
+      error ++= s"Attempted redeclaration of variable '$ident' in same scope\n" withContext
+        s"$typ $ident = $value"
     else
       value match {
         case id@Ident(_) => checkIdent(symTable, id) match {
@@ -125,7 +128,7 @@ object analyser {
       case Right(typ) => typ1 = Some(typ)
     }
     val (err, typ2) = checkRVal(symTable, value)
-    error ++= err
+    error ++= err withContext s"$left = $value"
     if (typ1.isDefined && typ2.isDefined && !isWeakerType(typ1.get, typ2.get))
       error ++= typeErrorMsg("assignment", s"$left = $value", s"$typ1", s"$typ2")
     error.toString
@@ -152,14 +155,14 @@ object analyser {
     }
   }
 
-  @scala.annotation.tailrec
+  @tailrec
   private def checkExpr(symTable: SymbolTable, expr: Expr): (String, Option[Type]) = expr match {
     case Integer(_)    => ("" , Some(IntType))
     case Bool(_)       => ("" , Some(BoolType))
     case Character(_)  => ("" , Some(CharType))
     case StringAtom(_) => ("" , Some(StringType))
     case id@Ident(_)   => checkIdent(symTable, id) match {
-      case Left(err) => (err, None)
+      case Left(err) => (err withContext expr, None)
       case Right(typ) => ("", Some(typ))
     }
     case ArrayElem(ident, exprs) => checkArrayElem(symTable, ident, exprs) match {
@@ -293,9 +296,9 @@ object analyser {
   ): (String, Option[Type]) = {
     val error = new StringBuilder()
     val (err1, typ1) = checkExpr(symTable, left)
-    error ++= err1
     val (err2, typ2) = checkExpr(symTable, right)
-    error ++= err2
+    error ++= err1 withContext s"$left $op $right"
+    error ++= err2 withContext s"$left $op $right"
     var retType: Option[Type] = None
     if (typ1.isDefined && typ2.isDefined) {
       val someType1 = typ1.get
@@ -333,7 +336,7 @@ object analyser {
     val error = new StringBuilder()
     var typ: Option[Type] = None
     checkIdent(symTable, ident) match {
-      case Left(err) => error ++= err
+      case Left(err) => error ++= err withContext s"$ident[${exprs.mkString("][")}]"
       case Right(ArrayType(typ2)) =>
         legalArrayDimAccess(ArrayType(typ2), exprs) match {
           case None => error ++= s"Invalid array access: mismatching dimensions\n" +
@@ -345,7 +348,8 @@ object analyser {
     }
     exprs.foreach(expr => {
       val (err, typ2) = checkExpr(symTable, expr)
-      error ++= err
+      error ++= err withContext s"$ident[${exprs.mkString("][")}]"
+      if (err.nonEmpty) error ++= s"  in $ident[${exprs.mkString("][")}]\n"
       if (typ2.isDefined && typ2.get != IntType)
         error ++= typeErrorMsg(
           "array index", s"$ident[${exprs.mkString("][")}]", "int", s"${typ2.get}")
@@ -396,20 +400,24 @@ object analyser {
   private def checkNewPair(symTable: SymbolTable, expr1: Expr, expr2: Expr) = {
     val (err1, typ1) = checkExpr(symTable, expr1)
     val (err2, typ2) = checkExpr(symTable, expr2)
-    val err = err1 ++ err2
+    val error = new StringBuilder()
+    error ++= err1 withContext s"newpair($expr1, $expr2)"
+    error ++= err2 withContext s"newpair($expr1, $expr2)"
     if (typ1.isDefined && typ2.isDefined) {
       val ltype = if (!typ1.get.isInstanceOf[PairElemType]) Pair
                   else typ1.get.asInstanceOf[PairElemType]
       val rtype = if (!typ2.get.isInstanceOf[PairElemType]) Pair
                   else typ2.get.asInstanceOf[PairElemType]
-      (err, Some(PairType(ltype, rtype)))
-    } else (err, None)
+      (error.toString(), Some(PairType(ltype, rtype)))
+    } else (error.toString , None)
   }
 
   private def checkArrayLiteral(symTable: SymbolTable, exprs: List[Expr]): (String, Option[Type]) = {
     val errors = new StringBuilder()
     val errTyps = exprs.map(expr => checkExpr(symTable, expr))
-    for ((err, _) <- errTyps) errors ++= err
+    for ((err, _) <- errTyps) {
+      errors ++= err withContext s"[${exprs.mkString(", ")}]"
+    }
     val typs = errTyps.map(_._2)
     if (typs.nonEmpty && typs.forall(_.isDefined)) {
       var typ = typs.head.get
@@ -435,10 +443,11 @@ object analyser {
         val errors = new StringBuilder()
         if (params.length != exprs.length)
           errors ++=
-            s"Incorrect number of arguments in:\n  call $ident(${exprs.mkString(", ")})\n"
+            s"Incorrect number of arguments in function call:\n" +
+              s"  in call $ident(${exprs.mkString(", ")})\n"
         for ((param, expr) <- params.zip(exprs)) {
           val (err, ptype) = checkExpr(symTable, expr)
-          errors ++= err
+          errors ++= err withContext s"call $ident(${exprs.mkString(", ")})"
           if (ptype.isDefined) {
             if (!isWeakerType(param.t, ptype.get))
               errors ++= typeErrorMsg(
@@ -472,11 +481,4 @@ object analyser {
 
   private def isCompatibleTypes(typ1: Type, typ2: Type): Boolean =
     isWeakerType(typ1, typ2) || isWeakerType(typ2, typ1)
-
-  private def typeErrorMsg(
-     situation: String, context: String, expected: String, got: String
-  ): String =
-    s"Type mismatch error in $situation\n" +
-      s"  in $context\n" +
-      s"  Expected '$expected', but got '$got'\n"
 }
