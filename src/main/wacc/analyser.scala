@@ -336,7 +336,10 @@ object analyser {
       case Left(err) => error ++= err
       case Right(ArrayType(typ2)) =>
         typ = Some(typ2)
-        error ++= checkArrayDimAccess(ArrayType(typ2), exprs)
+        if (!legalArrayDimAccess(ArrayType(typ2), exprs)) {
+          error ++= s"Invalid array access: mismatching dimensions\n" +
+            s"  in $ident[${exprs.mkString("][")}]\n"
+        }
       case Right(typ2) => error ++= typeErrorMsg(
         "array access", s"$ident[${exprs.mkString("][")}]", "array", s"$typ2")
     }
@@ -351,12 +354,12 @@ object analyser {
   }
 
   @tailrec
-  private def checkArrayDimAccess(typ: Type, exprs: List[Expr]): String =
+  private def legalArrayDimAccess(typ: Type, exprs: List[Expr]): Boolean =
     (typ, exprs) match {
       case (ArrayType(typ2), _ :: tail) =>
-        checkArrayDimAccess(typ2, tail)
-      case (_, Nil) => ""
-      case (_, _) => "Array access error: too many dimensions\n"
+        legalArrayDimAccess(typ2, tail)
+      case (_, Nil) => true
+      case (_, _) => false
     }
 
   private def checkLVal(symTable: SymbolTable, lval: LVal): Either[String, Type] = lval match {
