@@ -334,7 +334,9 @@ object analyser {
     var typ: Option[Type] = None
     checkIdent(symTable, ident) match {
       case Left(err) => error ++= err
-      case Right(ArrayType(typ2)) => typ = Some(typ2)
+      case Right(ArrayType(typ2)) =>
+        typ = Some(typ2)
+        error ++= checkArrayDimAccess(ArrayType(typ2), exprs)
       case Right(typ2) => error ++= typeErrorMsg(
         "array access", s"$ident[${exprs.mkString("][")}]", "array", s"$typ2")
     }
@@ -347,6 +349,15 @@ object analyser {
     })
     if (error.isEmpty) Right(typ.get) else Left(error.toString)
   }
+
+  @tailrec
+  private def checkArrayDimAccess(typ: Type, exprs: List[Expr]): String =
+    (typ, exprs) match {
+      case (ArrayType(typ2), _ :: tail) =>
+        checkArrayDimAccess(typ2, tail)
+      case (_, Nil) => ""
+      case (_, _) => "Array access error: too many dimensions\n"
+    }
 
   private def checkLVal(symTable: SymbolTable, lval: LVal): Either[String, Type] = lval match {
     case id@Ident(_) => checkIdent(symTable, id)
@@ -375,7 +386,7 @@ object analyser {
       case Right(typ) => ("", Some(typ))
     }
     case Call(ident, exprs) => checkCall(symTable.makeChild, ident, exprs)
-    case _ => checkExpr(symTable, value.asInstanceOf[Expr])
+    case exp: Expr => checkExpr(symTable, exp)
   }
 
   private def checkNewPair(symTable: SymbolTable, expr1: Expr, expr2: Expr) = {
