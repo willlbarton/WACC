@@ -335,10 +335,10 @@ object analyser {
     checkIdent(symTable, ident) match {
       case Left(err) => error ++= err
       case Right(ArrayType(typ2)) =>
-        typ = Some(typ2)
-        if (!legalArrayDimAccess(ArrayType(typ2), exprs)) {
-          error ++= s"Invalid array access: mismatching dimensions\n" +
+        legalArrayDimAccess(ArrayType(typ2), exprs) match {
+          case None => error ++= s"Invalid array access: mismatching dimensions\n" +
             s"  in $ident[${exprs.mkString("][")}]\n"
+          case Some(t) => typ = Some(t)
         }
       case Right(typ2) => error ++= typeErrorMsg(
         "array access", s"$ident[${exprs.mkString("][")}]", "array", s"$typ2")
@@ -354,12 +354,12 @@ object analyser {
   }
 
   @tailrec
-  private def legalArrayDimAccess(typ: Type, exprs: List[Expr]): Boolean =
+  private def legalArrayDimAccess(typ: Type, exprs: List[Expr]): Option[Type] =
     (typ, exprs) match {
       case (ArrayType(typ2), _ :: tail) =>
         legalArrayDimAccess(typ2, tail)
-      case (_, Nil) => true
-      case (_, _) => false
+      case (t, Nil) => Some(t)
+      case (_, _) => None
     }
 
   private def checkLVal(symTable: SymbolTable, lval: LVal): Either[String, Type] = lval match {
