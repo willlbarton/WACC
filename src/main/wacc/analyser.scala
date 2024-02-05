@@ -52,7 +52,7 @@ object analyser {
   }
 
   private def checkMainStmt(st: SymbolTable, stmt: Stmt): String = stmt match {
-    case Return(_) => "Return not allowed in main\n"
+    case Return(expr) => s"Return not allowed in main\n  in $expr\n"
     case IfStmt(cond, body1, body2) =>
       checkCond(st, cond, isIf = true) ++
         checkMainStmt(st.makeChild, body1) ++ checkMainStmt(st.makeChild, body2)
@@ -384,12 +384,13 @@ object analyser {
   private def checkRVal(symTable: SymbolTable, value: RVal): (String, Option[Type]) = value match {
     case ArrayLiter(exprs)     => checkArrayLiteral(symTable, exprs)
     case NewPair(expr1, expr2) => checkNewPair(symTable, expr1, expr2)
-    case Fst(_) | Snd(_)       => checkLVal(symTable, value.asInstanceOf[LVal]) match {
+    case exp: Expr => checkExpr(symTable, exp)
+    // Ident, Fst and Snd match this, Ident is already handled in checkExpr
+    case fstSnd: LVal          => checkLVal(symTable, fstSnd) match {
       case Left(err) => (err, None) // couldn't infer type
       case Right(typ) => ("", Some(typ))
     }
     case Call(ident, exprs) => checkCall(symTable.makeChild, ident, exprs)
-    case exp: Expr => checkExpr(symTable, exp)
   }
 
   private def checkNewPair(symTable: SymbolTable, expr1: Expr, expr2: Expr) = {
@@ -417,8 +418,8 @@ object analyser {
           if (isWeakerType(t.get, typ)) {
             typ = t.get // weaken type
           } else {
-            errors ++= s"Non-compatible types in array literal\n" +
-              s"  in [${exprs.mkString(", ")}]\n"
+            errors ++=
+              typeErrorMsg("array literal", s"[${exprs.mkString(", ")}]", s"$typ", s"${t.get}")
             return (errors.toString, None)
           }
         }
