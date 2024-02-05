@@ -440,7 +440,6 @@ object analyser {
     }
   }
 
-  @tailrec
   private def isWeakerType(weaker: Type, stronger: Type): Boolean = {
     ((weaker != NullType || stronger != NullType) &&
       (weaker == stronger || weaker == NullType || stronger == NullType)) ||
@@ -448,7 +447,9 @@ object analyser {
       (stronger == Pair && weaker.isInstanceOf[PairType]) ||
       weaker == StringType && stronger == ArrayType(CharType) ||
       ((weaker, stronger) match {
-      case (ArrayType(t1), ArrayType(t2)) => isWeakerType(t1, t2)
+      case (ArrayType(t1), ArrayType(t2)) => t1 == t2 ||
+        t1 == Pair && t2.isInstanceOf[PairType] ||
+        t2 == Pair && t1.isInstanceOf[PairType]
       case (PairType(f1, s1), PairType(f2, s2)) => f1 == f2 && s1 == s2
       case _ => false
     })
