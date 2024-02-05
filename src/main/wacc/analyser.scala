@@ -130,7 +130,7 @@ object analyser {
     val (err, typ2) = checkRVal(symTable, value)
     error ++= err withContext s"$left = $value"
     if (typ1.isDefined && typ2.isDefined && !isWeakerType(typ1.get, typ2.get))
-      error ++= typeErrorMsg("assignment", s"$left = $value", s"$typ1", s"$typ2")
+      error ++= typeErrorMsg("assignment", s"$left = $value", s"${typ1.get}", s"${typ2.get}")
     error.toString
   }
 
