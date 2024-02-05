@@ -4,20 +4,22 @@ import scala.annotation.tailrec
 
 object analyser {
 
+  private val rootSymbolTable: SymbolTable = SymbolTable(None)
+
   def analyse(program: Program): String = {
     val error = new StringBuilder()
-    val mainSymTable = SymbolTable(None)
+    rootSymbolTable.clear()
 
     // Functions may be used before declaration, so we need to do a first pass
     for (f <- program.functions) {
-      if (mainSymTable.inCurrentScope(f.ident))
+      if (rootSymbolTable.inCurrentScope(f.ident))
         error ++= s"Attempted redeclaration of function '${f.ident}'\n"
       else
-        mainSymTable.put(f.ident, f)
+        rootSymbolTable.put(f.ident, f)
     }
 
     for (f <- program.functions) {
-      val symTable = mainSymTable.makeChild
+      val symTable = rootSymbolTable.makeChild
       f.params.foreach(p => if (symTable.inCurrentScope(p.ident))
           error ++= s"Attempted redeclaration of parameter '${p.ident}'\n" +
             s"  in function '${f.ident}'(${f.params.mkString(", ")})\n"
@@ -27,7 +29,7 @@ object analyser {
       error ++= checkFuncStmt(symTable, f.body, f.t)
     }
 
-    error ++= checkMainStmt(mainSymTable.makeChild, program.body)
+    error ++= checkMainStmt(rootSymbolTable.makeChild, program.body)
 
     error.toString
   }
@@ -413,32 +415,29 @@ object analyser {
   }
 
   private def checkCall(symTable: SymbolTable, ident: Ident, exprs: List[Expr]) = {
-    symTable(ident) match {
+    rootSymbolTable(ident) match {
       case None => (s"Usage of undeclared function: $ident!\n", None)
-      case Some(fun) => fun match {
-        case Func(typ, _, params, _) =>
-          val errors = new StringBuilder()
-          if (params.length != exprs.length)
-            errors ++=
-              s"Incorrect number of arguments in:\n  call $ident(${exprs.mkString(", ")})\n"
-          for ((param, expr) <- params.zip(exprs)) {
-            val (err, ptype) = checkExpr(symTable, expr)
-            errors ++= err
-            if (ptype.isDefined) {
-              if (!isWeakerType(param.t, ptype.get))
-                errors ++= typeErrorMsg(
-                  s"function argument ${param.ident.name}",
-                  s"$ident(${exprs.mkString(", ")})",
-                  s"${param.t}", s"${ptype.get}")
-              else symTable.put(param.ident, expr)
-            }
+      case Some(Func(typ, _, params, _)) =>
+        val errors = new StringBuilder()
+        if (params.length != exprs.length)
+          errors ++=
+            s"Incorrect number of arguments in:\n  call $ident(${exprs.mkString(", ")})\n"
+        for ((param, expr) <- params.zip(exprs)) {
+          val (err, ptype) = checkExpr(symTable, expr)
+          errors ++= err
+          if (ptype.isDefined) {
+            if (!isWeakerType(param.t, ptype.get))
+              errors ++= typeErrorMsg(
+                s"function argument ${param.ident.name}",
+                s"$ident(${exprs.mkString(", ")})",
+                s"${param.t}", s"${ptype.get}")
+            else symTable.put(param.ident, expr)
           }
-          (errors.toString, Some(typ))
-
-        case obj => (typeErrorMsg("Function call",
-          s"call $ident(${exprs.mkString(", ")})", "function", s"${obj.typ.get}"),
-          None)
-      }
+        }
+        (errors.toString, Some(typ))
+      case Some(obj) => (typeErrorMsg("Function call",
+        s"call $ident(${exprs.mkString(", ")})", "function", s"${obj.typ.get}"),
+        None)
     }
   }
 
