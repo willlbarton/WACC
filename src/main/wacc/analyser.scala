@@ -136,7 +136,6 @@ object analyser {
     case Right(typ) => typ match {
       case IntType  => ""
       case CharType => ""
-      case NullType  => ""
       case _        =>
         typeErrorMsg("read statement", s"read $value", "int' or 'char", s"$typ")
     }
