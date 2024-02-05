@@ -20,7 +20,7 @@ object parser {
     Func(typ, ident, "(" ~> sepBy(parameter, ",") <~ ")", "is" ~> statements <~ "end")
   private lazy val parameter: Parsley[Param] = Param(typ, ident)
 
-  private val statements = chain.right1(statement)(StmtChain <# ";")
+  private lazy val statements = chain.right1(statement)(StmtChain <# ";")
   private lazy val statement: Parsley[Stmt] =
     "skip" #> Skip |
       Decl(typ, ident, "=" ~> rvalue) |
