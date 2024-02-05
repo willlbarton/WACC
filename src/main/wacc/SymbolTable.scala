@@ -18,4 +18,6 @@ case class SymbolTable(parent: Option[SymbolTable]) {
   def inCurrentScope(key: Ident): Boolean = table.contains(key)
 
   def makeChild: SymbolTable = SymbolTable(Some(this))
+
+  def clear(): Unit = table.clear()
 }
