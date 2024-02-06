@@ -61,10 +61,19 @@ object lexer {
         "/" -> Label("binary operator"),
         "%" -> Label("binary operator"),
         "+" -> Label("binary operator"),
+        "&&" -> Label("logical operator"),
+        "||" -> Label("logical operator"),
+        ">" -> Label("comparison operator"),
+        ">=" -> Label("comparison operator"),
+        "<" -> Label("comparison operator"),
+        "<=" -> Label("comparison operator"),
+        "==" -> Label("comparison operator"),
+        "!=" -> Label("comparison operator"),
         "false" -> Label("boolean"),
         "true" -> Label("boolean"),
-        "[" -> Label("array"),
         "call" -> Label("function call"),
+        "fst" -> Label("pair element"),
+        "snd" -> Label("pair element"),
       )
   }
 

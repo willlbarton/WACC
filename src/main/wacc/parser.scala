@@ -25,7 +25,7 @@ object parser {
   private lazy val statement: Parsley[Stmt] =
     "skip" #> Skip |
       Decl(typ, ident, "=" ~> rvalue) |
-      Asgn(lvalue, "=" ~> rvalue) |
+      Asgn(lvalue, "=".explain("unknown statement treated as assignment") ~> rvalue) |
       Read("read" ~> lvalue) |
       Free("free" ~> expr) |
       Print("print" ~> expr) |
@@ -47,7 +47,8 @@ object parser {
       "char" #> CharType |
       "string" #> StringType
   private lazy val arrayType: Parsley[ArrayType] =
-    chain.postfix1(atomic(baseType) | atomic(pairType))(("[" <~ "]") #> ArrayType)
+    chain.postfix1(atomic(baseType) |
+      atomic(pairType))(("[".label("array") <~ "]") #> ArrayType)
   private lazy val pairElemType: Parsley[PairElemType] =
     atomic(arrayType) | baseType | "pair" #> Pair
 
@@ -57,7 +58,7 @@ object parser {
     NewPair("newpair" ~> "(" ~> expr, "," ~> expr <~ ")") | pairElem |
     Call("call" ~> ident, "(" ~> sepBy(expr, ",") <~ ")")
   private lazy val pairElem = Fst("fst" ~> lvalue) | Snd("snd" ~> lvalue)
-  private lazy val arrayElem = ArrayElem(ident, some("[" ~> expr <~ "]"))
+  private lazy val arrayElem = ArrayElem(ident, some("[".label("array index") ~> expr <~ "]"))
 
   private lazy val expr: Parsley[Expr] = precedence(
     Integer(integer),
@@ -81,7 +82,10 @@ object parser {
       "%" #> ((x, y) => BinaryApp(Mod, x, y)),
       "/" #> ((x, y) => BinaryApp(Div, x, y))
     ),
-    Ops(InfixL)("+" #> ((x, y) => BinaryApp(Add, x, y)), "-" #> ((x, y) => BinaryApp(Sub, x, y))),
+    Ops(InfixL)(
+      "+" #> ((x, y) => BinaryApp(Add, x, y)),
+      "-".label("binary operator") #> ((x, y) => BinaryApp(Sub, x, y))
+    ),
     Ops(InfixN)(
       ">=" #> ((x, y) => BinaryApp(GtEq, x, y)),
       "<=" #> ((x, y) => BinaryApp(LtEq, x, y)),
