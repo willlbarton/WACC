@@ -24,12 +24,14 @@ object analyser {
     for (f <- program.functions) {
       // Each function will have its own scope
       val symTable = rootSymbolTable.makeChild
-      f.params.foreach(p => if (symTable.inCurrentScope(p.ident))
+      f.params.foreach(p =>
+        if (symTable.inCurrentScope(p.ident))
           error ++=
             s"Attempted redeclaration of parameter '${p.ident}'\n" withContext s"function $f"
         else {
           symTable.put(p.ident, p)
-        })
+        }
+      )
       error ++= checkFuncStmt(symTable.makeChild, f.body, f.t) withContext s"function $f"
     }
 
@@ -46,14 +48,14 @@ object analyser {
       // Check that the return expression is valid and matches the function return type
       err + (if (err.nonEmpty) s"in $stmt" else "") +
         (if (expType.isDefined && !isWeakerType(typ, expType.get)) {
-        typeErrorMsg("function return", s"return $expr",
-          s"$typ", s"${expType.get}") withContext
-          stmt} else "")
+           typeErrorMsg("function return", s"return $expr", s"$typ", s"${expType.get}") withContext
+             stmt
+         } else "")
     // If and while statements have a condition that must be a boolean
     case IfStmt(cond, body1, body2) =>
       checkCond(st, cond, isIf = true) ++
         checkFuncStmt(st.makeChild, body1, typ) ++ checkFuncStmt(st.makeChild, body2, typ)
-    case While(cond, body)     =>
+    case While(cond, body) =>
       checkCond(st, cond, isIf = false) ++ checkFuncStmt(st.makeChild, body, typ)
     case ScopedStmt(stmt)      => checkFuncStmt(st.makeChild, stmt, typ)
     case StmtChain(stmt, next) => checkFuncStmt(st, stmt, typ) ++ checkFuncStmt(st, next, typ)
@@ -67,42 +69,50 @@ object analyser {
       checkCond(st, cond, isIf = true) +
         checkMainStmt(st.makeChild, body1) + checkMainStmt(st.makeChild, body2)
     case While(cond, body) => checkCond(st, cond, isIf = false) ++ checkMainStmt(st.makeChild, body)
-    case ScopedStmt(stmt) => checkMainStmt(st.makeChild, stmt)
+    case ScopedStmt(stmt)  => checkMainStmt(st.makeChild, stmt)
     case StmtChain(stmt, next) => checkMainStmt(st, stmt) ++ checkMainStmt(st, next)
-    case _ => checkLeafStatement(st, stmt)
+    case _                     => checkLeafStatement(st, stmt)
   }
 
   // Used in if and while statements to check that the condition is a boolean
   private def checkCond(st: SymbolTable, cond: Expr, isIf: Boolean) = {
     val (err, typ) = checkExpr(st, cond)
     err ++ (if (typ.isDefined && typ.get != BoolType)
-      typeErrorMsg((if (isIf) "if statement" else "loop") + " conditional",
-        if (isIf) s"if $cond then" else s"while $cond do", "bool", s"${typ.get}")
-    else "")
+              typeErrorMsg(
+                (if (isIf) "if statement" else "loop") + " conditional",
+                if (isIf) s"if $cond then" else s"while $cond do",
+                "bool",
+                s"${typ.get}"
+              )
+            else "")
   }
 
   // Checks the validity of statements that cannot have any other statements as children
   private def checkLeafStatement(st: SymbolTable, stmt: Stmt): String = stmt match {
-     case Skip                 => ""
-     case Decl(t, name, value) => handleDeclaration(st, t, name, value)
-     case Asgn(left, value)    => checkAssignment(st, left, value)
-     case Read(value)          => checkRead(st, value)
-     case Free(expr)           => checkFree(st, expr)
-     case Exit(expr)           => checkExpr(st, expr) match { // expects an int
-       case (err, Some(t)) if t != IntType =>
-         (err withContext stmt) +
-           typeErrorMsg("exit statement", s"exit $expr", "int", s"$t")
-       case (err, _) => err
-     }
-     case Print(expr)          => checkExpr(st, expr)._1
-     case PrintLn(expr)        => checkExpr(st, expr)._1
-     // Should never happen - if it does, it's a bug
-     case _ => throw new IllegalArgumentException("Non-leaf statement in checkLeafStatement\n")
-   }
+    case Skip                 => ""
+    case Decl(t, name, value) => handleDeclaration(st, t, name, value)
+    case Asgn(left, value)    => checkAssignment(st, left, value)
+    case Read(value)          => checkRead(st, value)
+    case Free(expr)           => checkFree(st, expr)
+    case Exit(expr) =>
+      checkExpr(st, expr) match { // expects an int
+        case (err, Some(t)) if t != IntType =>
+          (err withContext stmt) +
+            typeErrorMsg("exit statement", s"exit $expr", "int", s"$t")
+        case (err, _) => err
+      }
+    case Print(expr)   => checkExpr(st, expr)._1
+    case PrintLn(expr) => checkExpr(st, expr)._1
+    // Should never happen - if it does, it's a bug
+    case _ => throw new IllegalArgumentException("Non-leaf statement in checkLeafStatement\n")
+  }
 
   // Checks a declaration is valid and adds it to the symbol table
   private def handleDeclaration(
-      symTable: SymbolTable, typ: Type, ident: Ident, value: RVal
+      symTable: SymbolTable,
+      typ: Type,
+      ident: Ident,
+      value: RVal
   ): String = {
     val error = new StringBuilder()
 
@@ -112,7 +122,11 @@ object analyser {
     // Check that the type of the right hand side is compatible with the declared type
     if (typ2.isDefined && !isWeakerType(typ, typ2.get)) {
       error ++= typeErrorMsg(
-        s"declaration of variable $ident", s"$typ $ident = $value", s"$typ", s"${typ2.get}")
+        s"declaration of variable $ident",
+        s"$typ $ident = $value",
+        s"$typ",
+        s"${typ2.get}"
+      )
     }
 
     // Do not allow redeclaration
@@ -122,11 +136,12 @@ object analyser {
     else {
       // If the right hand side is a variable, we use its symbol table entry rather than the Ident
       value match {
-        case id: Ident => checkIdent(symTable, id) match {
-          case Left(err) => error ++= err withContext s"$typ $ident = $value"
-          case Right(typ2) =>
-            if (isWeakerType(typ, typ2)) symTable.put(ident, symTable(id).get)
-        }
+        case id: Ident =>
+          checkIdent(symTable, id) match {
+            case Left(err) => error ++= err withContext s"$typ $ident = $value"
+            case Right(typ2) =>
+              if (isWeakerType(typ, typ2)) symTable.put(ident, symTable(id).get)
+          }
         case _ => symTable.put(ident, value)
       }
     }
@@ -140,7 +155,7 @@ object analyser {
     val error = new StringBuilder()
     var typ1: Option[Type] = None
     checkLVal(symTable, left) match { // Check that the left hand side is a valid lvalue
-      case Left(err) => error ++= err withContext s"$left = $value"
+      case Left(err)  => error ++= err withContext s"$left = $value"
       case Right(typ) => typ1 = Some(typ)
     }
     val (err, typ2) = checkRVal(symTable, value)
@@ -154,20 +169,21 @@ object analyser {
   // Checks that a read statement is valid
   private def checkRead(st: SymbolTable, value: LVal): String = checkLVal(st, value) match {
     case Left(err) => err
-    case Right(typ) => typ match {
-      case IntType | CharType  => ""
-      case _        => // Only int and char are allowed
-        typeErrorMsg("read statement", s"read $value", "int' or 'char", s"$typ")
-    }
+    case Right(typ) =>
+      typ match {
+        case IntType | CharType => ""
+        case _ => // Only int and char are allowed
+          typeErrorMsg("read statement", s"read $value", "int' or 'char", s"$typ")
+      }
   }
 
   // Checks that a free statement is valid
   private def checkFree(st: SymbolTable, expr: Expr) = {
     checkExpr(st, expr) match {
       case (err, Some(PairType(_, _))) => err
-      case (err, Some(ArrayType(_))) => err
-      case (err, Some(Pair)) => err
-      case (err, None) => err
+      case (err, Some(ArrayType(_)))   => err
+      case (err, Some(Pair))           => err
+      case (err, None)                 => err
       // We can only free pairs and arrays
       case (err, Some(typ)) =>
         err ++ typeErrorMsg("free statement", s"free $expr", "pair' or 'array", s"$typ")
@@ -177,30 +193,32 @@ object analyser {
   // Checks the validity of an expression and finds it type if possible
   @tailrec
   private def checkExpr(symTable: SymbolTable, expr: Expr): (String, Option[Type]) = expr match {
-    case Integer(_)    => ("" , Some(IntType))
-    case Bool(_)       => ("" , Some(BoolType))
-    case Character(_)  => ("" , Some(CharType))
-    case StringAtom(_) => ("" , Some(StringType))
+    case Integer(_)    => ("", Some(IntType))
+    case Bool(_)       => ("", Some(BoolType))
+    case Character(_)  => ("", Some(CharType))
+    case StringAtom(_) => ("", Some(StringType))
     case Null          => ("", Some(Pair))
-    case id: Ident     => checkIdent(symTable, id) match {
-      case Left(err) => (err withContext expr, None)
-      case Right(typ) => ("", Some(typ))
-    }
+    case id: Ident =>
+      checkIdent(symTable, id) match {
+        case Left(err)  => (err withContext expr, None)
+        case Right(typ) => ("", Some(typ))
+      }
     // Array indexing
-    case ArrayElem(ident, exprs) => checkArrayElem(symTable, ident, exprs) match {
-      case Left(err) => (err, None)
-      case Right(typ) => ("", Some(typ))
-    }
-    case BracketedExpr(expr)     => checkExpr(symTable, expr)
+    case ArrayElem(ident, exprs) =>
+      checkArrayElem(symTable, ident, exprs) match {
+        case Left(err)  => (err, None)
+        case Right(typ) => ("", Some(typ))
+      }
+    case BracketedExpr(expr) => checkExpr(symTable, expr)
     // Unary and binary operators mutually recursive with this function
-    case UnaryApp(op, expr) => checkUnaryApp(symTable, op, expr)
+    case UnaryApp(op, expr)         => checkUnaryApp(symTable, op, expr)
     case BinaryApp(op, left, right) => checkBinaryApp(symTable, op, left, right)
   }
 
   // Checks that an identifier is defined and returns its type if possible
   private def checkIdent(symTable: SymbolTable, ident: Ident): Either[String, Type] =
     symTable(ident) match {
-      case None => Left(s"Variable '$ident' used before declaration!\n")
+      case None                   => Left(s"Variable '$ident' used before declaration!\n")
       case Some(Func(_, _, _, _)) => Left(s"Function '$ident' used as variable!\n")
       case Some(obj) =>
         assert(obj.typ.isDefined) // Everything in symbol table should have a type
@@ -209,9 +227,9 @@ object analyser {
 
   // Attempts to evaluate constant integer expressions
   private def evalConst(expr: Expr): Option[BigInt] = expr match {
-    case Integer(i) => Some(i)
-    case UnaryApp(Neg, e) => evalConst(e).map(-_)
-    case UnaryApp(Ord, Character(c)) => Some(c.toInt)
+    case Integer(i)                      => Some(i)
+    case UnaryApp(Neg, e)                => evalConst(e).map(-_)
+    case UnaryApp(Ord, Character(c))     => Some(c.toInt)
     case UnaryApp(Ord, UnaryApp(Chr, e)) => evalConst(e)
     case BinaryApp(op, e1, e2) =>
       val val1 = evalConst(e1)
@@ -226,7 +244,7 @@ object analyser {
           // Do not attempt division by 0
           case Div => if (v2 == 0) None else Some(v1 / v2)
           case Mod => Some(v1 % v2)
-          case _ => None
+          case _   => None
         }
       } else None
     case _ => None
@@ -241,16 +259,21 @@ object analyser {
       val rv = rightv.get
       op match {
         // Negative value could also cause underflow
-        case Add => if (lv + rv > Int.MaxValue || lv + rv < Int.MinValue)
-          s"Overflow error in expression: $left + $right:\n" +
-            "  Addition of int literals would result in overflow\n" else ""
-        case Sub => if (lv - rv < Int.MinValue || lv - rv > Int.MaxValue) {
-          s"Overflow error in expression: $left - $right:\n" +
-          "  Subtraction of int literals would result in underflow\n"
-        } else ""
-        case Mul => if (lv * rv > Int.MaxValue || lv * rv < Int.MinValue)
-          s"Overflow error in expression: $left * $right:\n" +
-          "  Multiplication of int literals would result in overflow\n" else ""
+        case Add =>
+          if (lv + rv > Int.MaxValue || lv + rv < Int.MinValue)
+            s"Overflow error in expression: $left + $right:\n" +
+              "  Addition of int literals would result in overflow\n"
+          else ""
+        case Sub =>
+          if (lv - rv < Int.MinValue || lv - rv > Int.MaxValue) {
+            s"Overflow error in expression: $left - $right:\n" +
+              "  Subtraction of int literals would result in underflow\n"
+          } else ""
+        case Mul =>
+          if (lv * rv > Int.MaxValue || lv * rv < Int.MinValue)
+            s"Overflow error in expression: $left * $right:\n" +
+              "  Multiplication of int literals would result in overflow\n"
+          else ""
         // Division by 0 is a runtime error, so we don't check it here
         case _ => ""
       }
@@ -261,19 +284,18 @@ object analyser {
   private def unaryAppErrMsg(op: UnaryOp, typ: Type, expr: Expr): String = {
     val expected: String = op match {
       case Chr | Neg => IntType.toString
-      case Ord => CharType.toString
-      case Len => s"$StringType or array"
-      case Not => BoolType.toString
+      case Ord       => CharType.toString
+      case Len       => s"$StringType or array"
+      case Not       => BoolType.toString
     }
-    typeErrorMsg(s"application of $op operator",
-      s"expression: $expr",
-      expected,
-      s"$typ")
+    typeErrorMsg(s"application of $op operator", s"expression: $expr", expected, s"$typ")
   }
 
   // Checks the validity of unary operator applications and returns the type
   private def checkUnaryApp(
-    symTable: SymbolTable, op: UnaryOp, expr: Expr
+      symTable: SymbolTable,
+      op: UnaryOp,
+      expr: Expr
   ): (String, Option[Type]) = {
     val error = new StringBuilder()
     val (err, typ) = checkExpr(symTable, expr)
@@ -296,8 +318,7 @@ object analyser {
               error ++= "Negation of int literal would result in overflow\n" +
                 s"  in expression: $expr\n"
             retType = Some(IntType)
-          }
-          else error ++= unaryAppErrMsg(Neg, someType, expr)
+          } else error ++= unaryAppErrMsg(Neg, someType, expr)
         case Not =>
           if (someType == BoolType) retType = Some(BoolType)
           else error ++= unaryAppErrMsg(Not, someType, expr)
@@ -312,20 +333,25 @@ object analyser {
   // Error messages for binary operator applications
   private def binaryAppErrMsg(op: BinaryOp, typ1: Type, typ2: Type, expr: Expr): String = {
     val expected: String = op match {
-      case And | Or => BoolType.toString
-      case Eq | NotEq => "compatible types"
-      case Add => s"$IntType' or '$StringType"
+      case And | Or                                      => BoolType.toString
+      case Eq | NotEq                                    => "compatible types"
+      case Add                                           => s"$IntType' or '$StringType"
       case Gt | GtEq | Lt | LtEq | Sub | Mul | Div | Mod => IntType.toString
     }
-    typeErrorMsg(s"application of '$op' operator",
+    typeErrorMsg(
+      s"application of '$op' operator",
       s"expression: $expr",
       expected,
-      s"$typ1' and '$typ2")
+      s"$typ1' and '$typ2"
+    )
   }
 
   // Checks the validity of binary operator applications and returns the type
   private def checkBinaryApp(
-    symTable: SymbolTable, op: BinaryOp, left: Expr, right: Expr
+      symTable: SymbolTable,
+      op: BinaryOp,
+      left: Expr,
+      right: Expr
   ): (String, Option[Type]) = {
     val error = new StringBuilder()
     // First validate sub-expressions
@@ -345,8 +371,10 @@ object analyser {
           if (isCompatibleTypes(someType1, someType2)) retType = Some(BoolType)
           else error ++= binaryAppErrMsg(op, someType1, someType2, BinaryApp(op, left, right))
         case Gt | GtEq | Lt | LtEq =>
-          if (someType1 == IntType && someType2 == IntType ||
-            someType1 == CharType && someType2 == CharType) retType = Some(BoolType)
+          if (
+            someType1 == IntType && someType2 == IntType ||
+            someType1 == CharType && someType2 == CharType
+          ) retType = Some(BoolType)
           else error ++= binaryAppErrMsg(op, someType1, someType2, BinaryApp(op, left, right))
         case Add =>
           if (someType1 == IntType && someType2 == IntType) {
@@ -366,7 +394,9 @@ object analyser {
 
   // Checks array indexing and returns the type of the expression if valid
   private def checkArrayElem(
-    symTable: SymbolTable, ident: Ident, exprs: List[Expr]
+      symTable: SymbolTable,
+      ident: Ident,
+      exprs: List[Expr]
   ): Either[String, Type] = {
     val error = new StringBuilder()
     var typ: Option[Type] = None
@@ -374,12 +404,18 @@ object analyser {
       case Left(err) => error ++= err withContext s"$ident[${exprs.mkString("][")}]"
       case Right(ArrayType(typ2)) =>
         legalArrayDimAccess(ArrayType(typ2), exprs) match {
-          case None => error ++= s"Invalid array access: mismatching dimensions\n" +
-            s"  in $ident[${exprs.mkString("][")}]\n"
+          case None =>
+            error ++= s"Invalid array access: mismatching dimensions\n" +
+              s"  in $ident[${exprs.mkString("][")}]\n"
           case Some(t) => typ = Some(t)
         }
-      case Right(typ2) => error ++= typeErrorMsg(
-        "array access", s"$ident[${exprs.mkString("][")}]", "array", s"$typ2")
+      case Right(typ2) =>
+        error ++= typeErrorMsg(
+          "array access",
+          s"$ident[${exprs.mkString("][")}]",
+          "array",
+          s"$typ2"
+        )
     }
     // Check that the array indices are valid
     // We don't check for out of bounds, as this is a runtime error
@@ -389,7 +425,11 @@ object analyser {
       if (err.nonEmpty) error ++= s"  in $ident[${exprs.mkString("][")}]\n"
       if (typ2.isDefined && typ2.get != IntType)
         error ++= typeErrorMsg(
-          "array index", s"$ident[${exprs.mkString("][")}]", "int", s"${typ2.get}")
+          "array index",
+          s"$ident[${exprs.mkString("][")}]",
+          "int",
+          s"${typ2.get}"
+        )
     })
     if (error.isEmpty) Right(typ.get) else Left(error.toString)
   }
@@ -401,7 +441,7 @@ object analyser {
       case (ArrayType(typ2), _ :: tail) =>
         legalArrayDimAccess(typ2, tail)
       case (t, Nil) => Some(t)
-      case (_, _) => None
+      case (_, _)   => None
     }
 
   // Checks that the left hand side of an assignment or declaration is valid
@@ -409,21 +449,21 @@ object analyser {
   private def checkLVal(symTable: SymbolTable, lval: LVal): Either[String, Type] = lval match {
     case id: Ident               => checkIdent(symTable, id)
     case ArrayElem(ident, exprs) => checkArrayElem(symTable, ident, exprs)
-    case Fst(value)              => checkLVal(symTable, value) match {
-      // The type of fst is the type of the first element of the pair
-      case Left(err) => Left(err)
-      case Right(PairType(typ, _)) => Right(typ)
-      case Right(Pair) => Right(NullType) // We don't know the type of the pair, but it is valid
-      case Right(typ) => Left(typeErrorMsg(
-        "pair element access", s"fst $value", "pair", s"$typ"))
-    }
-    case Snd(value)              => checkLVal(symTable, value) match {
-      case Left(err) => Left(err)
-      case Right(PairType(_, typ)) => Right(typ)
-      case Right(Pair) => Right(NullType) // We don't know the type of the pair, but it is valid
-      case Right(typ) => Left(typeErrorMsg(
-        "pair element access", s"snd $value", "pair", s"$typ"))
-    }
+    case Fst(value) =>
+      checkLVal(symTable, value) match {
+        // The type of fst is the type of the first element of the pair
+        case Left(err)               => Left(err)
+        case Right(PairType(typ, _)) => Right(typ)
+        case Right(Pair) => Right(NullType) // We don't know the type of the pair, but it is valid
+        case Right(typ) => Left(typeErrorMsg("pair element access", s"fst $value", "pair", s"$typ"))
+      }
+    case Snd(value) =>
+      checkLVal(symTable, value) match {
+        case Left(err)               => Left(err)
+        case Right(PairType(_, typ)) => Right(typ)
+        case Right(Pair) => Right(NullType) // We don't know the type of the pair, but it is valid
+        case Right(typ) => Left(typeErrorMsg("pair element access", s"snd $value", "pair", s"$typ"))
+      }
   }
 
   // Checks the validity of the right hand side of an assignment or declaration
@@ -431,12 +471,13 @@ object analyser {
   private def checkRVal(symTable: SymbolTable, value: RVal): (String, Option[Type]) = value match {
     case ArrayLiter(exprs)     => checkArrayLiteral(symTable, exprs)
     case NewPair(expr1, expr2) => checkNewPair(symTable, expr1, expr2)
-    case exp: Expr => checkExpr(symTable, exp)
+    case exp: Expr             => checkExpr(symTable, exp)
     // Ident, Fst and Snd match this, Ident is already handled in checkExpr
-    case fstSnd: LVal          => checkLVal(symTable, fstSnd) match {
-      case Left(err) => (err, None) // couldn't infer type
-      case Right(typ) => ("", Some(typ))
-    }
+    case fstSnd: LVal =>
+      checkLVal(symTable, fstSnd) match {
+        case Left(err)  => (err, None) // couldn't infer type
+        case Right(typ) => ("", Some(typ))
+      }
     // Function call
     case Call(ident, exprs) => checkCall(symTable.makeChild, ident, exprs)
   }
@@ -451,16 +492,21 @@ object analyser {
     error ++= err2 withContext s"newpair($expr1, $expr2)"
     if (typ1.isDefined && typ2.isDefined) {
       // Nested pair types are erased to Pair
-      val ltype = if (!typ1.get.isInstanceOf[PairElemType]) Pair
-                  else typ1.get.asInstanceOf[PairElemType]
-      val rtype = if (!typ2.get.isInstanceOf[PairElemType]) Pair
-                  else typ2.get.asInstanceOf[PairElemType]
+      val ltype =
+        if (!typ1.get.isInstanceOf[PairElemType]) Pair
+        else typ1.get.asInstanceOf[PairElemType]
+      val rtype =
+        if (!typ2.get.isInstanceOf[PairElemType]) Pair
+        else typ2.get.asInstanceOf[PairElemType]
       (error.toString(), Some(PairType(ltype, rtype)))
-    } else (error.toString , None)
+    } else (error.toString, None)
   }
 
   // Checks the validity of array literals and returns their type if valid
-  private def checkArrayLiteral(symTable: SymbolTable, exprs: List[Expr]): (String, Option[Type]) = {
+  private def checkArrayLiteral(
+      symTable: SymbolTable,
+      exprs: List[Expr]
+  ): (String, Option[Type]) = {
     val errors = new StringBuilder()
     // Check each sub-expression
     val errTyps = exprs.map(expr => checkExpr(symTable, expr))
@@ -476,9 +522,13 @@ object analyser {
           if (isWeakerType(t.get, typ)) {
             typ = t.get // Weaken current type
           } else {
-            errors ++= typeErrorMsg("array literal", s"[${exprs.mkString(", ")}]",
-              s"$typ", s"${t.get}")
-            return (errors.toString, None)
+            errors ++= typeErrorMsg(
+              "array literal",
+              s"[${exprs.mkString(", ")}]",
+              s"$typ",
+              s"${t.get}"
+            )
+            (errors.toString, None)
           }
         }
       }
@@ -507,7 +557,9 @@ object analyser {
               errors ++= typeErrorMsg(
                 s"function argument ${param.ident.name}",
                 s"$ident(${exprs.mkString(", ")})",
-                s"${param.t}", s"${ptype.get}")
+                s"${param.t}",
+                s"${ptype.get}"
+              )
             else symTable.put(param.ident, expr)
           }
         }
@@ -521,16 +573,17 @@ object analyser {
   private def isWeakerType(weaker: Type, stronger: Type): Boolean = {
     ((weaker != NullType || stronger != NullType) &&
       (weaker == stronger || weaker == NullType || stronger == NullType)) ||
-      (weaker == Pair && stronger.isInstanceOf[PairType]) ||
-      (stronger == Pair && weaker.isInstanceOf[PairType]) ||
-      weaker == StringType && stronger == ArrayType(CharType) ||
-      ((weaker, stronger) match {
+    (weaker == Pair && stronger.isInstanceOf[PairType]) ||
+    (stronger == Pair && weaker.isInstanceOf[PairType]) ||
+    weaker == StringType && stronger == ArrayType(CharType) ||
+    ((weaker, stronger) match {
       // Array and pair types have invariant type parameters
-      case (ArrayType(t1), ArrayType(t2)) => t1 == t2 ||
+      case (ArrayType(t1), ArrayType(t2)) =>
+        t1 == t2 ||
         t1 == Pair && t2.isInstanceOf[PairType] ||
         t2 == Pair && t1.isInstanceOf[PairType]
       case (PairType(f1, s1), PairType(f2, s2)) => f1 == f2 && s1 == s2
-      case _ => false
+      case _                                    => false
     })
   }
 
