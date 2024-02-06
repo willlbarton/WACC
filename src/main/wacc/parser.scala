@@ -33,14 +33,16 @@ object parser {
       // for functions, the last statement in a chain MUST be one of the below
       Return("return" ~> expr) |
       Exit("exit" ~> expr) |
-      IfStmt("if" ~> expr <~ "then", statements, "else" ~> statements <~ "fi") |
-      While("while" ~> expr <~ "do", statements <~ "done") |
+      IfStmt("if" ~> expr <~ "then".explain("if statements require \'then\'"), statements,
+        "else".explain("if statements require an \'else\' branch") ~> statements <~
+          "fi".explain("if statements must end in \'fi\'")) |
+      While("while" ~> expr <~ "do", statements <~
+        "done".explain("while loops must end with \'done\'")) |
       ScopedStmt("begin" ~> statements <~ "end")
 
   private lazy val pairType: Parsley[PairType] =
     PairType("pair" ~> "(" ~> pairElemType, "," ~> pairElemType <~ ")")
-  private lazy val typ: Parsley[Type] = atomic(arrayType) | baseType |
-    pairType
+  private lazy val typ: Parsley[Type] = atomic(arrayType) | baseType | pairType
   private lazy val baseType: Parsley[BaseType] =
     "int" #> IntType |
       "bool" #> BoolType |

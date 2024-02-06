@@ -9,6 +9,8 @@ import parsley.token.descriptions.text.{EscapeDesc, TextDesc}
 import parsley.token.predicate.Basic
 import parsley.token.symbol.ImplicitSymbol
 
+import scala.annotation.unused
+
 object lexer {
   // Specifies behaviour of the lexer
   private val desc = LexicalDesc.plain.copy(
@@ -50,7 +52,9 @@ object lexer {
 
   private val errConfig = new ErrorConfig {
     override def labelNameIdentifier: String = "variable"
-    override def unexpectedNameIllegalIdentifier(v: String): String = s"Unexpected keyword: '$v'"
+    override def labelCharAsciiEnd: LabelConfig = Label("\' to end character literal")
+    override def labelStringAsciiEnd(@unused multi: Boolean, @unused raw: Boolean): LabelConfig =
+      Label("\" to end string literal")
     override def labelSymbol: Map[String, LabelWithExplainConfig] =
       Map (
         "!" -> Label("unary operator"),
