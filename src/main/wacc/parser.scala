@@ -3,6 +3,7 @@ package src.main.wacc
 import parsley.Parsley._
 import parsley.combinator._
 import parsley.errors.ErrorBuilder
+import parsley.errors.combinator.ErrorMethods
 import parsley.expr._
 import parsley.{Parsley, Result}
 import src.main.wacc.lexer.implicits.implicitSymbol
@@ -60,7 +61,7 @@ object parser {
 
   private lazy val expr: Parsley[Expr] = precedence(
     Integer(integer),
-    ("-" ~> expr).map(x => UnaryApp(Neg, x)),
+    ("-".label("unary operator") ~> expr).map(x => UnaryApp(Neg, x)),
     Bool("true" #> true | "false" #> false),
     Character(character),
     StringAtom(string),
