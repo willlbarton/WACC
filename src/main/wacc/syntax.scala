@@ -2,13 +2,15 @@ package src.main.wacc
 
 import parsley.generic
 
+// AST nodes that can be stored in the symbol table
 sealed trait SymbolTableObj {
-  var typ: Option[Type] = None
+  var typ: Option[Type] = None // The type of the object
 }
 
+// Main program
 case class Program(functions: List[Func], body: Stmt)
 
-// An empty 'params' list should be the same as no param-list in the syntax
+// <func>
 case class Func(t: Type, ident: Ident, params: List[Param], body: Stmt) extends SymbolTableObj {
   typ = Some(t)
   override def toString: String =
@@ -17,7 +19,7 @@ case class Func(t: Type, ident: Ident, params: List[Param], body: Stmt) extends 
 case class Param(t: Type, ident: Ident) extends SymbolTableObj { typ = Some(t) }
 
 sealed trait Type
-sealed trait PairElemType extends Type
+sealed trait PairElemType extends Type // Types that can be used inside a pair
 sealed trait BaseType extends PairElemType
 
 // <base-type>
@@ -28,6 +30,7 @@ case object StringType extends BaseType { override def toString = "string" }
 
 // <pair-elem-type)
 case class ArrayType(t: Type) extends PairElemType { override def toString = s"$t[]" }
+// Pairs inside other pairs have their types erased
 case object Pair extends PairElemType { override def toString = "pair" }
 case object NullType extends Type { override def toString = "unknown" }
 
@@ -64,7 +67,7 @@ case class StmtChain(stmt: Stmt, next: Stmt) extends Stmt {
   override def toString: String = s"$stmt; $next"
 }
 
-// <rvalue>
+// <rvalue> Right hand side of declaration or assignment
 sealed trait RVal extends SymbolTableObj
 case class ArrayLiter(elems: List[Expr]) extends RVal {
   override def toString: String = elems.mkString("[", ", ", "]")
@@ -76,10 +79,11 @@ case class Call(ident: Ident, args: List[Expr]) extends RVal {
   override def toString: String = s"call $ident(${args.mkString(", ")})"
 }
 
-// <lvalue>
+// <lvalue> Left hand side of declaration or assignment
 sealed trait LVal
 case class Fst(value: LVal) extends LVal with RVal { override def toString: String = s"fst $value" }
 case class Snd(value: LVal) extends LVal with RVal { override def toString: String = s"snd $value" }
+
 sealed trait Expr extends RVal
 case class UnaryApp(op: UnaryOp, expr: Expr) extends Expr {
   override def toString: String = s"$op $expr"
@@ -98,21 +102,17 @@ case class Bool(value: Boolean) extends Expr {
 case class Character(c: Char) extends Expr {
   override def toString: String = s"'$c'"
 }
-
 case class StringAtom(s: String) extends Expr {
   override def toString: String = s
 }
-
-case object Null extends Expr {
-  override def toString = "null"
-} // <pair-liter>
+case object Null extends Expr { override def toString = "null" } // Null pair
 case class Ident(name: String) extends Expr with LVal { override def toString: String = name }
 case class ArrayElem(ident: Ident, exprs: List[Expr]) extends Expr with LVal {
   override def toString: String = s"$ident[${exprs.mkString("][")}]"
 }
 case class BracketedExpr(expr: Expr) extends Expr { override def toString: String = s"($expr)" }
 
-// <unary-oper>
+// <unary-oper> Unary operator types
 trait UnaryOp
 case object Not extends UnaryOp { override def toString = "!" }
 case object Neg extends UnaryOp { override def toString = "-" }
@@ -120,7 +120,7 @@ case object Len extends UnaryOp { override def toString = "len" }
 case object Ord extends UnaryOp { override def toString = "ord" }
 case object Chr extends UnaryOp { override def toString = "chr" }
 
-// <binary-oper>
+// <binary-oper> Binary operator types
 trait BinaryOp
 case object Mul extends BinaryOp { override def toString = "*" }
 case object Div extends BinaryOp { override def toString = "/" }
@@ -136,13 +136,14 @@ case object NotEq extends BinaryOp { override def toString = "!=" }
 case object And extends BinaryOp { override def toString = "&&" }
 case object Or extends BinaryOp { override def toString = "||" }
 
-// parser bridges
+
+// Parser bridges used in the parser
+
 
 object Program extends generic.ParserBridge2[List[Func], Stmt, Program]
 object Func extends generic.ParserBridge4[Type, Ident, List[Param], Stmt, Func]
 object Param extends generic.ParserBridge2[Type, Ident, Param]
 
-// object ArrayType extends generic.ParserBridge1[Type, ArrayType]
 object PairType extends generic.ParserBridge2[PairElemType, PairElemType, PairType]
 
 object StmtChain extends generic.ParserBridge2[Stmt, Stmt, StmtChain]
