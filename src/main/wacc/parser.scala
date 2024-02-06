@@ -43,7 +43,7 @@ object parser {
     "if" ~> expr <~ "then",
     functionStatements,
     "else" ~> functionStatements <~ "fi"
-  )
+  ) | ScopedStmt("begin" ~> functionStatements <~ "end")
 
   private lazy val statements = chain.right1(statement)(StmtChain <# ";")
   private lazy val statement: Parsley[Stmt] =
