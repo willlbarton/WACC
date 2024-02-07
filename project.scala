@@ -3,7 +3,7 @@
 
 // dependencies
 //> using dep com.github.j-mie6::parsley::5.0.0-M5
-//> using test.dep org.scalatest::scalatest::3.2.17
+//> using test.dep org.scalatest::scalatest::3.2.18
 
 // these are all sensible defaults to catch annoying issues
 //> using options -deprecation -unchecked -feature
