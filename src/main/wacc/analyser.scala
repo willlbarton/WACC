@@ -46,7 +46,7 @@ object analyser {
     case Return(expr) =>
       val (err, expType) = checkExpr(st, expr)
       // Check that the return expression is valid and matches the function return type
-      err + (if (err.nonEmpty) s"in $stmt" else "") +
+      (err withContext stmt) +
         (if (expType.isDefined && !isWeakerType(typ, expType.get)) {
            typeErrorMsg("function return", s"return $expr", s"$typ", s"${expType.get}") withContext
              stmt
