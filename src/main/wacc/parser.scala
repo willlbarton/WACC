@@ -6,8 +6,10 @@ import parsley.errors.ErrorBuilder
 import parsley.errors.combinator.ErrorMethods
 import parsley.expr._
 import parsley.{Parsley, Result}
+import parsley.syntax.zipped.{Zipped2}
 import src.main.wacc.lexer.implicits.implicitSymbol
 import src.main.wacc.lexer.{character, fully, ident, integer, string}
+import parsley.debug._
 
 object parser {
   def parse[Err: ErrorBuilder](input: String): Result[Err, Program] = parser.parse(input)
@@ -18,8 +20,31 @@ object parser {
     Program("begin" ~> many(atomic(function)), statements <~ "end")
 
   private lazy val function: Parsley[Func] =
-    Func(typ, ident, "(" ~> sepBy(parameter, ",") <~ ")", "is" ~> statements <~ "end")
+    Func(
+      typ,
+      ident,
+      "(" ~> sepBy(parameter, ",") <~ ")",
+      "is" ~> functionStatements <~ "end"
+    )
   private lazy val parameter: Parsley[Param] = Param(typ, ident)
+
+  private lazy val functionStatements: Parsley[Stmt] =
+    (
+      many(atomic(statement <~ ";")),
+      functionReturn
+    )
+      .zipped((stmts, ret) =>
+        stmts match {
+          case Nil => ret
+          case _   => StmtChain(stmts.reduce(StmtChain(_, _)), ret)
+        }
+      )
+
+  private lazy val functionReturn = Return("return" ~> expr) | Exit("exit" ~> expr) | IfStmt(
+    "if" ~> expr <~ "then",
+    functionStatements,
+    "else" ~> functionStatements <~ "fi"
+  ) | ScopedStmt("begin" ~> functionStatements <~ "end")
 
   private lazy val statements = chain.right1(statement)(StmtChain <# ";")
   private lazy val statement: Parsley[Stmt] =
