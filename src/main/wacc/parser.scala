@@ -20,31 +20,22 @@ object parser {
     Program("begin" ~> many(atomic(function)), statements <~ "end")
 
   private lazy val function: Parsley[Func] =
-    Func(
-      typ,
-      ident,
-      "(" ~> sepBy(parameter, ",") <~ ")",
-      "is" ~> functionStatements <~ "end"
-    )
+    Func(typ, ident, "(" ~> sepBy(parameter, ",") <~ ")", "is" ~> functionStatements <~ "end")
   private lazy val parameter: Parsley[Param] = Param(typ, ident)
 
   private lazy val functionStatements: Parsley[Stmt] =
-    (
-      many(atomic(statement <~ ";")),
-      functionReturn
-    )
-      .zipped((stmts, ret) =>
-        stmts match {
-          case Nil => ret
-          case _   => StmtChain(stmts.reduce(StmtChain(_, _)), ret)
-        }
-      )
+    (many(atomic(statement <~ ";")),
+      functionReturn.explain("functions must end with a return or exit")
+    ).zipped((stmts, ret) =>
+        if (stmts.isEmpty) ret else StmtChain(stmts.reduce(StmtChain(_, _)), ret))
 
-  private lazy val functionReturn = Return("return" ~> expr) | Exit("exit" ~> expr) | IfStmt(
-    "if" ~> expr <~ "then",
-    functionStatements,
-    "else" ~> functionStatements <~ "fi"
-  ) | ScopedStmt("begin" ~> functionStatements <~ "end")
+  private lazy val functionReturn = Return("return" ~> expr) |
+    Exit("exit" ~> expr) |
+    IfStmt("if" ~> expr <~ "then".explain("if statements require \'then\'"),
+      functionStatements,
+      "else".explain("if statements require an \'else\' branch") ~> functionStatements <~
+        "fi".explain("if statements must end in \'fi\'")) |
+    ScopedStmt("begin" ~> functionStatements <~ "end")
 
   private lazy val statements = chain.right1(statement)(StmtChain <# ";")
   private lazy val statement: Parsley[Stmt] =
