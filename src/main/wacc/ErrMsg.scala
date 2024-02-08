@@ -14,6 +14,6 @@ object ErrMsg {
 
   // Error message with mismatching type, requires a context
   def typeErrorMsg(situation: String, context: String, expected: String, got: String): String =
-    s"Type mismatch error in $situation\n" +
+    s"Type mismatch error in $situation\n" ++
       s"  Expected '$expected', but got '$got'\n" withContext context
 }

@@ -46,7 +46,7 @@ object analyser {
     case Return(expr) =>
       val (err, expType) = checkExpr(st, expr)
       // Check that the return expression is valid and matches the function return type
-      (err withContext stmt) +
+      (err withContext stmt) ++
         (if (expType.isDefined && !isWeakerType(typ, expType.get)) {
            typeErrorMsg("function return", s"return $expr", s"$typ", s"${expType.get}") withContext
              stmt
@@ -66,8 +66,8 @@ object analyser {
   private def checkMainStmt(st: SymbolTable, stmt: Stmt): String = stmt match {
     case Return(_) => s"Return not allowed in main\n" withContext stmt
     case IfStmt(cond, body1, body2) =>
-      checkCond(st, cond, isIf = true) +
-        checkMainStmt(st.makeChild, body1) + checkMainStmt(st.makeChild, body2)
+      checkCond(st, cond, isIf = true) ++
+        checkMainStmt(st.makeChild, body1) ++ checkMainStmt(st.makeChild, body2)
     case While(cond, body) => checkCond(st, cond, isIf = false) ++ checkMainStmt(st.makeChild, body)
     case ScopedStmt(stmt)  => checkMainStmt(st.makeChild, stmt)
     case StmtChain(stmt, next) => checkMainStmt(st, stmt) ++ checkMainStmt(st, next)
@@ -79,7 +79,7 @@ object analyser {
     val (err, typ) = checkExpr(st, cond)
     err ++ (if (typ.isDefined && typ.get != BoolType)
               typeErrorMsg(
-                (if (isIf) "if statement" else "loop") + " conditional",
+                (if (isIf) "if statement" else "loop") ++ " conditional",
                 if (isIf) s"if $cond then" else s"while $cond do",
                 "bool",
                 s"${typ.get}"
@@ -97,7 +97,7 @@ object analyser {
     case Exit(expr) =>
       checkExpr(st, expr) match { // expects an int
         case (err, Some(t)) if t != IntType =>
-          (err withContext stmt) +
+          (err withContext stmt) ++
             typeErrorMsg("exit statement", s"exit $expr", "int", s"$t")
         case (err, _) => err
       }
@@ -261,17 +261,17 @@ object analyser {
         // Negative value could also cause underflow
         case Add =>
           if (lv + rv > Int.MaxValue || lv + rv < Int.MinValue)
-            s"Overflow error in expression: $left + $right:\n" +
+            s"Overflow error in expression: $left + $right:\n" ++
               "  Addition of int literals would result in overflow\n"
           else ""
         case Sub =>
           if (lv - rv < Int.MinValue || lv - rv > Int.MaxValue) {
-            s"Overflow error in expression: $left - $right:\n" +
+            s"Overflow error in expression: $left - $right:\n" ++
               "  Subtraction of int literals would result in underflow\n"
           } else ""
         case Mul =>
           if (lv * rv > Int.MaxValue || lv * rv < Int.MinValue)
-            s"Overflow error in expression: $left * $right:\n" +
+            s"Overflow error in expression: $left * $right:\n" ++
               "  Multiplication of int literals would result in overflow\n"
           else ""
         // Division by 0 is a runtime error, so we don't check it here
@@ -315,7 +315,7 @@ object analyser {
           if (someType == IntType) {
             // Check for overflow
             if (evalConst(expr).contains(Int.MinValue))
-              error ++= "Negation of int literal would result in overflow\n" +
+              error ++= "Negation of int literal would result in overflow\n" ++
                 s"  in expression: $expr\n"
             retType = Some(IntType)
           } else error ++= unaryAppErrMsg(Neg, someType, expr)
@@ -405,7 +405,7 @@ object analyser {
       case Right(ArrayType(typ2)) =>
         legalArrayDimAccess(ArrayType(typ2), exprs) match {
           case None =>
-            error ++= s"Invalid array access: mismatching dimensions\n" +
+            error ++= s"Invalid array access: mismatching dimensions\n" ++
               s"  in $ident[${exprs.mkString("][")}]\n"
           case Some(t) => typ = Some(t)
         }
