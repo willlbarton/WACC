@@ -97,31 +97,31 @@ object parser {
     BracketedExpr("(" ~> expr <~ ")")
   )(
     Ops(Prefix)(
-      "!" #> (x => UnaryApp(Not, x)),
-      "len " #> (x => UnaryApp(Len, x)),
-      "ord " #> (x => UnaryApp(Ord, x)),
-      "chr " #> (x => UnaryApp(Chr, x))
+      Not <# "!",
+      Len <# "len ",
+      Ord <# "ord ",
+      Chr <# "chr "
     ),
     Ops(InfixL)(
-      "*" #> ((x, y) => BinaryApp(Mul, x, y)),
-      "%" #> ((x, y) => BinaryApp(Mod, x, y)),
-      "/" #> ((x, y) => BinaryApp(Div, x, y))
+      Mul <# "*",
+      Div <# "/",
+      Mod <# "%"
     ),
     Ops(InfixL)(
-      "+" #> ((x, y) => BinaryApp(Add, x, y)),
-      "-".label("binary operator") #> ((x, y) => BinaryApp(Sub, x, y))
+      Add <# "+",
+      Sub <# "-".label("binary operator")
     ),
     Ops(InfixN)(
-      ">=" #> ((x, y) => BinaryApp(GtEq, x, y)),
-      "<=" #> ((x, y) => BinaryApp(LtEq, x, y)),
-      ">" #> ((x, y) => BinaryApp(Gt, x, y)),
-      "<" #> ((x, y) => BinaryApp(Lt, x, y))
+      GtEq <# ">=",
+      LtEq <# "<=",
+      Gt <# ">",
+      Lt <# "<"
     ),
     Ops(InfixN)(
-      "!=" #> ((x, y) => BinaryApp(NotEq, x, y)),
-      "==" #> ((x, y) => BinaryApp(Eq, x, y))
+      NotEq <# "!=",
+      Eq <# "=="
     ),
-    Ops(InfixR)("&&" #> ((x, y) => BinaryApp(And, x, y))),
-    Ops(InfixR)("||" #> ((x, y) => BinaryApp(Or, x, y)))
+    Ops(InfixR)(And <# "&&"),
+    Ops(InfixR)(Or <# "||")
   )
 }

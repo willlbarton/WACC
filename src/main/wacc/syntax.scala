@@ -114,7 +114,9 @@ final case class ArrayElem(ident: Ident, exprs: List[Expr]) extends Expr with LV
 final case class BracketedExpr(expr: Expr) extends Expr { override def toString: String = s"($expr)" }
 
 // <unary-oper> Unary operator types
-trait UnaryOp
+trait UnaryOp extends generic.ParserBridge1[Expr, UnaryApp] {
+  override def apply(e: Expr): UnaryApp = UnaryApp(this, e)
+}
 case object Not extends UnaryOp { override def toString = "!" }
 case object Neg extends UnaryOp { override def toString = "-" }
 case object Len extends UnaryOp { override def toString = "len" }
@@ -122,7 +124,9 @@ case object Ord extends UnaryOp { override def toString = "ord" }
 case object Chr extends UnaryOp { override def toString = "chr" }
 
 // <binary-oper> Binary operator types
-trait BinaryOp
+trait BinaryOp extends generic.ParserBridge2[Expr, Expr, BinaryApp] {
+  override def apply(l: Expr, r: Expr): BinaryApp = BinaryApp(this, l, r)
+}
 case object Mul extends BinaryOp { override def toString = "*" }
 case object Div extends BinaryOp { override def toString = "/" }
 case object Mod extends BinaryOp { override def toString = "%" }
