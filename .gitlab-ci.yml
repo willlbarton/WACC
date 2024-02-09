@@ -1,9 +1,15 @@
 image: docker.io/gumjoe/wacc-ci-scala:slim
 
 stages:
-  - test
+  - parser
+  - analyser
 
-test:
-  stage: test
+parser:
+  stage: parser
   script:
-    - scala-cli test .
+    - scala-cli test . --test-only src.test.Parser
+
+analyser:
+  stage: analyser
+  script:
+    - scala-cli test . --test-only src.test.Analyser
