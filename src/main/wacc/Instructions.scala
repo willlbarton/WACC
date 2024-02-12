@@ -113,3 +113,47 @@ case class Setne(dest: Dest) extends Instruction {
 case class Cmovge(src: Operand, dest: Dest) extends Instruction {
   override def toString: String = s"cmovge $src, $dest"
 }
+
+case class Movsl(op1: Operand, dest: Dest) extends Instruction {
+  override def toString: String = s"movslq $op1, $dest"
+}
+
+case class Add(op1: Operand, dest: Register) extends Instruction {
+  override def toString: String = s"addq $op1, $dest"
+}
+
+case class Sub(op1: Operand, dest: Register) extends Instruction {
+  override def toString: String = s"subq $op1, $dest"
+}
+
+case class Cmp(op1: Operand, op2: Operand) extends Instruction {
+  override def toString: String = s"cmpq $op1, $op2"
+}
+
+case class Jmp(label: Label) extends Instruction {
+  override def toString: String = s"jmp ${label.name}"
+}
+
+case class Je(label: Label) extends Instruction {
+  override def toString: String = s"je ${label.name}"
+}
+
+case class Jl(label: Label) extends Instruction {
+  override def toString: String = s"jl ${label.name}"
+}
+
+case class Jo(label: Label) extends Instruction {
+  override def toString: String = s"jo ${label.name}"
+}
+
+case class Jne(label: Label) extends Instruction {
+  override def toString: String = s"jne ${label.name}"
+}
+
+case object Cltd extends Instruction {
+  override def toString: String = "cltd"
+}
+
+case class Idiv(op1: Operand) extends Instruction {
+  override def toString: String = s"idivq $op1"
+}
