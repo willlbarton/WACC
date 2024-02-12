@@ -77,41 +77,45 @@ case class Address(value: Int) extends Dest with Operand {
   override def toString: String = s"$value(%rsp)" // idk if this is right
 }
 
-// x86-64 instructions
+// x86-64 AT&T instructions
 case object Ret extends Instruction {
   override def toString: String = "ret"
+}
+
+case object Cltd extends Instruction {
+  override def toString: String = "cltd"
 }
 
 case class Label(name: String) extends Instruction {
   override def toString: String = s"$name:"
 }
 
-case class Mov(src: Operand, dest: Dest) extends Instruction {
-  override def toString: String = s"movq $src, $dest"
+case class Mov(op1: Operand, dest: Dest) extends Instruction {
+  override def toString: String = s"movq $op1, $dest"
 }
 
 case class Pop(dest: Dest) extends Instruction {
   override def toString: String = s"popq $dest"
 }
 
-case class Push(src: Operand) extends Instruction {
-  override def toString: String = s"pushq $src"
+case class Push(op1: Operand) extends Instruction {
+  override def toString: String = s"pushq $op1"
 }
 
 case class Call(label: Label) extends Instruction {
   override def toString: String = s"call $label"
 }
 
-case class And(src: Operand, dest: Dest) extends Instruction {
-  override def toString: String = s"and $src, $dest"
+case class And(op1: Operand, dest: Dest) extends Instruction {
+  override def toString: String = s"and $op1, $dest"
 }
 
 case class Setne(dest: Dest) extends Instruction {
   override def toString: String = s"setne $dest"
 }
 
-case class Cmovge(src: Operand, dest: Dest) extends Instruction {
-  override def toString: String = s"cmovge $src, $dest"
+case class Cmovge(op1: Operand, dest: Dest) extends Instruction {
+  override def toString: String = s"cmovge $op1, $dest"
 }
 
 case class Movsl(op1: Operand, dest: Dest) extends Instruction {
@@ -148,10 +152,6 @@ case class Jo(label: Label) extends Instruction {
 
 case class Jne(label: Label) extends Instruction {
   override def toString: String = s"jne ${label.name}"
-}
-
-case object Cltd extends Instruction {
-  override def toString: String = "cltd"
 }
 
 case class Idiv(op1: Operand) extends Instruction {
