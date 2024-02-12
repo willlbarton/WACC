@@ -1,3 +1,5 @@
+package src.main.wacc.Instructions
+
 sealed trait Instruction
 sealed trait Dest
 sealed trait Operand
