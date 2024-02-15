@@ -23,4 +23,6 @@ case class SymbolTable(parent: Option[SymbolTable]) {
 
   // Clears the current scope
   def clear(): Unit = table.clear()
+
+  val vars: List[SymbolTableObj] = table.values.toList
 }

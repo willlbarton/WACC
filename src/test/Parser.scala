@@ -28,8 +28,8 @@ class Parser extends AnyFlatSpec with TableDrivenPropertyChecks {
         |  int x = 1 * 1 + 1 / 2
         |end
         |""".stripMargin).get shouldBe
-      Program(List.empty,
-        Decl(IntType, Ident("x"), Add(Mul(Integer(1), Integer(1)), Div(Integer(1), Integer(2)))))
+      Program(List.empty, List(
+        Decl(IntType, Ident("x"), Add(Mul(Integer(1), Integer(1)), Div(Integer(1), Integer(2))))))
   }
   it should "not associate == and !=" in {
     parser.parse(
@@ -37,13 +37,5 @@ class Parser extends AnyFlatSpec with TableDrivenPropertyChecks {
         |  bool x = 1 == 1 != 2
         |end
         |""".stripMargin) shouldBe a [Failure[_]]
-  }
-  it should "build statements from left to right" in {
-    parser.parse(
-      """begin
-        |  skip; skip; skip
-        |end
-        |""".stripMargin).get shouldBe
-      Program(List.empty, StmtChain(Skip, StmtChain(Skip, Skip)))
   }
 }

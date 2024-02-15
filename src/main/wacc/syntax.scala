@@ -6,13 +6,16 @@ import parsley.generic
 sealed trait SymbolTableObj {
   var typ: Option[Type] = None // The type of the object
 }
+sealed trait ScopedBody extends SymbolTableObj {
+  var vars: List[SymbolTableObj] = List.empty
+}
 
 // Main program
-final case class Program(functions: List[Func], body: Stmt)
+final case class Program(functions: List[Func], body: List[Stmt])
 
 // <func>
-final case class Func(t: Type, ident: Ident, params: List[Param], body: Stmt)
-  extends SymbolTableObj {
+final case class Func(t: Type, ident: Ident, params: List[Param], body: List[Stmt])
+  extends SymbolTableObj with ScopedBody {
   typ = Some(t)
   override def toString: String =
     s"$ident(${(for (p <- params) yield {s"${p.t} ${p.ident}"}).mkString(", ")})"
@@ -55,17 +58,15 @@ final case class Return(expr: Expr) extends Stmt { override def toString: String
 final case class Exit(expr: Expr) extends Stmt { override def toString: String = s"exit $expr" }
 final case class Print(expr: Expr) extends Stmt { override def toString: String = s"print $expr" }
 final case class PrintLn(expr: Expr) extends Stmt { override def toString: String = s"println $expr" }
-final case class IfStmt(cond: Expr, body1: Stmt, body2: Stmt) extends Stmt {
+final case class IfStmt(cond: Expr, body1: List[Stmt], body2: List[Stmt])
+  extends Stmt with ScopedBody {
   override def toString: String = s"if $cond then $body1 else $body2 fi"
 }
-final case class While(cond: Expr, body: Stmt) extends Stmt {
+final case class While(cond: Expr, body: List[Stmt]) extends Stmt with ScopedBody {
   override def toString: String = s"while $cond do $body done"
 }
-final case class ScopedStmt(stmt: Stmt) extends Stmt {
+final case class ScopedStmt(stmt: List[Stmt]) extends Stmt with ScopedBody {
   override def toString: String = s"begin $stmt end"
-}
-final case class StmtChain(stmt: Stmt, next: Stmt) extends Stmt {
-  override def toString: String = s"$stmt; $next"
 }
 
 // <rvalue> Right hand side of declaration or assignment
@@ -145,13 +146,12 @@ case object Or extends BinaryOp { override def toString = "||" }
 // Parser bridges used in the parser
 
 
-object Program extends generic.ParserBridge2[List[Func], Stmt, Program]
-object Func extends generic.ParserBridge4[Type, Ident, List[Param], Stmt, Func]
+object Program extends generic.ParserBridge2[List[Func], List[Stmt], Program]
+object Func extends generic.ParserBridge4[Type, Ident, List[Param], List[Stmt], Func]
 object Param extends generic.ParserBridge2[Type, Ident, Param]
 
 object PairType extends generic.ParserBridge2[PairElemType, PairElemType, PairType]
 
-object StmtChain extends generic.ParserBridge2[Stmt, Stmt, StmtChain]
 object Decl extends generic.ParserBridge3[Type, Ident, RVal, Stmt]
 object Asgn extends generic.ParserBridge2[LVal, RVal, Stmt]
 object Read extends generic.ParserBridge1[LVal, Stmt]
@@ -160,9 +160,9 @@ object Return extends generic.ParserBridge1[Expr, Stmt]
 object Exit extends generic.ParserBridge1[Expr, Stmt]
 object Print extends generic.ParserBridge1[Expr, Stmt]
 object PrintLn extends generic.ParserBridge1[Expr, Stmt]
-object IfStmt extends generic.ParserBridge3[Expr, Stmt, Stmt, Stmt]
-object While extends generic.ParserBridge2[Expr, Stmt, Stmt]
-object ScopedStmt extends generic.ParserBridge1[Stmt, Stmt]
+object IfStmt extends generic.ParserBridge3[Expr, List[Stmt], List[Stmt], Stmt]
+object While extends generic.ParserBridge2[Expr, List[Stmt], Stmt]
+object ScopedStmt extends generic.ParserBridge1[List[Stmt], Stmt]
 
 object Ident extends generic.ParserBridge1[String, Ident]
 object Integer extends generic.ParserBridge1[Int, Integer]

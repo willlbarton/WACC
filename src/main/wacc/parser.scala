@@ -25,11 +25,10 @@ object parser {
   private lazy val parameter: Parsley[Param] = Param(typ, ident)
 
   // Parses a sequence of statements, which must end with a return or exit
-  private lazy val functionStatements: Parsley[Stmt] =
+  private lazy val functionStatements: Parsley[List[Stmt]] =
     (many(atomic(statement <~ ";")),
       functionReturn.explain("functions must end with a return or exit")
-    ).zipped((stmts, ret) =>
-        if (stmts.isEmpty) ret else StmtChain(stmts.reduce(StmtChain(_, _)), ret))
+    ).zipped((stmts, ret) => stmts.appended(ret))
 
   // The statements a function may end with, if it has sub-statements it must end with one of these
   private lazy val functionReturn = Return("return" ~> expr) |
@@ -40,7 +39,7 @@ object parser {
     ScopedStmt("begin" ~> functionStatements <~ "end")
 
   // Parses a sequence of statements with no requirement to end with a return or exit
-  private lazy val statements = chain.right1(statement)(StmtChain <# ";")
+  private lazy val statements: Parsley[List[Stmt]] = sepBy1(statement, ";")
 
   // Parses a single statement
   private lazy val statement: Parsley[Stmt] =
@@ -87,7 +86,7 @@ object parser {
   // Parses an expression
   private lazy val expr: Parsley[Expr] = precedence(
     Integer(integer), // An integer may begin with '-', so it must be parsed first
-    ("-".label("unary operator") ~> expr).map(x => UnaryApp(Neg, x)),
+    Neg("-".label("unary operator") ~> expr),
     Bool("true" #> true | "false" #> false),
     Character(character),
     StringAtom(string),

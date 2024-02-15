@@ -32,12 +32,20 @@ object analyser {
           symTable.put(p.ident, p)
         }
       )
-      error ++= checkFuncStmt(symTable.makeChild, f.body, f.t) withContext s"function $f"
+      error ++= checkFuncStmts(symTable.makeChild, f.body, f.t) withContext s"function $f"
     }
 
     // Check the main program body
-    error ++= checkMainStmt(rootSymbolTable.makeChild, program.body)
+    error ++= checkMainStmts(rootSymbolTable.makeChild, program.body)
 
+    error.toString
+  }
+
+  private def checkFuncStmts(st: SymbolTable, stmts: List[Stmt], typ: Type): String = {
+    val error = new StringBuilder()
+    for (stmt <- stmts) {
+      error ++= checkFuncStmt(st, stmt, typ) withContext stmt
+    }
     error.toString
   }
 
@@ -52,14 +60,32 @@ object analyser {
              stmt
          } else "")
     // If and while statements have a condition that must be a boolean
-    case IfStmt(cond, body1, body2) =>
-      checkCond(st, cond, isIf = true) ++
-        checkFuncStmt(st.makeChild, body1, typ) ++ checkFuncStmt(st.makeChild, body2, typ)
-    case While(cond, body) =>
-      checkCond(st, cond, isIf = false) ++ checkFuncStmt(st.makeChild, body, typ)
-    case ScopedStmt(stmt)      => checkFuncStmt(st.makeChild, stmt, typ)
-    case StmtChain(stmt, next) => checkFuncStmt(st, stmt, typ) ++ checkFuncStmt(st, next, typ)
+    case f@IfStmt(cond, body1, body2) =>
+      val childTable1 = st.makeChild
+      val childTable2 = st.makeChild
+      val err = checkCond(st, cond, isIf = true) ++
+        checkFuncStmts(childTable1, body1, typ) ++ checkFuncStmts(childTable2, body2, typ)
+      f.vars = childTable1.vars ++ childTable2.vars
+      err
+    case w@While(cond, body) =>
+      val childTable = st.makeChild
+      val err = checkCond(st, cond, isIf = false) ++ checkFuncStmts(childTable, body, typ)
+      w.vars = childTable.vars
+      err
+    case s@ScopedStmt(stmt)      =>
+      val childTable = st.makeChild
+      val err = checkFuncStmts(childTable, stmt, typ)
+      s.vars = childTable.vars
+      err
     case _                     => checkLeafStatement(st, stmt)
+  }
+
+  private def checkMainStmts(st: SymbolTable, stmts: List[Stmt]): String = {
+    val error = new StringBuilder()
+    for (stmt <- stmts) {
+      error ++= checkMainStmt(st, stmt) withContext stmt
+    }
+    error.toString
   }
 
   // Main program body
@@ -67,10 +93,9 @@ object analyser {
     case Return(_) => s"Return not allowed in main\n" withContext stmt
     case IfStmt(cond, body1, body2) =>
       checkCond(st, cond, isIf = true) ++
-        checkMainStmt(st.makeChild, body1) ++ checkMainStmt(st.makeChild, body2)
-    case While(cond, body) => checkCond(st, cond, isIf = false) ++ checkMainStmt(st.makeChild, body)
-    case ScopedStmt(stmt)  => checkMainStmt(st.makeChild, stmt)
-    case StmtChain(stmt, next) => checkMainStmt(st, stmt) ++ checkMainStmt(st, next)
+        checkMainStmts(st.makeChild, body1) ++ checkMainStmts(st.makeChild, body2)
+    case While(cond, body) => checkCond(st, cond, isIf = false) ++ checkMainStmts(st.makeChild, body)
+    case ScopedStmt(stmt)  => checkMainStmts(st.makeChild, stmt)
     case _                     => checkLeafStatement(st, stmt)
   }
 
