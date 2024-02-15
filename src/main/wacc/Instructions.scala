@@ -64,24 +64,24 @@ trait Formatter {
 object x86Formatter extends Formatter {
   override def apply(instruction: Instruction): String =
     instruction match {
-      case Ret               => "ret"
-      case Cltd              => "cltd"
+      case Ret               => "  ret"
+      case Cltd              => "  cltd"
       case Label(name)       => s"$name:"
-      case Mov(op1, dest)    => s"movq ${this(op1)}, ${this(dest)}"
-      case Pop(dest)         => s"popq ${this(dest)}"
-      case Push(op1)         => s"pushq ${this(op1)}"
-      case CallAsm(label)    => s"call ${this(label)}"
-      case AndAsm(op1, dest) => s"and ${this(op1)}, ${this(dest)})"
-      case Setne(dest)       => s"setne ${this(dest)}"
-      case AddAsm(op1, dest) => s"addq ${this(op1)}, ${this(dest)}"
-      case SubAsm(op1, dest) => s"subq ${this(op1)}, ${this(dest)}"
-      case Cmp(op1, op2)     => s"cmpq ${this(op1)}, ${this(op2)}"
-      case Jmp(label)        => s"jmp ${label.name}"
-      case Je(label)         => s"je ${label.name}"
-      case Jl(label)         => s"jl ${label.name}"
-      case Jo(label)         => s"jo ${label.name}"
-      case Jne(label)        => s"jne ${label.name}"
-      case Idiv(op1)         => s"idivq ${this(op1)}"
+      case Mov(op1, dest)    => s"  movq ${this(op1)}, ${this(dest)}"
+      case Pop(dest)         => s"  popq ${this(dest)}"
+      case Push(op1)         => s"  pushq ${this(op1)}"
+      case CallAsm(label)    => s"  call ${label.name}"
+      case AndAsm(op1, dest) => s"  and ${this(op1)}, ${this(dest)}"
+      case Setne(dest)       => s"  setne ${this(dest)}"
+      case AddAsm(op1, dest) => s"  addq ${this(op1)}, ${this(dest)}"
+      case SubAsm(op1, dest) => s"  subq ${this(op1)}, ${this(dest)}"
+      case Cmp(op1, op2)     => s"  cmpq ${this(op1)}, ${this(op2)}"
+      case Jmp(label)        => s"  jmp ${label.name}"
+      case Je(label)         => s"  je ${label.name}"
+      case Jl(label)         => s"  jl ${label.name}"
+      case Jo(label)         => s"  jo ${label.name}"
+      case Jne(label)        => s"  jne ${label.name}"
+      case Idiv(op1)         => s"  idivq ${this(op1)}"
     }
 
   override def apply(reg: Reg): String =
@@ -107,6 +107,6 @@ object x86Formatter extends Formatter {
   override def apply(location: Location): String = location match {
     case Register(reg)  => this(reg)
     case Address(value) => s"[$value]" // idk if this is right
-    case Immediate(value) => "%X".format(value)
+    case Immediate(value) => "$%X".format(value)
   }
 }
