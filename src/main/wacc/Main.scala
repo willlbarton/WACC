@@ -2,13 +2,20 @@ package src.main.wacc
 
 import parsley.{Failure, Success}
 import scala.sys.exit
+import java.io.IOException
 
 object Main {
+
+  private final val syntaxErrCode: Int = 100
+  private final val semanticErrCode: Int = 200
+
   def main(args: Array[String]): Unit = {
     args.headOption match {
       // Attempt to parse, then analyse and finally generate code
-      case Some(filepath) => {
-        val source = scala.io.Source.fromFile(filepath)
+      case Some(filepath) =>
+        val source =
+          try scala.io.Source.fromFile(filepath)
+          catch { case _: IOException => println(s"Invalid filename or path: $filepath"); exit(1) }
         val program =
           try source.getLines().mkString("\n")
           finally source.close()
@@ -22,18 +29,18 @@ object Main {
                   case "" => println("No errors detected!") // generate code
                   case msg =>
                     println(
-                      s"Semantic errors detected during compilation!\nExit code 200 returned:\n$msg"
+                      s"Semantic errors detected during compilation!\n" ++
+                        s"Exit code $semanticErrCode returned:\n$msg"
                     )
-                    exit(200)
+                    exit(semanticErrCode)
                 }
               case Failure(msg) =>
-                println(s"Errors detected during compilation!\nExit code 100 returned:\n$msg")
-                exit(100)
+                println(s"Errors detected during compilation!\n" ++
+                  s"Exit code $syntaxErrCode returned:\n$msg")
+                exit(syntaxErrCode)
             }
         }
-
-      }
-      case None => println("please enter a filepath")
+      case None => println("Please enter a filepath")
     }
   }
 }
