@@ -1,8 +1,9 @@
 package src.main.wacc
 
 import parsley.{Failure, Success}
+
 import scala.sys.exit
-import java.io.IOException
+import java.io.{BufferedWriter, FileWriter, IOException}
 
 object Main {
 
@@ -19,6 +20,7 @@ object Main {
         val program =
           try source.getLines().mkString("\n")
           finally source.close()
+        val filename = filepath.split("/").last
 
         program match {
           case "" => println("Please enter a valid filepath!")
@@ -26,7 +28,13 @@ object Main {
             parser.parse(program) match {
               case Success(program) =>
                 analyser.analyse(program) match {
-                  case "" => generator.generate(program, x86Formatter)
+                  case "" =>
+                    val writer = new BufferedWriter(
+                      new FileWriter(filename.replaceFirst("\\.\\w+$", ".s"))
+                    )
+                    try {
+                      writer.write(generator.generate(program, x86Formatter))
+                    } finally writer.close()
                   case msg =>
                     println(
                       s"Semantic errors detected during compilation!\n" ++
