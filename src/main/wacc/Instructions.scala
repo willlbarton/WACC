@@ -72,7 +72,7 @@ object x86Formatter extends Formatter {
     instruction match {
       case Directive(name)  => s".$name"
       case Label(name)       => s"$name:"
-      case Ret               => "  ret"
+      case Ret               => "  ret\n"
       case Cltd              => "  cltd"
       case Mov(op1, dest)    => s"  movq  ${this(op1)}, ${this(dest)}"
       case Pop(dest)         => s"  popq  ${this(dest)}"

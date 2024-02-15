@@ -7,7 +7,7 @@ object generator {
   val stringLiters: mutable.Map[String, Int] = mutable.Map.empty
 
   def generate(program: Program, formatter: Formatter): String = genProgram(program).toList
-    .map(formatter(_)).mkString("\n") ++ "\n"
+    .map(formatter(_)).mkString("\n")
 
   private def genProgram(program: Program): ControlFlowGraph = {
     val graph = ControlFlowGraph().add(
@@ -49,7 +49,7 @@ object generator {
     ControlFlowGraph()
      .add(saveRegs(toSave))
      .add(body)
-     .add(restoreStack(toSave))
+     .add(restoreRegs(toSave))
      .add(CfgNode(Ret))
   }
 
@@ -58,12 +58,13 @@ object generator {
     ControlFlowGraph()
       .add(CfgNode(Push(Rbp))) // Save stack pointer
       .add(regs.map(r => CfgNode(Push(r))))
-      .add(CfgNode(Mov(Rbp, Rsp))) // Set stack pointer to base pointer
+      .add(CfgNode(Mov(Rsp, Rbp))) // Set stack pointer to base pointer
   }
 
   // restore the stack pointer to exit a scope
-  private def restoreStack(regs: List[Reg]): ControlFlowGraph = {
+  private def restoreRegs(regs: List[Reg]): ControlFlowGraph = {
     ControlFlowGraph()
+      .add(CfgNode(Mov(Rbp, Rsp)))
       .add(regs.reverseIterator.map(r => CfgNode(Pop(r))).toList)
       .add(CfgNode(Pop(Rbp)))
   }
