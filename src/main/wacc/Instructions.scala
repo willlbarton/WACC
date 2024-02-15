@@ -107,6 +107,6 @@ object x86Formatter extends Formatter {
   override def apply(location: Location): String = location match {
     case Register(reg)  => this(reg)
     case Address(value) => s"[$value]" // idk if this is right
-    case Immediate(value) => "%X".format(value)
+    case Immediate(value) => "$%X".format(value)
   }
 }
