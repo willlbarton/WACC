@@ -18,19 +18,17 @@ object generator {
       graph.add(
         CfgNode(Directive(s"int ${s.length}")),
         CfgNode(Label(s"L.str$i")),
-        CfgNode(Directive(s".asciz \"$s\""))
+        CfgNode(Directive(s"asciz \"$s\""))
       )
     }
     graph.add(CfgNode(Directive("text")))
 
-    val body = ControlFlowGraph()
+    program.functions.foreach(x => graph.add(genFunc(x)))
 
-    program.functions.foreach(x => body.add(genFunc(x)))
-
-    body.add(CfgNode(Label("main")))
+    graph.add(CfgNode(Label("main")))
     val mainBody = ControlFlowGraph()
     program.body.foreach(x => mainBody.add(genStmt(x)))
-    body.add(genFuncBody(List.empty, mainBody))
+    graph.add(genFuncBody(List.empty, mainBody))
 
     graph.add(CfgNode(Label("_exit")))
     val exitBody = ControlFlowGraph()
