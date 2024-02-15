@@ -22,55 +22,49 @@ object generator {
       CfgNode(CallAsm(Label("exit@plt")))
     )
     graph.add(genFuncBody(List.empty, exitBody))
-
-    graph
   }
 
   private def genFunc(func: Func): ControlFlowGraph = ControlFlowGraph() // TODO
 
   private def genFuncBody(toSave: List[Register], body: ControlFlowGraph): ControlFlowGraph = {
-    val graph = ControlFlowGraph()
-    graph.add(saveRegs(toSave))
-    graph.add(body)
-    graph.add(restoreStack(toSave))
-    graph.add(CfgNode(Ret))
-    graph
+    ControlFlowGraph()
+     .add(saveRegs(toSave))
+     .add(body)
+     .add(restoreStack(toSave))
+     .add(CfgNode(Ret))
   }
 
   // save the stack pointer to enter a new scope
   private def saveRegs(regs: List[Register]): ControlFlowGraph = {
-    val graph = ControlFlowGraph()
-    graph.add(CfgNode(Push(Register(Rbp)))) // Save stack pointer
-    graph.add(regs.map(r => CfgNode(Push(r))))
-    graph.add(CfgNode(Mov(Register(Rbp), Register(Rsp)))) // Set stack pointer to base pointer
-    graph
+    ControlFlowGraph()
+      .add(CfgNode(Push(Register(Rbp)))) // Save stack pointer
+      .add(regs.map(r => CfgNode(Push(r))))
+      .add(CfgNode(Mov(Register(Rbp), Register(Rsp)))) // Set stack pointer to base pointer
   }
 
   // restore the stack pointer to exit a scope
   private def restoreStack(regs: List[Register]): ControlFlowGraph = {
-    val graph = ControlFlowGraph()
-    graph.add(regs.reverseIterator.map(r => CfgNode(Pop(r))).toList)
-    graph.add(CfgNode(Pop(Register(Rbp))))
-    graph
+    ControlFlowGraph()
+      .add(regs.reverseIterator.map(r => CfgNode(Pop(r))).toList)
+      .add(CfgNode(Pop(Register(Rbp))))
   }
-
 
   private def genStmt(stmt: Stmt): ControlFlowGraph =
     stmt match {
       case Skip => ControlFlowGraph()
       case Exit(expr) => genExit(expr)
+      case Return(expr) => ControlFlowGraph().add(genExpr(expr)).add(CfgNode(Ret))
       case _ => ControlFlowGraph() // TODO
     }
 
   private def genExit(expr: Expr): ControlFlowGraph = {
-    val graph = ControlFlowGraph()
-    graph.add(genExpr(expr))
-    graph.add(
+    ControlFlowGraph()
+     .add(genExpr(expr))
+     .add(
       CfgNode(Mov(Register(Rax), Register(Rdi))),
       CfgNode(CallAsm(Label("_exit"))),
       CfgNode(Mov(Immediate(0), Register(Rax)))
     )
-    graph
   }
 
   private def genExpr(expr: Expr): ControlFlowGraph = ControlFlowGraph() // TODO
