@@ -1,161 +1,107 @@
 package src.main.wacc.Instructions
 
 sealed trait Instruction
-sealed trait Dest
-sealed trait Operand
+
+sealed trait Location // Change this name ????
+sealed trait Dest extends Location
+sealed trait Operand extends Location
 
 sealed trait Reg
 
 // base registers
-case object rax extends Reg {
-  override def toString: String = "%rax"
-}
+case object Rax extends Reg
+case object Rbx extends Reg
+case object Rcx extends Reg
+case object Rdx extends Reg
+case object Rbp extends Reg
+case object Rsp extends Reg
+case object Rsi extends Reg
+case object Rdi extends Reg
 
-case object rbx extends Reg {
-  override def toString: String = "%rbx"
-}
+case object R8 extends Reg
+case object R9 extends Reg
+case object R10 extends Reg
+case object R11 extends Reg
+case object R12 extends Reg
+case object R13 extends Reg
+case object R14 extends Reg
+case object R15 extends Reg
 
-case object rcx extends Reg {
-  override def toString: String = "%rcx"
-}
-
-case object rdx extends Reg {
-  override def toString: String = "%rdx"
-}
-
-case object rbp extends Reg {
-  override def toString: String = "%rbp"
-}
-
-case object rsp extends Reg {
-  override def toString: String = "%rsp"
-}
-
-case object rsi extends Reg {
-  override def toString: String = "%rsi"
-}
-
-case object rdi extends Reg {
-  override def toString: String = "%rdi"
-}
-
-case object r8 extends Reg {
-  override def toString: String = "%r8"
-}
-
-case object r9 extends Reg {
-  override def toString: String = "%r9"
-}
-
-case object r10 extends Reg {
-  override def toString: String = "%r10"
-}
-
-case object r11 extends Reg {
-  override def toString: String = "%r11"
-}
-
-case object r12 extends Reg {
-  override def toString: String = "%r12"
-}
-
-case object r13 extends Reg {
-  override def toString: String = "%r13"
-}
-
-case object r14 extends Reg {
-  override def toString: String = "%r14"
-}
-
-case object r15 extends Reg {
-  override def toString: String = "%r15"
-}
-
-case class Register(register: Reg) extends Dest with Operand {
-  override def toString: String = register.toString
-}
-
-case class Address(value: Int) extends Dest with Operand {
-  override def toString: String = s"$value(%rsp)" // idk if this is right
-}
+case class Register(register: Reg) extends Dest with Operand
+case class Address(value: Int) extends Dest with Operand
 
 // x86-64 AT&T instructions
-case object Ret extends Instruction {
-  override def toString: String = "ret"
-}
+case object Ret extends Instruction
+case object Cltd extends Instruction
 
-case object Cltd extends Instruction {
-  override def toString: String = "cltd"
-}
+case class Label(name: String) extends Instruction
+case class Mov(op1: Operand, dest: Dest) extends Instruction
+case class Pop(dest: Dest) extends Instruction
+case class Push(op1: Operand) extends Instruction
+case class Call(label: Label) extends Instruction
+case class And(op1: Operand, dest: Dest) extends Instruction
+case class Setne(dest: Dest) extends Instruction
+case class Cmovge(op1: Operand, dest: Dest) extends Instruction
+case class Movsl(op1: Operand, dest: Dest) extends Instruction
 
-case class Label(name: String) extends Instruction {
-  override def toString: String = s"$name:"
-}
+case class Add(op1: Operand, dest: Register) extends Instruction
+case class Sub(op1: Operand, dest: Register) extends Instruction
+case class Cmp(op1: Operand, op2: Operand) extends Instruction
 
-case class Mov(op1: Operand, dest: Dest) extends Instruction {
-  override def toString: String = s"movq $op1, $dest"
-}
+case class Jmp(label: Label) extends Instruction
+case class Je(label: Label) extends Instruction
+case class Jl(label: Label) extends Instruction
+case class Jo(label: Label) extends Instruction
+case class Jne(label: Label) extends Instruction
+case class Idiv(op1: Operand) extends Instruction
 
-case class Pop(dest: Dest) extends Instruction {
-  override def toString: String = s"popq $dest"
-}
+object Formatter {
+  def apply(instruction: Instruction): String =
+    instruction match {
+      case Ret               => "ret"
+      case Cltd              => "cltd"
+      case Label(name)       => s"$name:"
+      case Mov(op1, dest)    => s"movq ${apply(op1)}, ${apply(dest)}"
+      case Pop(dest)         => s"popq ${apply(dest)}"
+      case Push(op1)         => s"pushq ${apply(op1)}"
+      case Call(label)       => s"call ${apply(label)}"
+      case And(op1, dest)    => s"and ${apply(op1)}, ${apply(dest)})"
+      case Setne(dest)       => s"setne ${apply(dest)}"
+      case Cmovge(op1, dest) => s"cmovge ${apply(op1)}, ${apply(dest)}"
+      case Movsl(op1, dest)  => s"movslq ${apply(op1)}, ${apply(dest)}"
+      case Add(op1, dest)    => s"addq ${apply(op1)}, ${apply(dest)}"
+      case Sub(op1, dest)    => s"subq ${apply(op1)}, ${apply(dest)}"
+      case Cmp(op1, op2)     => s"cmpq ${apply(op1)}, ${apply(op2)}"
+      case Jmp(label)        => s"jmp ${label.name}"
+      case Je(label)         => s"je ${label.name}"
+      case Jl(label)         => s"jl ${label.name}"
+      case Jo(label)         => s"jo ${label.name}"
+      case Jne(label)        => s"jne ${label.name}"
+      case Idiv(op1)         => s"idivq ${apply(op1)}"
+    }
 
-case class Push(op1: Operand) extends Instruction {
-  override def toString: String = s"pushq $op1"
-}
+  def apply(reg: Reg): String =
+    reg match {
+      case Rax => "%rax"
+      case Rbx => "%rbx"
+      case Rcx => "%rcx"
+      case Rdx => "%rdx"
+      case Rbp => "%rbp"
+      case Rsp => "%rsp"
+      case Rsi => "%rsi"
+      case Rdi => "%rdi"
+      case R8  => "%r8"
+      case R9  => "%r9"
+      case R10 => "%r10"
+      case R11 => "%r11"
+      case R12 => "%r12"
+      case R13 => "%r13"
+      case R14 => "%r14"
+      case R15 => "%r15"
+    }
 
-case class Call(label: Label) extends Instruction {
-  override def toString: String = s"call $label"
-}
-
-case class And(op1: Operand, dest: Dest) extends Instruction {
-  override def toString: String = s"and $op1, $dest"
-}
-
-case class Setne(dest: Dest) extends Instruction {
-  override def toString: String = s"setne $dest"
-}
-
-case class Cmovge(op1: Operand, dest: Dest) extends Instruction {
-  override def toString: String = s"cmovge $op1, $dest"
-}
-
-case class Movsl(op1: Operand, dest: Dest) extends Instruction {
-  override def toString: String = s"movslq $op1, $dest"
-}
-
-case class Add(op1: Operand, dest: Register) extends Instruction {
-  override def toString: String = s"addq $op1, $dest"
-}
-
-case class Sub(op1: Operand, dest: Register) extends Instruction {
-  override def toString: String = s"subq $op1, $dest"
-}
-
-case class Cmp(op1: Operand, op2: Operand) extends Instruction {
-  override def toString: String = s"cmpq $op1, $op2"
-}
-
-case class Jmp(label: Label) extends Instruction {
-  override def toString: String = s"jmp ${label.name}"
-}
-
-case class Je(label: Label) extends Instruction {
-  override def toString: String = s"je ${label.name}"
-}
-
-case class Jl(label: Label) extends Instruction {
-  override def toString: String = s"jl ${label.name}"
-}
-
-case class Jo(label: Label) extends Instruction {
-  override def toString: String = s"jo ${label.name}"
-}
-
-case class Jne(label: Label) extends Instruction {
-  override def toString: String = s"jne ${label.name}"
-}
-
-case class Idiv(op1: Operand) extends Instruction {
-  override def toString: String = s"idivq $op1"
+  def apply(location: Location): String = location match {
+    case Register(reg)  => apply(reg)
+    case Address(value) => s"$value(%rsp)" // idk if this is right
+  }
 }
