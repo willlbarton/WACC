@@ -3,7 +3,7 @@ package src.main.wacc
 object generator {
 
   def generate(program: Program, formatter: Formatter): String = genProgram(program).toList
-    .map(formatter(_)).mkString("\n")
+    .map(formatter(_)).mkString("\n") ++ "\n"
 
   private def genProgram(program: Program): ControlFlowGraph = {
     val graph = ControlFlowGraph()
@@ -21,12 +21,12 @@ object generator {
       CfgNode(AndAsm(Immediate(-16), Register(Rsp))),
       CfgNode(CallAsm(Label("exit@plt")))
     )
-    graph.add(exitBody)
+    graph.add(genFuncBody(List.empty, exitBody))
 
     graph
   }
 
-  private def genFunc(func: Func): ControlFlowGraph = ???
+  private def genFunc(func: Func): ControlFlowGraph = ControlFlowGraph() // TODO
 
   private def genFuncBody(toSave: List[Register], body: ControlFlowGraph): ControlFlowGraph = {
     val graph = ControlFlowGraph()
@@ -59,6 +59,7 @@ object generator {
     stmt match {
       case Skip => ControlFlowGraph()
       case Exit(expr) => genExit(expr)
+      case _ => ControlFlowGraph() // TODO
     }
 
   private def genExit(expr: Expr): ControlFlowGraph = {
@@ -72,5 +73,5 @@ object generator {
     graph
   }
 
-  private def genExpr(expr: Expr): ControlFlowGraph = ???
+  private def genExpr(expr: Expr): ControlFlowGraph = ControlFlowGraph() // TODO
 }

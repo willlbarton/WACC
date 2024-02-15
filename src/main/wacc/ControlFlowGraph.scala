@@ -4,7 +4,7 @@ import scala.collection.mutable.ListBuffer
 
 case class ControlFlowGraph(nodes: ListBuffer[CfgNode] = ListBuffer()) {
   def toList: List[CfgNode] = nodes.toList
-  def add(ns: CfgNode*): Unit = this.nodes += ns
+  def add(ns: CfgNode*): Unit = this.nodes ++= ns
   def add(ns: List[CfgNode]): Unit = this.nodes ++= ns
   def add(other: ControlFlowGraph): Unit = this.nodes ++= other.nodes
 }
