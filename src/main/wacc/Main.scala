@@ -24,9 +24,9 @@ object Main {
           case "" => println("Please enter a valid filepath!")
           case _ =>
             parser.parse(program) match {
-              case Success(x) =>
-                analyser.analyse(x) match {
-                  case "" => println("No errors detected!") // generate code
+              case Success(program) =>
+                analyser.analyse(program) match {
+                  case "" => generator.generate(program, x86Formatter)
                   case msg =>
                     println(
                       s"Semantic errors detected during compilation!\n" ++
