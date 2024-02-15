@@ -17,7 +17,7 @@ object generator {
     stringLiters.zipWithIndex.foreach { case (s, i) =>
       graph.add(
         CfgNode(Directive(s"int ${s.length}")),
-        CfgNode(Label(s"L.str$i")),
+        CfgNode(Label(s".L.str$i")),
         CfgNode(Directive(s"asciz \"$s\""))
       )
     }
@@ -31,10 +31,9 @@ object generator {
     graph.add(genFuncBody(List.empty, mainBody))
 
     graph.add(CfgNode(Label("_exit")))
-    val exitBody = ControlFlowGraph()
-    exitBody.add(
+    val exitBody = ControlFlowGraph().add(
       // Align stack pointer to 16 bytes
-      CfgNode(AndAsm(Immediate(-16), Register(Rsp))),
+      CfgNode(AndAsm(Immediate(-16), Rsp)),
       CfgNode(CallAsm(Label("exit@plt")))
     )
     graph.add(genFuncBody(List.empty, exitBody))
@@ -42,7 +41,7 @@ object generator {
 
   private def genFunc(func: Func): ControlFlowGraph = ControlFlowGraph() // TODO
 
-  private def genFuncBody(toSave: List[Register], body: ControlFlowGraph): ControlFlowGraph = {
+  private def genFuncBody(toSave: List[Reg], body: ControlFlowGraph): ControlFlowGraph = {
     ControlFlowGraph()
      .add(saveRegs(toSave))
      .add(body)
@@ -51,18 +50,18 @@ object generator {
   }
 
   // save the stack pointer to enter a new scope
-  private def saveRegs(regs: List[Register]): ControlFlowGraph = {
+  private def saveRegs(regs: List[Reg]): ControlFlowGraph = {
     ControlFlowGraph()
-      .add(CfgNode(Push(Register(Rbp)))) // Save stack pointer
+      .add(CfgNode(Push(Rbp))) // Save stack pointer
       .add(regs.map(r => CfgNode(Push(r))))
-      .add(CfgNode(Mov(Register(Rbp), Register(Rsp)))) // Set stack pointer to base pointer
+      .add(CfgNode(Mov(Rbp, Rsp))) // Set stack pointer to base pointer
   }
 
   // restore the stack pointer to exit a scope
-  private def restoreStack(regs: List[Register]): ControlFlowGraph = {
+  private def restoreStack(regs: List[Reg]): ControlFlowGraph = {
     ControlFlowGraph()
       .add(regs.reverseIterator.map(r => CfgNode(Pop(r))).toList)
-      .add(CfgNode(Pop(Register(Rbp))))
+      .add(CfgNode(Pop(Rbp)))
   }
 
   private def genStmt(stmt: Stmt): ControlFlowGraph =
@@ -77,9 +76,9 @@ object generator {
     ControlFlowGraph()
      .add(genExpr(expr))
      .add(
-      CfgNode(Mov(Register(Rax), Register(Rdi))),
+      CfgNode(Mov(Rax, Rdi)),
       CfgNode(CallAsm(Label("_exit"))),
-      CfgNode(Mov(Immediate(0), Register(Rax)))
+      CfgNode(Mov(Immediate(0), Rax))
     )
   }
 
