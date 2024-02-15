@@ -6,13 +6,16 @@ import parsley.generic
 sealed trait SymbolTableObj {
   var typ: Option[Type] = None // The type of the object
 }
+sealed trait ScopedBody extends SymbolTableObj {
+  var vars: List[SymbolTableObj] = List.empty
+}
 
 // Main program
 final case class Program(functions: List[Func], body: List[Stmt])
 
 // <func>
 final case class Func(t: Type, ident: Ident, params: List[Param], body: List[Stmt])
-  extends SymbolTableObj {
+  extends SymbolTableObj with ScopedBody {
   typ = Some(t)
   override def toString: String =
     s"$ident(${(for (p <- params) yield {s"${p.t} ${p.ident}"}).mkString(", ")})"
@@ -55,13 +58,14 @@ final case class Return(expr: Expr) extends Stmt { override def toString: String
 final case class Exit(expr: Expr) extends Stmt { override def toString: String = s"exit $expr" }
 final case class Print(expr: Expr) extends Stmt { override def toString: String = s"print $expr" }
 final case class PrintLn(expr: Expr) extends Stmt { override def toString: String = s"println $expr" }
-final case class IfStmt(cond: Expr, body1: List[Stmt], body2: List[Stmt]) extends Stmt {
+final case class IfStmt(cond: Expr, body1: List[Stmt], body2: List[Stmt])
+  extends Stmt with ScopedBody {
   override def toString: String = s"if $cond then $body1 else $body2 fi"
 }
-final case class While(cond: Expr, body: List[Stmt]) extends Stmt {
+final case class While(cond: Expr, body: List[Stmt]) extends Stmt with ScopedBody {
   override def toString: String = s"while $cond do $body done"
 }
-final case class ScopedStmt(stmt: List[Stmt]) extends Stmt {
+final case class ScopedStmt(stmt: List[Stmt]) extends Stmt with ScopedBody {
   override def toString: String = s"begin $stmt end"
 }
 

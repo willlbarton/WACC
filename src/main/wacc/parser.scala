@@ -86,7 +86,7 @@ object parser {
   // Parses an expression
   private lazy val expr: Parsley[Expr] = precedence(
     Integer(integer), // An integer may begin with '-', so it must be parsed first
-    ("-".label("unary operator") ~> expr).map(x => UnaryApp(Neg, x)),
+    Neg("-".label("unary operator") ~> expr),
     Bool("true" #> true | "false" #> false),
     Character(character),
     StringAtom(string),

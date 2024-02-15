@@ -60,12 +60,23 @@ object analyser {
              stmt
          } else "")
     // If and while statements have a condition that must be a boolean
-    case IfStmt(cond, body1, body2) =>
-      checkCond(st, cond, isIf = true) ++
-        checkFuncStmts(st.makeChild, body1, typ) ++ checkFuncStmts(st.makeChild, body2, typ)
-    case While(cond, body) =>
-      checkCond(st, cond, isIf = false) ++ checkFuncStmts(st.makeChild, body, typ)
-    case ScopedStmt(stmt)      => checkFuncStmts(st.makeChild, stmt, typ)
+    case f@IfStmt(cond, body1, body2) =>
+      val childTable1 = st.makeChild
+      val childTable2 = st.makeChild
+      val err = checkCond(st, cond, isIf = true) ++
+        checkFuncStmts(childTable1, body1, typ) ++ checkFuncStmts(childTable2, body2, typ)
+      f.vars = childTable1.vars ++ childTable2.vars
+      err
+    case w@While(cond, body) =>
+      val childTable = st.makeChild
+      val err = checkCond(st, cond, isIf = false) ++ checkFuncStmts(childTable, body, typ)
+      w.vars = childTable.vars
+      err
+    case s@ScopedStmt(stmt)      =>
+      val childTable = st.makeChild
+      val err = checkFuncStmts(childTable, stmt, typ)
+      s.vars = childTable.vars
+      err
     case _                     => checkLeafStatement(st, stmt)
   }
 
