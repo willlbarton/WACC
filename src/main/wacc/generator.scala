@@ -1,6 +1,10 @@
 package src.main.wacc
 
+import scala.collection.mutable.ListBuffer
+
 object generator {
+
+  val stringLiters: ListBuffer[String] = ListBuffer.empty
 
   def generate(program: Program, formatter: Formatter): String = genProgram(program).toList
     .map(formatter(_)).mkString("\n") ++ "\n"
@@ -10,6 +14,13 @@ object generator {
       CfgNode(Directive("globl main")),
       CfgNode(Directive("section .rodata"))
     )
+    stringLiters.zipWithIndex.foreach { case (s, i) =>
+      graph.add(
+        CfgNode(Directive(s"int ${s.length}")),
+        CfgNode(Label(s"L.str$i")),
+        CfgNode(Directive(s".asciz \"$s\""))
+      )
+    }
     graph.add(CfgNode(Directive("text")))
 
     val body = ControlFlowGraph()
