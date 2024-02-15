@@ -74,21 +74,21 @@ object x86Formatter extends Formatter {
       case Label(name)       => s"$name:"
       case Ret               => "  ret"
       case Cltd              => "  cltd"
-      case Mov(op1, dest)    => s"  movq ${this(op1)}, ${this(dest)}"
-      case Pop(dest)         => s"  popq ${this(dest)}"
+      case Mov(op1, dest)    => s"  movq  ${this(op1)}, ${this(dest)}"
+      case Pop(dest)         => s"  popq  ${this(dest)}"
       case Push(op1)         => s"  pushq ${this(op1)}"
-      case CallAsm(label)    => s"  call ${label.name}"
-      case AndAsm(op1, dest) => s"  and ${this(op1)}, ${this(dest)}"
+      case CallAsm(label)    => s"  call  ${label.name}"
+      case AndAsm(op1, dest) => s"  and   ${this(op1)}, ${this(dest)}"
       case Setne(dest)       => s"  setne ${this(dest)}"
-      case Lea(op1, dest)    => s"  leaq ${this(op1)}, ${this(dest)}"
-      case AddAsm(op1, dest) => s"  addq ${this(op1)}, ${this(dest)}"
-      case SubAsm(op1, dest) => s"  subq ${this(op1)}, ${this(dest)}"
-      case Cmp(op1, op2)     => s"  cmpq ${this(op1)}, ${this(op2)}"
-      case Jmp(label)        => s"  jmp ${label.name}"
-      case Je(label)         => s"  je ${label.name}"
-      case Jl(label)         => s"  jl ${label.name}"
-      case Jo(label)         => s"  jo ${label.name}"
-      case Jne(label)        => s"  jne ${label.name}"
+      case Lea(op1, dest)    => s"  leaq  ${this(op1)}, ${this(dest)}"
+      case AddAsm(op1, dest) => s"  addq  ${this(op1)}, ${this(dest)}"
+      case SubAsm(op1, dest) => s"  subq  ${this(op1)}, ${this(dest)}"
+      case Cmp(op1, op2)     => s"  cmpq  ${this(op1)}, ${this(op2)}"
+      case Jmp(label)        => s"  jmp   ${label.name}"
+      case Je(label)         => s"  je    ${label.name}"
+      case Jl(label)         => s"  jl    ${label.name}"
+      case Jo(label)         => s"  jo    ${label.name}"
+      case Jne(label)        => s"  jne   ${label.name}"
       case Idiv(op1)         => s"  idivq ${this(op1)}"
     }
 
@@ -115,8 +115,14 @@ object x86Formatter extends Formatter {
   override def apply(location: Location): String = location match {
     case reg: Reg => this(reg)
     case Address(offset, base, index, scale) =>
-      s"${this(offset)}(${this(base)}, ${this(index)}, ${this(scale)})"
-    case Immediate(value) => "$%x".format(value)
+      s"${memFormat(offset)}(${memFormat(base)}, ${memFormat(index)}, ${memFormat(scale)})"
+    case Immediate(value) => s"$$$value"
     case Label(name)      => name
+  }
+
+  private def memFormat(mem: MemOp): String = mem match {
+    case reg: Reg => this(reg)
+    case Immediate(value) => s"$value"
+    case Label(name) => name
   }
 }
