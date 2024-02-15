@@ -6,13 +6,20 @@ object generator {
     .map(formatter(_)).mkString("\n") ++ "\n"
 
   private def genProgram(program: Program): ControlFlowGraph = {
-    val graph = ControlFlowGraph()
-    program.functions.foreach(x => graph.add(genFunc(x)))
+    val graph = ControlFlowGraph().add(
+      CfgNode(Directive("globl main")),
+      CfgNode(Directive("section .rodata"))
+    )
+    graph.add(CfgNode(Directive("text")))
 
-    graph.add(CfgNode(Label("main")))
+    val body = ControlFlowGraph()
+
+    program.functions.foreach(x => body.add(genFunc(x)))
+
+    body.add(CfgNode(Label("main")))
     val mainBody = ControlFlowGraph()
     program.body.foreach(x => mainBody.add(genStmt(x)))
-    graph.add(genFuncBody(List.empty, mainBody))
+    body.add(genFuncBody(List.empty, mainBody))
 
     graph.add(CfgNode(Label("_exit")))
     val exitBody = ControlFlowGraph()

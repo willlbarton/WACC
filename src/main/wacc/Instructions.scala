@@ -34,6 +34,7 @@ final case class Immediate(value: Long) extends Operand
 case object Ret extends Instruction
 case object Cltd extends Instruction
 
+final case class Directive(name: String) extends Instruction
 final case class Label(name: String) extends Instruction
 final case class Mov(op1: Operand, dest: Dest) extends Instruction
 final case class Pop(dest: Dest) extends Instruction
@@ -64,9 +65,10 @@ trait Formatter {
 object x86Formatter extends Formatter {
   override def apply(instruction: Instruction): String =
     instruction match {
+      case Directive(name)  => s".$name"
+      case Label(name)       => s"$name:"
       case Ret               => "  ret"
       case Cltd              => "  cltd"
-      case Label(name)       => s"$name:"
       case Mov(op1, dest)    => s"  movq ${this(op1)}, ${this(dest)}"
       case Pop(dest)         => s"  popq ${this(dest)}"
       case Push(op1)         => s"  pushq ${this(op1)}"
@@ -107,6 +109,6 @@ object x86Formatter extends Formatter {
   override def apply(location: Location): String = location match {
     case Register(reg)  => this(reg)
     case Address(value) => s"[$value]" // idk if this is right
-    case Immediate(value) => "$%X".format(value)
+    case Immediate(value) => "$%x".format(value)
   }
 }
