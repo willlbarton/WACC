@@ -2,31 +2,43 @@ package src.main.wacc
 
 sealed trait Instruction
 
-sealed trait Location // Change this name ????
+sealed trait Location
 sealed trait Dest extends Location
 sealed trait Operand extends Location
 sealed trait MemOp extends Location
+
+trait Temporary extends Operand with Dest {
+  def ++ : Temporary
+}
+final case class NonParamTemp(var value: Int) extends Temporary {
+  def ++ : NonParamTemp = NonParamTemp(value + 1)
+}
+final case class ParamTemp(var value: Int) extends Temporary {
+  def ++ : ParamTemp = ParamTemp(value + 1)
+}
 
 sealed trait Reg extends Dest with Operand with MemOp
 
 // Registers
 case object Rax extends Reg
-case object Rbx extends Reg
-case object Rcx extends Reg
-case object Rdx extends Reg
-case object Rbp extends Reg
-case object Rsp extends Reg
-case object Rsi extends Reg
+// Param registers
 case object Rdi extends Reg
-
+case object Rsi extends Reg
+case object Rdx extends Reg
+case object Rcx extends Reg
 case object R8 extends Reg
 case object R9 extends Reg
+// Non-param registers
+case object Rbx extends Reg
 case object R10 extends Reg
 case object R11 extends Reg
 case object R12 extends Reg
 case object R13 extends Reg
 case object R14 extends Reg
 case object R15 extends Reg
+// Stack pointer and base pointer
+case object Rbp extends Reg
+case object Rsp extends Reg
 
 final case class Address(
   offset: MemOp = Immediate(0),

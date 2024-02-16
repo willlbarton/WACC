@@ -23,11 +23,13 @@ object generator {
     }
     graph.add(CfgNode(Directive("text")))
 
-    program.functions.foreach(x => graph.add(genFunc(x)))
+    program.functions.foreach(x => graph.add(genFunc(x, SymbolTable(None))))
 
     graph.add(CfgNode(Label("main")))
     val mainBody = ControlFlowGraph()
-    program.body.foreach(x => mainBody.add(genStmt(x)))
+    val mainSymTable: SymbolTable[Temporary] = SymbolTable(None)
+    val minTemporary = NonParamTemp(0)
+    program.body.foreach(x => mainBody.add(genStmt(x, mainSymTable, minTemporary)))
     graph.add(genFuncBody(List.empty, mainBody))
 
     graph.add(CfgNode(Label("_exit")))
@@ -43,7 +45,7 @@ object generator {
     graph
   }
 
-  private def genFunc(func: Func): ControlFlowGraph = ControlFlowGraph() // TODO
+  private def genFunc(func: Func, symTable: SymbolTable[Temporary]): ControlFlowGraph = ControlFlowGraph() // TODO
 
   private def genFuncBody(toSave: List[Reg], body: ControlFlowGraph): ControlFlowGraph = {
     ControlFlowGraph()
@@ -69,17 +71,17 @@ object generator {
       .add(CfgNode(Pop(Rbp)))
   }
 
-  private def genStmt(stmt: Stmt): ControlFlowGraph =
+  private def genStmt(stmt: Stmt, symTable: SymbolTable[Temporary], minTemporary: Temporary): ControlFlowGraph =
     stmt match {
       case Skip => ControlFlowGraph()
-      case Exit(expr) => genExit(expr)
-      case Return(expr) => ControlFlowGraph().add(genExpr(expr)).add(CfgNode(Ret))
+      case Exit(expr) => genExit(expr, symTable)
+      case Return(expr) => ControlFlowGraph().add(genExpr(expr, symTable, minTemporary)).add(CfgNode(Ret))
       case _ => ControlFlowGraph() // TODO
     }
 
-  private def genExit(expr: Expr): ControlFlowGraph = {
+  private def genExit(expr: Expr, symTable: SymbolTable[Temporary]): ControlFlowGraph = {
     ControlFlowGraph()
-     .add(genExpr(expr))
+     .add(genExpr(expr, symTable, NonParamTemp(0)))
      .add(
       CfgNode(Mov(Rax, Rdi)),
       CfgNode(CallAsm(Label("_exit"))),
@@ -87,7 +89,7 @@ object generator {
     )
   }
 
-  private def genExpr(expr: Expr): ControlFlowGraph = ControlFlowGraph() // TODO
+  private def genExpr(expr: Expr, symTable: SymbolTable[Temporary], minTemporary: Temporary): ControlFlowGraph = ControlFlowGraph() // TODO
 
   private def genPrintLiteral(s: String): ControlFlowGraph = {
     val id: Int = stringLiters(s)
