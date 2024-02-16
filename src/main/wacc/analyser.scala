@@ -11,6 +11,7 @@ object analyser {
   def analyse(program: Program): String = {
     val error = new StringBuilder()
     rootSymbolTable.clear() // Empty the table for subsequent calls to analyse
+    generator.stringLiters.clear() // Empty the list of string literals
 
     // Functions may be used before declaration, so we need to do a first pass
     for (f <- program.functions) {
@@ -221,7 +222,9 @@ object analyser {
     case Integer(_)    => ("", Some(IntType))
     case Bool(_)       => ("", Some(BoolType))
     case Character(_)  => ("", Some(CharType))
-    case StringAtom(_) => ("", Some(StringType))
+    case StringAtom(s) =>
+      generator.stringLiters += (s -> generator.stringLiters.size)
+      ("", Some(StringType))
     case Null          => ("", Some(Pair))
     case id: Ident =>
       checkIdent(symTable, id) match {

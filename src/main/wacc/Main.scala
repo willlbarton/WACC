@@ -21,6 +21,7 @@ object Main {
           try source.getLines().mkString("\n")
           finally source.close()
         val filename = filepath.split("/").last
+        println(s"Compiling $filename...")
 
         program match {
           case "" => println("Please enter a valid filepath!")
@@ -29,11 +30,13 @@ object Main {
               case Success(program) =>
                 analyser.analyse(program) match {
                   case "" =>
+                    val outputFile = filename.replaceFirst("\\.\\w+$", ".s")
                     val writer = new BufferedWriter(
-                      new FileWriter(filename.replaceFirst("\\.\\w+$", ".s"))
+                      new FileWriter(outputFile)
                     )
                     try {
                       writer.write(generator.generate(program, x86Formatter))
+                      println(s"Compilation successful! Output written to $outputFile")
                     } finally writer.close()
                   case msg =>
                     println(
