@@ -6,7 +6,7 @@ import scala.annotation.tailrec
 object analyser {
 
   // This symbol table holds functions and is an ancestor to all other tables
-  private val rootSymbolTable: SymbolTable = SymbolTable(None)
+  private val rootSymbolTable: SymbolTable[SymbolTableObj] = SymbolTable(None)
 
   def analyse(program: Program): String = {
     val error = new StringBuilder()
@@ -42,7 +42,7 @@ object analyser {
     error.toString
   }
 
-  private def checkFuncStmts(st: SymbolTable, stmts: List[Stmt], typ: Type): String = {
+  private def checkFuncStmts(st: SymbolTable[SymbolTableObj], stmts: List[Stmt], typ: Type): String = {
     val error = new StringBuilder()
     for (stmt <- stmts) {
       error ++= checkFuncStmt(st, stmt, typ) withContext stmt
@@ -51,7 +51,7 @@ object analyser {
   }
 
   // Distinguish between function and main statements since return is not allowed in main
-  private def checkFuncStmt(st: SymbolTable, stmt: Stmt, typ: Type): String = stmt match {
+  private def checkFuncStmt(st: SymbolTable[SymbolTableObj], stmt: Stmt, typ: Type): String = stmt match {
     case Return(expr) =>
       val (err, expType) = checkExpr(st, expr)
       // Check that the return expression is valid and matches the function return type
@@ -81,7 +81,7 @@ object analyser {
     case _                     => checkLeafStatement(st, stmt)
   }
 
-  private def checkMainStmts(st: SymbolTable, stmts: List[Stmt]): String = {
+  private def checkMainStmts(st: SymbolTable[SymbolTableObj], stmts: List[Stmt]): String = {
     val error = new StringBuilder()
     for (stmt <- stmts) {
       error ++= checkMainStmt(st, stmt) withContext stmt
@@ -90,7 +90,7 @@ object analyser {
   }
 
   // Main program body
-  private def checkMainStmt(st: SymbolTable, stmt: Stmt): String = stmt match {
+  private def checkMainStmt(st: SymbolTable[SymbolTableObj], stmt: Stmt): String = stmt match {
     case Return(_) => s"Return not allowed in main\n" withContext stmt
     case IfStmt(cond, body1, body2) =>
       checkCond(st, cond, isIf = true) ++
@@ -101,7 +101,7 @@ object analyser {
   }
 
   // Used in if and while statements to check that the condition is a boolean
-  private def checkCond(st: SymbolTable, cond: Expr, isIf: Boolean) = {
+  private def checkCond(st: SymbolTable[SymbolTableObj], cond: Expr, isIf: Boolean) = {
     val (err, typ) = checkExpr(st, cond)
     err ++ (if (typ.isDefined && typ.get != BoolType)
               typeErrorMsg(
@@ -114,7 +114,7 @@ object analyser {
   }
 
   // Checks the validity of statements that cannot have any other statements as children
-  private def checkLeafStatement(st: SymbolTable, stmt: Stmt): String = stmt match {
+  private def checkLeafStatement(st: SymbolTable[SymbolTableObj], stmt: Stmt): String = stmt match {
     case Skip                 => ""
     case Decl(t, name, value) => handleDeclaration(st, t, name, value)
     case Asgn(left, value)    => checkAssignment(st, left, value)
@@ -135,7 +135,7 @@ object analyser {
 
   // Checks a declaration is valid and adds it to the symbol table
   private def handleDeclaration(
-      symTable: SymbolTable,
+      symTable: SymbolTable[SymbolTableObj],
       typ: Type,
       ident: Ident,
       value: RVal
@@ -177,7 +177,7 @@ object analyser {
   }
 
   // Checks that an assignment is valid
-  private def checkAssignment(symTable: SymbolTable, left: LVal, value: RVal): String = {
+  private def checkAssignment(symTable: SymbolTable[SymbolTableObj], left: LVal, value: RVal): String = {
     val error = new StringBuilder()
     var typ1: Option[Type] = None
     checkLVal(symTable, left) match { // Check that the left hand side is a valid lvalue
@@ -193,7 +193,7 @@ object analyser {
   }
 
   // Checks that a read statement is valid
-  private def checkRead(st: SymbolTable, value: LVal): String = checkLVal(st, value) match {
+  private def checkRead(st: SymbolTable[SymbolTableObj], value: LVal): String = checkLVal(st, value) match {
     case Left(err) => err
     case Right(typ) =>
       typ match {
@@ -204,7 +204,7 @@ object analyser {
   }
 
   // Checks that a free statement is valid
-  private def checkFree(st: SymbolTable, expr: Expr) = {
+  private def checkFree(st: SymbolTable[SymbolTableObj], expr: Expr) = {
     checkExpr(st, expr) match {
       case (err, Some(PairType(_, _))) => err
       case (err, Some(ArrayType(_)))   => err
@@ -218,7 +218,7 @@ object analyser {
 
   // Checks the validity of an expression and finds it type if possible
   @tailrec
-  private def checkExpr(symTable: SymbolTable, expr: Expr): (String, Option[Type]) = expr match {
+  private def checkExpr(symTable: SymbolTable[SymbolTableObj], expr: Expr): (String, Option[Type]) = expr match {
     case Integer(_)    => ("", Some(IntType))
     case Bool(_)       => ("", Some(BoolType))
     case Character(_)  => ("", Some(CharType))
@@ -244,7 +244,7 @@ object analyser {
   }
 
   // Checks that an identifier is defined and returns its type if possible
-  private def checkIdent(symTable: SymbolTable, ident: Ident): Either[String, Type] =
+  private def checkIdent(symTable: SymbolTable[SymbolTableObj], ident: Ident): Either[String, Type] =
     symTable(ident) match {
       case None                   => Left(s"Variable '$ident' used before declaration!\n")
       case Some(Func(_, _, _, _)) => Left(s"Function '$ident' used as variable!\n")
@@ -321,7 +321,7 @@ object analyser {
 
   // Checks the validity of unary operator applications and returns the type
   private def checkUnaryApp(
-      symTable: SymbolTable,
+      symTable: SymbolTable[SymbolTableObj],
       op: UnaryOp,
       expr: Expr
   ): (String, Option[Type]) = {
@@ -376,7 +376,7 @@ object analyser {
 
   // Checks the validity of binary operator applications and returns the type
   private def checkBinaryApp(
-      symTable: SymbolTable,
+      symTable: SymbolTable[SymbolTableObj],
       op: BinaryOp,
       left: Expr,
       right: Expr
@@ -422,7 +422,7 @@ object analyser {
 
   // Checks array indexing and returns the type of the expression if valid
   private def checkArrayElem(
-      symTable: SymbolTable,
+      symTable: SymbolTable[SymbolTableObj],
       ident: Ident,
       exprs: List[Expr]
   ): Either[String, Type] = {
@@ -474,7 +474,7 @@ object analyser {
 
   // Checks that the left hand side of an assignment or declaration is valid
   // and returns its type if valid
-  private def checkLVal(symTable: SymbolTable, lval: LVal): Either[String, Type] = lval match {
+  private def checkLVal(symTable: SymbolTable[SymbolTableObj], lval: LVal): Either[String, Type] = lval match {
     case id: Ident               => checkIdent(symTable, id)
     case ArrayElem(ident, exprs) => checkArrayElem(symTable, ident, exprs)
     case Fst(value) =>
@@ -496,7 +496,7 @@ object analyser {
 
   // Checks the validity of the right hand side of an assignment or declaration
   // and returns its type if valid
-  private def checkRVal(symTable: SymbolTable, value: RVal): (String, Option[Type]) = value match {
+  private def checkRVal(symTable: SymbolTable[SymbolTableObj], value: RVal): (String, Option[Type]) = value match {
     case ArrayLiter(exprs)     => checkArrayLiteral(symTable, exprs)
     case NewPair(expr1, expr2) => checkNewPair(symTable, expr1, expr2)
     case exp: Expr             => checkExpr(symTable, exp)
@@ -511,7 +511,7 @@ object analyser {
   }
 
   // Checks the validity of newpair expressions, found in the right hand side of declarations
-  private def checkNewPair(symTable: SymbolTable, expr1: Expr, expr2: Expr) = {
+  private def checkNewPair(symTable: SymbolTable[SymbolTableObj], expr1: Expr, expr2: Expr) = {
     // First check sub-expressions
     val (err1, typ1) = checkExpr(symTable, expr1)
     val (err2, typ2) = checkExpr(symTable, expr2)
@@ -532,7 +532,7 @@ object analyser {
 
   // Checks the validity of array literals and returns their type if valid
   private def checkArrayLiteral(
-      symTable: SymbolTable,
+      symTable: SymbolTable[SymbolTableObj],
       exprs: List[Expr]
   ): (String, Option[Type]) = {
     val errors = new StringBuilder()
@@ -565,7 +565,7 @@ object analyser {
   }
 
   // Checks the validity of function calls and returns their type if valid
-  private def checkCall(symTable: SymbolTable, ident: Ident, exprs: List[Expr]) = {
+  private def checkCall(symTable: SymbolTable[SymbolTableObj], ident: Ident, exprs: List[Expr]) = {
     // Functions will only ever be declared in the root symbol table
     rootSymbolTable(ident) match {
       case None => (s"Usage of undeclared function: $ident!\n", None)
