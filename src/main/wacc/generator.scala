@@ -106,17 +106,24 @@ object generator {
         genExpr(expr, symTable),
         Ret
       )
+      case Print(expr)   => genPrintStmt(symTable, expr)
+      case PrintLn(expr) => genPrintStmt(symTable, expr) += CallAsm(Label("_println"))
       case _            => lb() // TODO
     }
 
-  private def genExpr(
-      expr: Expr,
-      symTable: SymbolTable[Dest]
-  ): ListBuffer[Instruction] = lb(
-    expr match {
-      case Integer(i) => Mov(Eax(), Immediate(i.toLong))
-    }
-  )
+  private def genPrintStmt(symTable: SymbolTable[Dest], expr: Expr): ListBuffer[Instruction] = {
+    lb(
+      genExpr(expr, symTable),
+      Mov(Edi(), Eax()),
+      expr.typ.get match {
+        case CharType => CallAsm(Label("_printc"))
+        case IntType => CallAsm(Label("_printi"))
+        case StringType => CallAsm(Label("_prints"))
+        case BoolType => CallAsm(Label("_printbool"))
+        case _ => ???
+      }
+    )
+  }
 
   private def genExit(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
     lb(
@@ -126,19 +133,25 @@ object generator {
       Mov(Eax(), Immediate(0))
     )
 
+  private def genExpr(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
+    expr match {
+      case Integer(i) => Mov(Eax(), Immediate(i.toLong))
+    }
+  )
+
   private lazy val stringType = 's'
   private lazy val intType = 'i'
   private lazy val charType = 'c'
   private lazy val printlnType = 'n'
   private def genPrint(typ: Char, format: String): ListBuffer[Instruction] = {
-    val graph: ListBuffer[Instruction] = ListBuffer()
-    graph += Directive("section .rodata")
-    graph += Directive(s"int ${format.length}")
-    graph += Label(s".print${typ}_format")
-    graph += Directive(s"asciz \"$format\"")
-    graph += Label(s"_print$typ")
-    val printBody: ListBuffer[Instruction] = ListBuffer()
-    printBody += AndAsm(Rsp, Immediate(-16))
+    val graph: ListBuffer[Instruction] = lb(
+       Directive("section .rodata"),
+       Directive(s"int ${format.length}"),
+       Label(s".print${typ}_format"),
+       Directive(s"asciz \"$format\""),
+       Label(s"_print$typ")
+    )
+    val printBody: ListBuffer[Instruction] = lb(AndAsm(Rsp, Immediate(-16)))
 
     if (typ == stringType) {
       printBody += Mov(Edi(Size64), Edx(Size64))

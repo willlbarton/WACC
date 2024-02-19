@@ -127,8 +127,14 @@ object analyser {
             typeErrorMsg("exit statement", s"exit $expr", "int", s"$t")
         case (err, _) => err
       }
-    case Print(expr)   => checkExpr(st, expr)._1
-    case PrintLn(expr) => checkExpr(st, expr)._1
+    case Print(expr)   =>
+      val (err, typ) = checkExpr(st, expr)
+      expr.typ = typ
+      err
+    case PrintLn(expr) =>
+      val (err, typ) = checkExpr(st, expr)
+      expr.typ = typ
+      err
     // Should never happen - if it does, it's a bug
     case _ => throw new IllegalArgumentException("Non-leaf statement in checkLeafStatement\n")
   }
