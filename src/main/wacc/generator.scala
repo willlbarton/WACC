@@ -42,18 +42,15 @@ object generator {
     )
     graph ++= genFuncBody(List.empty, exitBody)
 
-    stringLiters.keys.foreach(s => graph ++= genPrintLiteral(s))
+    graph ++= genPrintLiteral
+    graph ++= genPrintInt
 
     graph.toList
   }
 
-  private def genFunc(func: Func, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
-    ListBuffer.empty // TODO
+  private def genFunc(func: Func, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = ListBuffer.empty // TODO
 
-  private def genFuncBody(
-      toSave: List[Reg],
-      body: ListBuffer[Instruction]
-  ): ListBuffer[Instruction] = {
+  private def genFuncBody(toSave: List[Reg], body: ListBuffer[Instruction]): ListBuffer[Instruction] = {
     val is: ListBuffer[Instruction] = ListBuffer()
     is ++= saveRegs(toSave)
     is ++= body
@@ -84,17 +81,17 @@ object generator {
       freeRegs: ListBuffer[Dest]
   ): ListBuffer[Instruction] =
     stmt match {
-      case Skip         => ListBuffer[Instruction]()
+      case Skip         => ListBuffer()
       case Exit(expr)   => genExit(expr, symTable)
       case Return(expr) => ListBuffer().addAll(genExpr(expr, symTable, freeRegs)).addOne(Ret)
-      case _            => ListBuffer[Instruction]() // TODO
+      case _            => ListBuffer() // TODO
     }
 
   private def genExpr(
       expr: Expr,
       symTable: SymbolTable[Dest],
       freeRegs: ListBuffer[Dest]
-  ): ListBuffer[Instruction] = ListBuffer[Instruction]() // TODO
+  ): ListBuffer[Instruction] = ListBuffer() // TODO
 
   private def genExit(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = {
     val freeRegs: ListBuffer[Dest] = ListBuffer.from(nonParamRegs)
@@ -106,17 +103,21 @@ object generator {
     is
   }
 
-  private def genPrintLiteral(s: String): ListBuffer[Instruction] = {
-    val id: Int = stringLiters(s)
-    val graph: ListBuffer[Instruction] = ListBuffer(Label(s"_print$id"))
+  private val genPrintLiteral: ListBuffer[Instruction] = {
+    val graph: ListBuffer[Instruction] = ListBuffer()
+    graph += Directive("section .rodata")
+    graph += Directive("int 4")
+    graph += Label(".prints_format")
+    graph += Directive("asciz \"%.*s\\0\"")
+    graph += Label("_prints")
     val printBody: ListBuffer[Instruction] = ListBuffer()
     printBody += AndAsm(Rsp, Immediate(-16))
-    printBody += Mov(Edi(), Edx())
-    printBody += Mov(Address(Immediate(-4), Edi()), Esi())
-    printBody += Lea(Edi(), Address(Label(s".L.str$id"), Esi()))
-    printBody += Mov(Eax(), Immediate(0))
+    printBody += Mov(Edi(Size64), Edx(Size64))
+    printBody += Mov(Address(Immediate(-4), Edi(Size64)), Esi())
+    printBody += Lea(Edi(Size64), Address(Label(".prints_format"), Rip))
+    printBody += Mov(Eax(Size8), Immediate(0))
     printBody += CallAsm(Label("printf@plt"))
-    printBody += Mov(Edi(), Immediate(0))
+    printBody += Mov(Edi(Size64), Immediate(0))
     printBody += CallAsm(Label("fflush@plt"))
     graph ++= genFuncBody(List.empty, printBody)
   }
