@@ -7,7 +7,6 @@ sealed trait Dest extends Location
 sealed trait Operand extends Location
 sealed trait MemOp extends Location
 
-
 sealed trait Reg extends Dest with Operand with MemOp {
   var size: Size = Size32;
 }
@@ -18,7 +17,6 @@ case object Size8 extends Size
 case object Size16 extends Size
 case object Size32 extends Size
 case object Size64 extends Size
-
 
 // Registers
 case object Rax extends Reg
@@ -42,10 +40,12 @@ case object Rbp extends Reg
 case object Rsp extends Reg
 
 final case class Address(
-  offset: MemOp = Immediate(0),
-  base: MemOp,
-  index: MemOp = Immediate(0),
-  scale: MemOp = Immediate(1)) extends Dest with Operand
+    offset: MemOp = Immediate(0),
+    base: MemOp,
+    index: MemOp = Immediate(0),
+    scale: MemOp = Immediate(1)
+) extends Dest
+    with Operand
 final case class Immediate(value: Long) extends Operand with MemOp
 
 case object Ret extends Instruction
@@ -81,29 +81,30 @@ trait Formatter {
 
 // x86-64 AT&T instructions
 object x86Formatter extends Formatter {
-  override def apply(instruction: Instruction): String =
+  override def apply(instruction: Instruction): String = {
     instruction match {
-      case Directive(name)  => s".$name"
+      case Directive(name)   => s".$name"
       case Label(name)       => s"$name:"
       case Ret               => "  ret\n"
       case Cltd              => "  cltd"
-      case Mov(op1, dest)    => s"  movq  ${this(op1)}, ${this(dest)}"
-      case Pop(dest)         => s"  popq  ${this(dest)}"
-      case Push(op1)         => s"  pushq ${this(op1)}"
+      case Mov(dest, op1)    => s"  mov${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
+      case Pop(dest)         => s"  pop${instructionPostfix(dest)}  ${this(dest)}"
+      case Push(op1)         => s"  push${instructionPostfix(op1)} ${this(op1)}"
       case CallAsm(label)    => s"  call  ${label.name}"
-      case AndAsm(op1, dest) => s"  and   ${this(op1)}, ${this(dest)}"
+      case AndAsm(dest, op1) => s"  and   ${this(op1)}, ${this(dest)}"
       case Setne(dest)       => s"  setne ${this(dest)}"
-      case Lea(op1, dest)    => s"  leaq  ${this(op1)}, ${this(dest)}"
-      case AddAsm(op1, dest) => s"  addq  ${this(op1)}, ${this(dest)}"
-      case SubAsm(op1, dest) => s"  subq  ${this(op1)}, ${this(dest)}"
-      case Cmp(op1, op2)     => s"  cmpq  ${this(op1)}, ${this(op2)}"
+      case Lea(dest, op1)    => s"  lea${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
+      case AddAsm(dest, op1) => s"  add${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
+      case SubAsm(dest, op1) => s"  sub${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
+      case Cmp(op1, op2)     => s"  cmp${instructionPostfix(op1)}  ${this(op1)}, ${this(op2)}"
       case Jmp(label)        => s"  jmp   ${label.name}"
       case Je(label)         => s"  je    ${label.name}"
       case Jl(label)         => s"  jl    ${label.name}"
       case Jo(label)         => s"  jo    ${label.name}"
       case Jne(label)        => s"  jne   ${label.name}"
-      case Idiv(op1)         => s"  idivq ${this(op1)}"
+      case Idiv(op1)         => s"  idiv${instructionPostfix(op1)} ${this(op1)}"
     }
+  }
 
   override def apply(reg: Reg): String =
     reg match {
@@ -134,8 +135,20 @@ object x86Formatter extends Formatter {
   }
 
   private def memFormat(mem: MemOp): String = mem match {
-    case reg: Reg => this(reg)
+    case reg: Reg         => this(reg)
     case Immediate(value) => s"$value"
-    case Label(name) => name
+    case Label(name)      => name
+  }
+
+  private def instructionPostfix(location: Location): String = location match {
+    case r: Reg =>
+      r.size match {
+        case Size1  => "b"
+        case Size8  => "b"
+        case Size16 => "w"
+        case Size32 => "l"
+        case Size64 => "q"
+      }
+    case _ => ???
   }
 }
