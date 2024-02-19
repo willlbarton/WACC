@@ -45,6 +45,7 @@ object generator {
     graph ++= genPrint(stringType, "%.*s")
     graph ++= genPrint(intType, "%d")
     graph ++= genPrint(printlnType, "")
+    graph ++= genPrint(charType, "%c")
 
     graph.toList
   }
@@ -106,6 +107,7 @@ object generator {
 
   private lazy val stringType = 's'
   private lazy val intType = 'i'
+  private lazy val charType = 'c'
   private lazy val printlnType = 'n'
   private def genPrint(typ: Char, format: String): ListBuffer[Instruction] = {
     val graph: ListBuffer[Instruction] = ListBuffer()
@@ -122,6 +124,8 @@ object generator {
       printBody += Mov(Address(Immediate(-4), Edi(Size64)), Esi())
     } else if (typ == intType) {
       printBody += Mov(Edi(), Esi())
+    } else if (typ == charType) {
+      printBody += Mov(Edi(Size8), Esi(Size8))
     }
 
     printBody += Lea(Edi(Size64), Address(Label(s".print${typ}_format"), Rip))
@@ -132,7 +136,6 @@ object generator {
     } else {
       printBody += CallAsm(Label("printf@plt"))
     }
-
 
     printBody += Mov(Edi(Size64), Immediate(0))
     printBody += CallAsm(Label("fflush@plt"))
