@@ -6,8 +6,8 @@ import scala.collection.mutable.ListBuffer
 object generator {
 
   val stringLiters: mutable.Map[String, Int] = mutable.Map.empty
-  private val paramRegs: List[Reg] = List(Rdi, Rsi, Rdx, Rcx, R8, R9)
-  private val nonParamRegs: List[Reg] = List(Rbx, R10, R11, R12, R13, R14, R15)
+  private val paramRegs: List[Reg] = List(Edi(), Esi(), Edx(), Ecx(), R8(), R9())
+  private val nonParamRegs: List[Reg] = List(Ebx(), R10(), R11(), R12(), R13(), R14(), R15())
 
   def generate(program: Program, formatter: Formatter): String = genProgram(program)
     .map(formatter(_)).mkString("\n")
@@ -81,29 +81,29 @@ object generator {
       case _ => ListBuffer[Instruction]() // TODO
     }
 
+  private def genExpr(expr: Expr, symTable: SymbolTable[Dest], freeRegs: ListBuffer[Dest]): ListBuffer[Instruction] = ListBuffer[Instruction]() // TODO
+
   private def genExit(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = {
     val freeRegs: ListBuffer[Dest] = ListBuffer.from(nonParamRegs)
     val is: ListBuffer[Instruction] = ListBuffer()
     is ++= genExpr(expr, symTable, freeRegs)
-    is += Mov(Rax, Rdi)
+    is += Mov(Eax(), Edi())
     is += CallAsm(Label("_exit"))
-    is += Mov(Rax, Immediate(0))
+    is += Mov(Eax(), Immediate(0))
     is
   }
-
-  private def genExpr(expr: Expr, symTable: SymbolTable[Dest], freeRegs: ListBuffer[Dest]): ListBuffer[Instruction] = ListBuffer[Instruction]() // TODO
 
   private def genPrintLiteral(s: String): ListBuffer[Instruction] = {
     val id: Int = stringLiters(s)
     val graph: ListBuffer[Instruction] = ListBuffer(Label(s"_print$id"))
     val printBody: ListBuffer[Instruction] = ListBuffer()
     printBody += AndAsm(Rsp, Immediate(-16))
-    printBody += Mov(Rdi, Rdx)
-    printBody += Mov(Address(Immediate(-4), Rdi), Rsi)
-    printBody += Lea(Rdi, Address(Label(s".L.str$id"), Rsi))
-    printBody += Mov(Rax, Immediate(0))
+    printBody += Mov(Edi(), Edx())
+    printBody += Mov(Address(Immediate(-4), Edi()), Esi())
+    printBody += Lea(Edi(), Address(Label(s".L.str$id"), Esi()))
+    printBody += Mov(Eax(), Immediate(0))
     printBody += CallAsm(Label("printf@plt"))
-    printBody += Mov(Rdi, Immediate(0))
+    printBody += Mov(Edi(), Immediate(0))
     printBody += CallAsm(Label("fflush@plt"))
     graph ++= genFuncBody(List.empty, printBody)
   }
