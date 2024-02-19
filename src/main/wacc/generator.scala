@@ -131,13 +131,14 @@ object generator {
   ): ListBuffer[Instruction] = lb(
     expr match {
       case Integer(i) => Mov(Immediate(i.toLong), Eax())
+      case _          => ???
     }
   )
 
   private def genExit(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
     lb(
       genExpr(expr, symTable),
-      Mov(Edi(), Eax()),
+      Mov(Eax(), Edi()),
       CallAsm(Label("_exit")),
       Mov(Immediate(0), Eax())
     )

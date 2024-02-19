@@ -245,6 +245,7 @@ object x86Formatter extends Formatter {
         case Size64 => "q"
       }
     case _: Address => "q"
+    case _          => ???
   }
 
 }
