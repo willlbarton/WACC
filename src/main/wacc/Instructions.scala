@@ -19,22 +19,22 @@ case object Size32 extends Size
 case object Size64 extends Size
 
 // Registers
-case object Rax extends Reg
+case class Eax() extends Reg
 // Param registers
-case object Rdi extends Reg
-case object Rsi extends Reg
-case object Rdx extends Reg
-case object Rcx extends Reg
-case object R8 extends Reg
-case object R9 extends Reg
+case class Edi() extends Reg
+case class Esi() extends Reg
+case class Edx() extends Reg
+case class Ecx() extends Reg
+case class R8() extends Reg
+case class R9() extends Reg
 // Non-param registers
-case object Rbx extends Reg
-case object R10 extends Reg
-case object R11 extends Reg
-case object R12 extends Reg
-case object R13 extends Reg
-case object R14 extends Reg
-case object R15 extends Reg
+case class Ebx() extends Reg
+case class R10() extends Reg
+case class R11() extends Reg
+case class R12() extends Reg
+case class R13() extends Reg
+case class R14() extends Reg
+case class R15() extends Reg
 // Stack pointer and base pointer
 case object Rbp extends Reg
 case object Rsp extends Reg
@@ -107,22 +107,22 @@ object x86Formatter extends Formatter {
 
   override def apply(reg: Reg): String =
     reg match {
-      case Rax => "%rax"
-      case Rbx => "%rbx"
-      case Rcx => "%rcx"
-      case Rdx => "%rdx"
-      case Rbp => "%rbp"
-      case Rsp => "%rsp"
-      case Rsi => "%rsi"
-      case Rdi => "%rdi"
-      case R8  => "%r8"
-      case R9  => "%r9"
-      case R10 => "%r10"
-      case R11 => "%r11"
-      case R12 => "%r12"
-      case R13 => "%r13"
-      case R14 => "%r14"
-      case R15 => "%r15"
+      case _: Eax => "%rax"
+      case _: Ebx => "%rbx"
+      case _: Ecx => "%rcx"
+      case _: Edx => "%rdx"
+      case _: Esi => "%rsi"
+      case _: Edi => "%rdi"
+      case _: R8  => "%r8"
+      case _: R9  => "%r9"
+      case _: R10 => "%r10"
+      case _: R11 => "%r11"
+      case _: R12 => "%r12"
+      case _: R13 => "%r13"
+      case _: R14 => "%r14"
+      case _: R15 => "%r15"
+      case Rbp    => "%rbp"
+      case Rsp    => "%rsp"
     }
 
   override def apply(location: Location): String = location match {
