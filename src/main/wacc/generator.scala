@@ -58,7 +58,8 @@ object generator {
       genPrint(stringType, "%.*s"),
       genPrint(intType, "%d"),
       genPrint(printlnType, ""),
-      genPrint(charType, "%c")
+      genPrint(charType, "%c"),
+      genPrintBool
     )
     instructions.toList
   }
@@ -159,6 +160,30 @@ object generator {
 
     printBody += Mov(Edi(Size64), Immediate(0))
     printBody += CallAsm(Label("fflush@plt"))
+    graph ++= genFuncBody(List.empty, printBody)
+  }
+
+  private val genPrintBool: ListBuffer[Instruction] = {
+    val graph: ListBuffer[Instruction] = lb(
+      Directive("section .rodata"),
+      Directive("int 4"),
+      Label(".printb_true_lit"),
+      Directive("asciz \"true\""),
+      Directive("int 5"),
+      Label(".printb_false_lit"),
+      Directive("asciz \"false\""),
+      Label("_printbool")
+    )
+    val printBody: ListBuffer[Instruction] = lb(
+      Cmp(Edi(Size8), Immediate(0)),
+      Je(Label(".printb_true")),
+      Lea(Edi(Size64), Address(Label(".printb_false_lit"), Rip)),
+      Jmp(Label(".printb_end")),
+      Label(".printb_true"),
+      Lea(Edi(Size64), Address(Label(".printb_true_lit"), Rip)),
+      Label(".printb_end"),
+      CallAsm(Label("_prints")),
+    )
     graph ++= genFuncBody(List.empty, printBody)
   }
 }
