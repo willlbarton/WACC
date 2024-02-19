@@ -44,6 +44,7 @@ object generator {
 
     graph ++= genPrint(stringType, "%.*s")
     graph ++= genPrint(intType, "%d")
+    graph ++= genPrint(printlnType, "")
 
     graph.toList
   }
@@ -105,12 +106,13 @@ object generator {
 
   private lazy val stringType = 's'
   private lazy val intType = 'i'
+  private lazy val printlnType = 'n'
   private def genPrint(typ: Char, format: String): ListBuffer[Instruction] = {
     val graph: ListBuffer[Instruction] = ListBuffer()
     graph += Directive("section .rodata")
     graph += Directive(s"int ${format.length}")
     graph += Label(s".print${typ}_format")
-    graph += Directive(s"asciz $format")
+    graph += Directive(s"asciz \"$format\"")
     graph += Label(s"_print$typ")
     val printBody: ListBuffer[Instruction] = ListBuffer()
     printBody += AndAsm(Rsp, Immediate(-16))
@@ -124,7 +126,14 @@ object generator {
 
     printBody += Lea(Edi(Size64), Address(Label(s".print${typ}_format"), Rip))
     printBody += Mov(Eax(Size8), Immediate(0))
-    printBody += CallAsm(Label("printf@plt"))
+
+    if (typ == printlnType) {
+      printBody += CallAsm(Label("puts@plt"))
+    } else {
+      printBody += CallAsm(Label("printf@plt"))
+    }
+
+
     printBody += Mov(Edi(Size64), Immediate(0))
     printBody += CallAsm(Label("fflush@plt"))
     graph ++= genFuncBody(List.empty, printBody)
