@@ -42,8 +42,8 @@ object generator {
     )
     graph ++= genFuncBody(List.empty, exitBody)
 
-    graph ++= genPrintLiteral
-    graph ++= genPrintInt
+    graph ++= genPrint(stringType, "%.*s")
+    graph ++= genPrint(intType, "%d")
 
     graph.toList
   }
@@ -103,36 +103,26 @@ object generator {
     is
   }
 
-  private val genPrintLiteral: ListBuffer[Instruction] = {
+  private lazy val stringType = 's'
+  private lazy val intType = 'i'
+  private def genPrint(typ: Char, format: String): ListBuffer[Instruction] = {
     val graph: ListBuffer[Instruction] = ListBuffer()
     graph += Directive("section .rodata")
-    graph += Directive("int 4")
-    graph += Label(".prints_format")
-    graph += Directive("asciz \"%.*s\\0\"")
-    graph += Label("_prints")
+    graph += Directive(s"int ${format.length}")
+    graph += Label(s".print${typ}_format")
+    graph += Directive(s"asciz $format")
+    graph += Label(s"_print$typ")
     val printBody: ListBuffer[Instruction] = ListBuffer()
     printBody += AndAsm(Rsp, Immediate(-16))
-    printBody += Mov(Edi(Size64), Edx(Size64))
-    printBody += Mov(Address(Immediate(-4), Edi(Size64)), Esi())
-    printBody += Lea(Edi(Size64), Address(Label(".prints_format"), Rip))
-    printBody += Mov(Eax(Size8), Immediate(0))
-    printBody += CallAsm(Label("printf@plt"))
-    printBody += Mov(Edi(Size64), Immediate(0))
-    printBody += CallAsm(Label("fflush@plt"))
-    graph ++= genFuncBody(List.empty, printBody)
-  }
 
-  private val genPrintInt: ListBuffer[Instruction] = {
-    val graph: ListBuffer[Instruction] = ListBuffer()
-    graph += Directive("section .rodata")
-    graph += Directive("int 2")
-    graph += Label(".printi_format")
-    graph += Directive("asciz \"%d\"")
-    graph += Label("_printi")
-    val printBody: ListBuffer[Instruction] = ListBuffer()
-    printBody += AndAsm(Rsp, Immediate(-16))
-    printBody += Mov(Edi(), Esi())
-    printBody += Lea(Edi(Size64), Address(Label(".printi_format"), Rip))
+    if (typ == stringType) {
+      printBody += Mov(Edi(Size64), Edx(Size64))
+      printBody += Mov(Address(Immediate(-4), Edi(Size64)), Esi())
+    } else if (typ == intType) {
+      printBody += Mov(Edi(), Esi())
+    }
+
+    printBody += Lea(Edi(Size64), Address(Label(s".print${typ}_format"), Rip))
     printBody += Mov(Eax(Size8), Immediate(0))
     printBody += CallAsm(Label("printf@plt"))
     printBody += Mov(Edi(Size64), Immediate(0))
