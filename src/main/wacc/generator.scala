@@ -11,7 +11,7 @@ object generator {
 
   def generate(program: Program, formatter: Formatter): String = genProgram(program)
     .map(formatter(_))
-    .mkString("\n") ++ "\n"
+    .mkString("\n")
 
   private def genProgram(program: Program): List[Instruction] = {
     val graph: ListBuffer[Instruction] = ListBuffer(
@@ -58,7 +58,7 @@ object generator {
     is ++= body
     is ++= restoreRegs(toSave)
     is += Ret
-    body
+    is
   }
 
   // save the stack pointer to enter a new scope
