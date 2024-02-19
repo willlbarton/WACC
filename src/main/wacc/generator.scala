@@ -121,4 +121,22 @@ object generator {
     printBody += CallAsm(Label("fflush@plt"))
     graph ++= genFuncBody(List.empty, printBody)
   }
+
+  private val genPrintInt: ListBuffer[Instruction] = {
+    val graph: ListBuffer[Instruction] = ListBuffer()
+    graph += Directive("section .rodata")
+    graph += Directive("int 2")
+    graph += Label(".printi_format")
+    graph += Directive("asciz \"%d\"")
+    graph += Label("_printi")
+    val printBody: ListBuffer[Instruction] = ListBuffer()
+    printBody += AndAsm(Rsp, Immediate(-16))
+    printBody += Mov(Edi(), Esi())
+    printBody += Lea(Edi(Size64), Address(Label(".printi_format"), Rip))
+    printBody += Mov(Eax(Size8), Immediate(0))
+    printBody += CallAsm(Label("printf@plt"))
+    printBody += Mov(Edi(Size64), Immediate(0))
+    printBody += CallAsm(Label("fflush@plt"))
+    graph ++= genFuncBody(List.empty, printBody)
+  }
 }
