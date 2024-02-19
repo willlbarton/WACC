@@ -7,7 +7,18 @@ sealed trait Dest extends Location
 sealed trait Operand extends Location
 sealed trait MemOp extends Location
 
-sealed trait Reg extends Dest with Operand with MemOp
+
+sealed trait Reg extends Dest with Operand with MemOp {
+  var size: Size = Size32;
+}
+
+sealed trait Size
+case object Size1 extends Size
+case object Size8 extends Size
+case object Size16 extends Size
+case object Size32 extends Size
+case object Size64 extends Size
+
 
 // Registers
 case object Rax extends Reg
