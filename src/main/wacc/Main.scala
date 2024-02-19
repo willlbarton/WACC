@@ -46,8 +46,10 @@ object Main {
                     exit(semanticErrCode)
                 }
               case Failure(msg) =>
-                println(s"Errors detected during compilation!\n" ++
-                  s"Exit code $syntaxErrCode returned:\n$msg")
+                println(
+                  s"Errors detected during compilation!\n" ++
+                    s"Exit code $syntaxErrCode returned:\n$msg"
+                )
                 exit(syntaxErrCode)
             }
         }

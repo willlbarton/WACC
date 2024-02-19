@@ -6,17 +6,23 @@ import scala.collection.mutable.ListBuffer
 object generator {
 
   def lb(instructions: Any*): ListBuffer[Instruction] = {
-    val listBuffer = ListBuffer[Instruction]()
+    val resultBuffer = ListBuffer[Instruction]()
 
     for (instruction <- instructions) {
       instruction match {
-        case i: Instruction                => listBuffer += i
-        case list: ListBuffer[Instruction] => listBuffer ++= list
-        case _ => // Ignore other types, you may choose to handle them differently
+        case inst: Instruction =>
+          resultBuffer += inst
+        case listBuffer: ListBuffer[Instruction] => {
+          resultBuffer ++= listBuffer
+        }
+        case list: List[Instruction] =>
+          resultBuffer ++= list
+        case _ =>
+          throw new IllegalArgumentException(s"Unsupported type: ${instruction.getClass}")
       }
     }
 
-    listBuffer
+    resultBuffer
   }
 
   val stringLiters: mutable.Map[String, Int] = mutable.Map.empty
@@ -25,17 +31,25 @@ object generator {
     .map(formatter(_))
     .mkString("\n")
 
-  private def genProgram(program: Program): List[Instruction] = {
-    val instructions = lb(
+  private def genProgram(program: Program): ListBuffer[Instruction] = {
+    var instructions = lb(
       Directive("globl main"),
-      Directive("section .rodata"),
-      stringLiters.foreach { case (s, i) =>
+      Directive("section .rodata")
+    )
+
+    stringLiters.foreach { case (s, i) =>
+      instructions = lb(
+        instructions,
         lb(
           Directive(s"int ${s.length}"),
           Label(s".L.str$i"),
           Directive(s"asciz \"$s\"")
         )
-      },
+      )
+    }
+
+    instructions = lb(
+      instructions,
       Directive("text"),
       program.functions.map(x => genFunc(x, SymbolTable(None))),
       Label("main")
@@ -43,7 +57,7 @@ object generator {
 
     val mainSymTable: SymbolTable[Dest] = SymbolTable(None)
     val mainBody = lb(
-      program.body.map(x => genStmt(x, mainSymTable))
+      program.body.flatMap(x => genStmt(x, mainSymTable))
     )
 
     instructions ++= lb(instructions, genFuncBody(List.empty, mainBody), Label("_exit"))
@@ -60,7 +74,8 @@ object generator {
       genPrint(printlnType, ""),
       genPrint(charType, "%c")
     )
-    instructions.toList
+
+    instructions
   }
 
   private def genFunc(func: Func, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
@@ -115,7 +130,7 @@ object generator {
       symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] = lb(
     expr match {
-      case Integer(i) => Mov(Immediate(i.toLong), Eax())
+      case Integer(i) => Mov(Immediate(3333), Eax())
     }
   )
 
