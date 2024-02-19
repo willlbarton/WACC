@@ -6,6 +6,8 @@ import scala.collection.mutable.ListBuffer
 object generator {
 
   val stringLiters: mutable.Map[String, Int] = mutable.Map.empty
+  private val paramRegs: List[Reg] = List(Rdi, Rsi, Rdx, Rcx, R8, R9)
+  private val nonParamRegs: List[Reg] = List(Rbx, R10, R11, R12, R13, R14, R15)
 
   def generate(program: Program, formatter: Formatter): String = genProgram(program)
     .map(formatter(_)).mkString("\n")
@@ -27,6 +29,7 @@ object generator {
     graph.addOne(Label("main"))
     val mainBody: ListBuffer[Instruction] = ListBuffer()
     val mainSymTable: SymbolTable[Dest] = SymbolTable(None)
+    val freeRegs: ListBuffer[Dest] = ListBuffer.from(nonParamRegs)
     program.body.foreach(x => mainBody ++= genStmt(x, mainSymTable, freeRegs))
     graph ++= genFuncBody(List.empty, mainBody)
 
@@ -70,7 +73,7 @@ object generator {
     is += Pop(Rbp)
   }
 
-  private def genStmt(stmt: Stmt, symTable: SymbolTable[Dest], freeRegs: List[Dest]): ListBuffer[Instruction] =
+  private def genStmt(stmt: Stmt, symTable: SymbolTable[Dest], freeRegs: ListBuffer[Dest]): ListBuffer[Instruction] =
     stmt match {
       case Skip => ListBuffer[Instruction]()
       case Exit(expr) => genExit(expr, symTable)
@@ -79,6 +82,7 @@ object generator {
     }
 
   private def genExit(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = {
+    val freeRegs: ListBuffer[Dest] = ListBuffer.from(nonParamRegs)
     val is: ListBuffer[Instruction] = ListBuffer()
     is ++= genExpr(expr, symTable, freeRegs)
     is += Mov(Rax, Rdi)
@@ -87,7 +91,7 @@ object generator {
     is
   }
 
-  private def genExpr(expr: Expr, symTable: SymbolTable[Dest], freeRegs: List[Dest]): ListBuffer[Instruction] = ListBuffer[Instruction]() // TODO
+  private def genExpr(expr: Expr, symTable: SymbolTable[Dest], freeRegs: ListBuffer[Dest]): ListBuffer[Instruction] = ListBuffer[Instruction]() // TODO
 
   private def genPrintLiteral(s: String): ListBuffer[Instruction] = {
     val id: Int = stringLiters(s)
