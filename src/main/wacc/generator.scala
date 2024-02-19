@@ -26,7 +26,7 @@ object generator {
     .mkString("\n")
 
   private def genProgram(program: Program): List[Instruction] = {
-    var instructions = lb(
+    val instructions = lb(
       Directive("globl main"),
       Directive("section .rodata"),
       stringLiters.foreach { case (s, i) =>
@@ -42,24 +42,25 @@ object generator {
     )
 
     val mainSymTable: SymbolTable[Dest] = SymbolTable(None)
-
     val mainBody = lb(
       program.body.map(x => genStmt(x, mainSymTable))
     )
 
-    instructions = lb(instructions, genFuncBody(List.empty, mainBody), Label("_exit"))
+    instructions ++= lb(instructions, genFuncBody(List.empty, mainBody), Label("_exit"))
 
     val exitBody: ListBuffer[Instruction] = lb(
       // Align stack pointer to 16 bytes
       AndAsm(Rsp, Immediate(-16)),
       CallAsm(Label("exit@plt"))
     )
-
-    graph ++= genPrint(stringType, "%.*s")
-    graph ++= genPrint(intType, "%d")
-    graph ++= genPrint(printlnType, "")
-    graph ++= genPrint(charType, "%c")
-
+    instructions ++= lb(genFuncBody(List.empty, exitBody))
+    instructions ++= lb(
+      genPrint(stringType, "%.*s"),
+      genPrint(intType, "%d"),
+      genPrint(printlnType, ""),
+      genPrint(charType, "%c")
+    )
+    instructions.toList
   }
 
   private def genFunc(func: Func, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = ListBuffer.empty // TODO
@@ -98,10 +99,13 @@ object generator {
       symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] =
     stmt match {
-      case Skip         => ListBuffer()
+      case Skip         => lb()
       case Exit(expr)   => genExit(expr, symTable)
-      case Return(expr) => ListBuffer().addAll(genExpr(expr, symTable, freeRegs)).addOne(Ret)
-      case _            => ListBuffer() // TODO
+      case Return(expr) => lb(
+        genExpr(expr, symTable),
+        Ret
+      )
+      case _            => lb() // TODO
     }
 
   private def genExpr(
