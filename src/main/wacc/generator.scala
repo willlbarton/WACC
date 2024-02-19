@@ -5,82 +5,97 @@ import scala.collection.mutable.ListBuffer
 
 object generator {
 
+  def lb(instructions: Any*): ListBuffer[Instruction] = {
+    val listBuffer = ListBuffer[Instruction]()
+
+    for (instruction <- instructions) {
+      instruction match {
+        case i: Instruction                => listBuffer += i
+        case list: ListBuffer[Instruction] => listBuffer ++= list
+        case _ => // Ignore other types, you may choose to handle them differently
+      }
+    }
+
+    listBuffer
+  }
+
   val stringLiters: mutable.Map[String, Int] = mutable.Map.empty
-  private val paramRegs: List[Reg] = List(Edi(), Esi(), Edx(), Ecx(), R8(), R9())
-  private val nonParamRegs: List[Reg] = List(Ebx(), R10(), R11(), R12(), R13(), R14(), R15())
 
   def generate(program: Program, formatter: Formatter): String = genProgram(program)
     .map(formatter(_))
     .mkString("\n")
 
   private def genProgram(program: Program): List[Instruction] = {
-    val graph: ListBuffer[Instruction] = ListBuffer(
+    var instructions = lb(
       Directive("globl main"),
-      Directive("section .rodata")
+      Directive("section .rodata"),
+      stringLiters.foreach { case (s, i) =>
+        lb(
+          Directive(s"int ${s.length}"),
+          Label(s".L.str$i"),
+          Directive(s"asciz \"$s\"")
+        )
+      },
+      Directive("text"),
+      program.functions.map(x => genFunc(x, SymbolTable(None))),
+      Label("main")
     )
-    stringLiters.foreach { case (s, i) =>
-      graph += Directive(s"int ${s.length}")
-      graph += Label(s".L.str$i")
-      graph += Directive(s"asciz \"$s\"")
-    }
-    graph += Directive("text")
 
-    program.functions.foreach(x => graph ++= genFunc(x, SymbolTable(None)))
-
-    graph.addOne(Label("main"))
-    val mainBody: ListBuffer[Instruction] = ListBuffer()
     val mainSymTable: SymbolTable[Dest] = SymbolTable(None)
-    val freeRegs: ListBuffer[Dest] = ListBuffer.from(nonParamRegs)
-    program.body.foreach(x => mainBody ++= genStmt(x, mainSymTable, freeRegs))
-    graph ++= genFuncBody(List.empty, mainBody)
 
-    graph.addOne(Label("_exit"))
-    val exitBody: ListBuffer[Instruction] = ListBuffer(
+    val mainBody = lb(
+      program.body.map(x => genStmt(x, mainSymTable))
+    )
+
+    instructions = lb(instructions, genFuncBody(List.empty, mainBody), Label("_exit"))
+
+    val exitBody: ListBuffer[Instruction] = lb(
       // Align stack pointer to 16 bytes
       AndAsm(Rsp, Immediate(-16)),
       CallAsm(Label("exit@plt"))
     )
-    graph ++= genFuncBody(List.empty, exitBody)
 
     graph ++= genPrint(stringType, "%.*s")
     graph ++= genPrint(intType, "%d")
     graph ++= genPrint(printlnType, "")
     graph ++= genPrint(charType, "%c")
 
-    graph.toList
   }
 
   private def genFunc(func: Func, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = ListBuffer.empty // TODO
 
-  private def genFuncBody(toSave: List[Reg], body: ListBuffer[Instruction]): ListBuffer[Instruction] = {
-    val is: ListBuffer[Instruction] = ListBuffer()
-    is ++= saveRegs(toSave)
-    is ++= body
-    is ++= restoreRegs(toSave)
-    is += Ret
-    is
+  private def genFuncBody(
+      toSave: List[Reg],
+      body: ListBuffer[Instruction]
+  ): ListBuffer[Instruction] = {
+    lb(
+      saveRegs(toSave),
+      body,
+      restoreRegs(toSave),
+      Ret
+    )
   }
 
   // save the stack pointer to enter a new scope
-  private def saveRegs(regs: List[Reg]): ListBuffer[Instruction] = {
-    val is: ListBuffer[Instruction] = ListBuffer()
-    is += Push(Rbp)
-    is ++= regs.map(r => Push(r))
-    is += Mov(Rsp, Rbp) // Set stack pointer to base pointer
-  }
+  private def saveRegs(regs: List[Reg]): ListBuffer[Instruction] =
+    lb(
+      Push(Rbp),
+      regs.map(r => Push(r)),
+      Mov(Rsp, Rbp) // Set stack pointer to base pointer
+    )
 
   // restore the stack pointer to exit a scope
   private def restoreRegs(regs: List[Reg]): ListBuffer[Instruction] = {
-    val is: ListBuffer[Instruction] = ListBuffer()
-    is += Mov(Rbp, Rsp)
-    is ++= regs.map(r => Pop(r))
-    is += Pop(Rbp)
+    lb(
+      Mov(Rbp, Rsp),
+      regs.map(r => Pop(r)),
+      Pop(Rbp)
+    )
   }
 
   private def genStmt(
       stmt: Stmt,
-      symTable: SymbolTable[Dest],
-      freeRegs: ListBuffer[Dest]
+      symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] =
     stmt match {
       case Skip         => ListBuffer()
@@ -91,19 +106,20 @@ object generator {
 
   private def genExpr(
       expr: Expr,
-      symTable: SymbolTable[Dest],
-      freeRegs: ListBuffer[Dest]
-  ): ListBuffer[Instruction] = ListBuffer() // TODO
+      symTable: SymbolTable[Dest]
+  ): ListBuffer[Instruction] = lb(
+    expr match {
+      case Integer(i) => Mov(Eax(), Immediate(i.toLong))
+    }
+  )
 
-  private def genExit(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = {
-    val freeRegs: ListBuffer[Dest] = ListBuffer.from(nonParamRegs)
-    val is: ListBuffer[Instruction] = ListBuffer()
-    is ++= genExpr(expr, symTable, freeRegs)
-    is += Mov(Eax(), Edi())
-    is += CallAsm(Label("_exit"))
-    is += Mov(Eax(), Immediate(0))
-    is
-  }
+  private def genExit(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
+    lb(
+      genExpr(expr, symTable),
+      Mov(Eax(), Edi()),
+      CallAsm(Label("_exit")),
+      Mov(Eax(), Immediate(0))
+    )
 
   private lazy val stringType = 's'
   private lazy val intType = 'i'
