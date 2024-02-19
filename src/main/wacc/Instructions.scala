@@ -7,16 +7,6 @@ sealed trait Dest extends Location
 sealed trait Operand extends Location
 sealed trait MemOp extends Location
 
-trait Temporary extends Operand with Dest with MemOp {
-  def ++ : Temporary
-}
-final case class NonParamTemp(var value: Int) extends Temporary {
-  def ++ : NonParamTemp = NonParamTemp(value + 1)
-}
-final case class ParamTemp(var value: Int) extends Temporary {
-  def ++ : ParamTemp = ParamTemp(value + 1)
-}
-
 sealed trait Reg extends Dest with Operand with MemOp
 
 // Registers
