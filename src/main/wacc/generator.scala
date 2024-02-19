@@ -50,7 +50,7 @@ object generator {
 
     val exitBody: ListBuffer[Instruction] = lb(
       // Align stack pointer to 16 bytes
-      AndAsm(Rsp, Immediate(-16)),
+      AndAsm(Immediate(-16), Rsp),
       CallAsm(Label("exit@plt"))
     )
     instructions ++= lb(genFuncBody(List.empty, exitBody))
@@ -63,7 +63,8 @@ object generator {
     instructions.toList
   }
 
-  private def genFunc(func: Func, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = ListBuffer.empty // TODO
+  private def genFunc(func: Func, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
+    ListBuffer.empty // TODO
 
   private def genFuncBody(
       toSave: List[Reg],
@@ -82,13 +83,13 @@ object generator {
     lb(
       Push(Rbp),
       regs.map(r => Push(r)),
-      Mov(Rsp, Rbp) // Set stack pointer to base pointer
+      Mov(Rbp, Rsp) // Set stack pointer to base pointer
     )
 
   // restore the stack pointer to exit a scope
   private def restoreRegs(regs: List[Reg]): ListBuffer[Instruction] = {
     lb(
-      Mov(Rbp, Rsp),
+      Mov(Rsp, Rbp),
       regs.map(r => Pop(r)),
       Pop(Rbp)
     )
@@ -99,13 +100,14 @@ object generator {
       symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] =
     stmt match {
-      case Skip         => lb()
-      case Exit(expr)   => genExit(expr, symTable)
-      case Return(expr) => lb(
-        genExpr(expr, symTable),
-        Ret
-      )
-      case _            => lb() // TODO
+      case Skip       => lb()
+      case Exit(expr) => genExit(expr, symTable)
+      case Return(expr) =>
+        lb(
+          genExpr(expr, symTable),
+          Ret
+        )
+      case _ => lb() // TODO
     }
 
   private def genExpr(
@@ -113,16 +115,16 @@ object generator {
       symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] = lb(
     expr match {
-      case Integer(i) => Mov(Eax(), Immediate(i.toLong))
+      case Integer(i) => Mov(Immediate(i.toLong), Eax())
     }
   )
 
   private def genExit(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
     lb(
       genExpr(expr, symTable),
-      Mov(Eax(), Edi()),
+      Mov(Edi(), Eax()),
       CallAsm(Label("_exit")),
-      Mov(Eax(), Immediate(0))
+      Mov(Immediate(0), Eax())
     )
 
   private lazy val stringType = 's'
@@ -137,19 +139,19 @@ object generator {
     graph += Directive(s"asciz \"$format\"")
     graph += Label(s"_print$typ")
     val printBody: ListBuffer[Instruction] = ListBuffer()
-    printBody += AndAsm(Rsp, Immediate(-16))
+    printBody += AndAsm(Immediate(-16), Rsp)
 
     if (typ == stringType) {
-      printBody += Mov(Edi(Size64), Edx(Size64))
-      printBody += Mov(Address(Immediate(-4), Edi(Size64)), Esi())
+      printBody += Mov(Edx(Size64), Edi(Size64))
+      printBody += Mov(Esi(), Address(Immediate(-4), Edi(Size64)))
     } else if (typ == intType) {
-      printBody += Mov(Edi(), Esi())
+      printBody += Mov(Esi(), Edi())
     } else if (typ == charType) {
-      printBody += Mov(Edi(Size8), Esi(Size8))
+      printBody += Mov(Esi(Size8), Edi(Size8))
     }
 
-    printBody += Lea(Edi(Size64), Address(Label(s".print${typ}_format"), Rip))
-    printBody += Mov(Eax(Size8), Immediate(0))
+    printBody += Lea(Address(Label(s".print${typ}_format"), Rip), Edi(Size64))
+    printBody += Mov(Immediate(0), Eax(Size8))
 
     if (typ == printlnType) {
       printBody += CallAsm(Label("puts@plt"))
@@ -157,7 +159,7 @@ object generator {
       printBody += CallAsm(Label("printf@plt"))
     }
 
-    printBody += Mov(Edi(Size64), Immediate(0))
+    printBody += Mov(Immediate(0), Edi(Size64))
     printBody += CallAsm(Label("fflush@plt"))
     graph ++= genFuncBody(List.empty, printBody)
   }

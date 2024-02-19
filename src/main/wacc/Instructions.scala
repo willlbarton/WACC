@@ -53,16 +53,16 @@ case object Cltd extends Instruction
 
 final case class Directive(name: String) extends Instruction
 final case class Label(name: String) extends Instruction with MemOp
-final case class Mov(dest: Dest, op: Operand) extends Instruction
+final case class Mov(op: Operand, dest: Dest) extends Instruction
 final case class Pop(dest: Dest) extends Instruction
 final case class Push(op: Operand) extends Instruction
 final case class CallAsm(label: Label) extends Instruction
-final case class AndAsm(dest: Dest, op: Operand) extends Instruction
+final case class AndAsm(op: Operand, dest: Dest) extends Instruction
 final case class Setne(dest: Dest) extends Instruction
-final case class Lea(dest: Dest, op: Address) extends Instruction
+final case class Lea(op: Address, dest: Dest) extends Instruction
 
-final case class AddAsm(dest: Reg, op: Operand) extends Instruction
-final case class SubAsm(dest: Reg, op: Operand) extends Instruction
+final case class AddAsm(op: Operand, dest: Dest) extends Instruction
+final case class SubAsm(op: Operand, dest: Dest) extends Instruction
 final case class Cmp(op1: Operand, op2: Operand) extends Instruction
 
 final case class Jmp(label: Label) extends Instruction
@@ -83,31 +83,35 @@ object x86Formatter extends Formatter {
   private lazy val indent = "        "
   override def apply(instruction: Instruction): String = {
     instruction match {
-      case Directive(name)   =>
+      case Directive(name) =>
         val start = name match {
-          case _ if name.startsWith("int") || name.startsWith("asciz")  => indent
-          case _                 => ""
+          case _ if name.startsWith("int") || name.startsWith("asciz") => indent
+          case _                                                       => ""
         }
         start ++ s".$name"
-      case Label(name)       => s"$name:"
-      case Ret               => indent ++ "ret\n"
-      case Cltd              => indent ++ "cltd"
-      case Mov(dest, op1)    => indent ++ s"mov${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
+      case Label(name) => s"$name:"
+      case Ret         => indent ++ "ret\n"
+      case Cltd        => indent ++ "cltd"
+      case Mov(op1, dest) =>
+        indent ++ s"mov${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
       case Pop(dest)         => indent ++ s"pop${instructionPostfix(dest)}  ${this(dest)}"
       case Push(op1)         => indent ++ s"push${instructionPostfix(op1)} ${this(op1)}"
       case CallAsm(label)    => indent ++ s"call  ${label.name}"
-      case AndAsm(dest, op1) => indent ++ s"and   ${this(op1)}, ${this(dest)}"
+      case AndAsm(op1, dest) => indent ++ s"and   ${this(op1)}, ${this(dest)}"
       case Setne(dest)       => indent ++ s"setne ${this(dest)}"
-      case Lea(dest, op1)    => indent ++ s"lea${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
-      case AddAsm(dest, op1) => indent ++ s"add${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
-      case SubAsm(dest, op1) => indent ++ s"sub${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
-      case Cmp(op1, op2)     => indent ++ s"cmp${instructionPostfix(op1)}  ${this(op1)}, ${this(op2)}"
-      case Jmp(label)        => indent ++ s"jmp   ${label.name}"
-      case Je(label)         => indent ++ s"je    ${label.name}"
-      case Jl(label)         => indent ++ s"jl    ${label.name}"
-      case Jo(label)         => indent ++ s"jo    ${label.name}"
-      case Jne(label)        => indent ++ s"jne   ${label.name}"
-      case Idiv(op1)         => indent ++ s"idiv${instructionPostfix(op1)} ${this(op1)}"
+      case Lea(op1, dest) =>
+        indent ++ s"lea${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
+      case AddAsm(op1, dest) =>
+        indent ++ s"add${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
+      case SubAsm(op1, dest) =>
+        indent ++ s"sub${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
+      case Cmp(op1, op2) => indent ++ s"cmp${instructionPostfix(op1)}  ${this(op1)}, ${this(op2)}"
+      case Jmp(label)    => indent ++ s"jmp   ${label.name}"
+      case Je(label)     => indent ++ s"je    ${label.name}"
+      case Jl(label)     => indent ++ s"jl    ${label.name}"
+      case Jo(label)     => indent ++ s"jo    ${label.name}"
+      case Jne(label)    => indent ++ s"jne   ${label.name}"
+      case Idiv(op1)     => indent ++ s"idiv${instructionPostfix(op1)} ${this(op1)}"
     }
   }
 
