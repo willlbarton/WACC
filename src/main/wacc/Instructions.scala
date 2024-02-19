@@ -12,7 +12,6 @@ sealed trait Reg extends Dest with Operand with MemOp {
 }
 
 sealed trait Size
-case object Size1 extends Size
 case object Size8 extends Size
 case object Size16 extends Size
 case object Size32 extends Size
@@ -75,7 +74,6 @@ final case class Idiv(op: Operand) extends Instruction
 
 trait Formatter {
   def apply(instruction: Instruction): String
-  def apply(reg: Reg): String
   def apply(location: Location): String
 }
 
@@ -106,33 +104,115 @@ object x86Formatter extends Formatter {
     }
   }
 
-  override def apply(reg: Reg): String =
-    reg match {
-      case _: Eax => "%rax"
-      case _: Ebx => "%rbx"
-      case _: Ecx => "%rcx"
-      case _: Edx => "%rdx"
-      case _: Esi => "%rsi"
-      case _: Edi => "%rdi"
-      case _: R8  => "%r8"
-      case _: R9  => "%r9"
-      case _: R10 => "%r10"
-      case _: R11 => "%r11"
-      case _: R12 => "%r12"
-      case _: R13 => "%r13"
-      case _: R14 => "%r14"
-      case _: R15 => "%r15"
-      case Rbp    => "%rbp"
-      case Rsp    => "%rsp"
-      case Rip    => "%rip"
-    }
-
   override def apply(location: Location): String = location match {
-    case reg: Reg => this(reg)
     case Address(offset, base, index, scale) =>
       s"${memFormat(offset)}(${memFormat(base)}, ${memFormat(index)}, ${memFormat(scale)})"
     case Immediate(value) => s"$$$value"
     case Label(name)      => name
+    case reg: Reg =>
+      reg match {
+        case _: Eax =>
+          reg.size match {
+            case Size8  => "%al"
+            case Size16 => "%ax"
+            case Size32 => "%eax"
+            case Size64 => "%rax"
+          }
+        case _: Ebx =>
+          reg.size match {
+            case Size8  => "%bl"
+            case Size16 => "%bx"
+            case Size32 => "%ebx"
+            case Size64 => "%rbx"
+          }
+        case _: Ecx =>
+          reg.size match {
+            case Size8  => "%cl"
+            case Size16 => "%cx"
+            case Size32 => "%ecx"
+            case Size64 => "%rcx"
+          }
+        case _: Edx =>
+          reg.size match {
+            case Size8  => "%dl"
+            case Size16 => "%dx"
+            case Size32 => "%edx"
+            case Size64 => "%rdx"
+          }
+        case _: Esi =>
+          reg.size match {
+            case Size8  => "%sil"
+            case Size16 => "%si"
+            case Size32 => "%esi"
+            case Size64 => "%rsi"
+          }
+        case _: Edi =>
+          reg.size match {
+            case Size8  => "%dil"
+            case Size16 => "%di"
+            case Size32 => "%edi"
+            case Size64 => "%rdi"
+          }
+        case _: R8 =>
+          reg.size match {
+            case Size8  => "%r8b"
+            case Size16 => "%r8w"
+            case Size32 => "%r8d"
+            case Size64 => "%r8"
+          }
+        case _: R9 =>
+          reg.size match {
+            case Size8  => "%r9b"
+            case Size16 => "%r9w"
+            case Size32 => "%r9d"
+            case Size64 => "%r9"
+          }
+        case _: R10 =>
+          reg.size match {
+            case Size8  => "%r10b"
+            case Size16 => "%r10w"
+            case Size32 => "%r10d"
+            case Size64 => "%r10"
+          }
+        case _: R11 =>
+          reg.size match {
+            case Size8  => "%r11b"
+            case Size16 => "%r11w"
+            case Size32 => "%r11d"
+            case Size64 => "%r11"
+          }
+        case _: R12 =>
+          reg.size match {
+            case Size8  => "%r12b"
+            case Size16 => "%r12w"
+            case Size32 => "%r12d"
+            case Size64 => "%r12"
+          }
+        case _: R13 =>
+          reg.size match {
+            case Size8  => "%r13b"
+            case Size16 => "%r13w"
+            case Size32 => "%r13d"
+            case Size64 => "%r13"
+          }
+        case _: R14 =>
+          reg.size match {
+            case Size8  => "%r14b"
+            case Size16 => "%r14w"
+            case Size32 => "%r14d"
+            case Size64 => "%r14"
+          }
+        case _: R15 =>
+          reg.size match {
+            case Size8  => "%r15b"
+            case Size16 => "%r15w"
+            case Size32 => "%r15d"
+            case Size64 => "%r15"
+          }
+        case Rbp => "%rbp"
+        case Rsp => "%rsp"
+        case Rip => "%rip"
+      }
   }
 
   private def memFormat(mem: MemOp): String = mem match {
@@ -144,7 +224,6 @@ object x86Formatter extends Formatter {
   private def instructionPostfix(location: Location): String = location match {
     case r: Reg =>
       r.size match {
-        case Size1  => "b"
         case Size8  => "b"
         case Size16 => "w"
         case Size32 => "l"
@@ -152,4 +231,5 @@ object x86Formatter extends Formatter {
       }
     case _ => ???
   }
+
 }
