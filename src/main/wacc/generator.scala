@@ -1,108 +1,106 @@
 package src.main.wacc
 
 import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 
 object generator {
 
   val stringLiters: mutable.Map[String, Int] = mutable.Map.empty
 
-  def generate(program: Program, formatter: Formatter): String = genProgram(program).toList
+  def generate(program: Program, formatter: Formatter): String = genProgram(program)
     .map(formatter(_)).mkString("\n")
 
-  private def genProgram(program: Program): ControlFlowGraph = {
-    val graph = ControlFlowGraph().add(
-      CfgNode(Directive("globl main")),
-      CfgNode(Directive("section .rodata"))
+  private def genProgram(program: Program): List[Instruction] = {
+    val graph: ListBuffer[Instruction] = ListBuffer(
+      Directive("globl main"),
+      Directive("section .rodata")
     )
     stringLiters.foreach { case (s, i) =>
-      graph.add(
-        CfgNode(Directive(s"int ${s.length}")),
-        CfgNode(Label(s".L.str$i")),
-        CfgNode(Directive(s"asciz \"$s\""))
-      )
+      graph += Directive(s"int ${s.length}")
+      graph += Label(s".L.str$i")
+      graph += Directive(s"asciz \"$s\"")
     }
-    graph.add(CfgNode(Directive("text")))
+    graph += Directive("text")
 
-    program.functions.foreach(x => graph.add(genFunc(x, SymbolTable(None))))
+    program.functions.foreach(x => graph ++= genFunc(x, SymbolTable(None)))
 
-    graph.add(CfgNode(Label("main")))
-    val mainBody = ControlFlowGraph()
+    graph.addOne(Label("main"))
+    val mainBody: ListBuffer[Instruction] = ListBuffer()
     val mainSymTable: SymbolTable[Dest] = SymbolTable(None)
-    program.body.foreach(x => mainBody.add(genStmt(x, mainSymTable, freeRegs)))
-    graph.add(genFuncBody(List.empty, mainBody))
+    program.body.foreach(x => mainBody ++= genStmt(x, mainSymTable, freeRegs))
+    graph ++= genFuncBody(List.empty, mainBody)
 
-    graph.add(CfgNode(Label("_exit")))
-    val exitBody = ControlFlowGraph().add(
+    graph.addOne(Label("_exit"))
+    val exitBody: ListBuffer[Instruction] = ListBuffer(
       // Align stack pointer to 16 bytes
-      CfgNode(AndAsm(Rsp, Immediate(-16))),
-      CfgNode(CallAsm(Label("exit@plt")))
+      AndAsm(Rsp, Immediate(-16)),
+      CallAsm(Label("exit@plt"))
     )
-    graph.add(genFuncBody(List.empty, exitBody))
+    graph ++= genFuncBody(List.empty, exitBody)
 
-    stringLiters.keys.foreach(s => graph.add(genPrintLiteral(s)))
+    stringLiters.keys.foreach(s => graph ++= genPrintLiteral(s))
 
-    graph
+    graph.toList
   }
 
-  private def genFunc(func: Func, symTable: SymbolTable[Dest]): ControlFlowGraph = ControlFlowGraph() // TODO
+  private def genFunc(func: Func, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = ListBuffer.empty // TODO
 
-  private def genFuncBody(toSave: List[Reg], body: ControlFlowGraph): ControlFlowGraph = {
-    ControlFlowGraph()
-     .add(saveRegs(toSave))
-     .add(body)
-     .add(restoreRegs(toSave))
-     .add(CfgNode(Ret))
+  private def genFuncBody(toSave: List[Reg], body: ListBuffer[Instruction]): ListBuffer[Instruction] = {
+    val is: ListBuffer[Instruction] = ListBuffer()
+    is ++= saveRegs(toSave)
+    is += body
+    is += restoreRegs(toSave)
+    is += Ret
+    body
   }
 
   // save the stack pointer to enter a new scope
-  private def saveRegs(regs: List[Reg]): ControlFlowGraph = {
-    ControlFlowGraph()
-      .add(CfgNode(Push(Rbp))) // Save stack pointer
-      .add(regs.map(r => CfgNode(Push(r))))
-      .add(CfgNode(Mov(Rsp, Rbp))) // Set stack pointer to base pointer
+  private def saveRegs(regs: List[Reg]): ListBuffer[Instruction] = {
+    val is: ListBuffer[Instruction] = ListBuffer()
+    is += Push(Rbp)
+    is ++= regs.map(r => Push(r))
+    is += Mov(Rsp, Rbp) // Set stack pointer to base pointer
   }
 
   // restore the stack pointer to exit a scope
-  private def restoreRegs(regs: List[Reg]): ControlFlowGraph = {
-    ControlFlowGraph()
-      .add(CfgNode(Mov(Rbp, Rsp)))
-      .add(regs.reverseIterator.map(r => CfgNode(Pop(r))).toList)
-      .add(CfgNode(Pop(Rbp)))
+  private def restoreRegs(regs: List[Reg]): ListBuffer[Instruction] = {
+    val is: ListBuffer[Instruction] = ListBuffer()
+    is += Mov(Rbp, Rsp)
+    is ++= regs.map(r => Pop(r))
+    is += Pop(Rbp)
   }
 
-  private def genStmt(stmt: Stmt, symTable: SymbolTable[Dest], freeRegs: List[Dest]): ControlFlowGraph =
+  private def genStmt(stmt: Stmt, symTable: SymbolTable[Dest], freeRegs: List[Dest]): ListBuffer[Instruction] =
     stmt match {
-      case Skip => ControlFlowGraph()
+      case Skip => ListBuffer[Instruction]()
       case Exit(expr) => genExit(expr, symTable)
-      case Return(expr) => ControlFlowGraph().add(genExpr(expr, symTable, freeRegs)).add(CfgNode(Ret))
-      case _ => ControlFlowGraph() // TODO
+      case Return(expr) => ListBuffer().addAll(genExpr(expr, symTable, freeRegs)).addOne(Ret)
+      case _ => ListBuffer[Instruction]() // TODO
     }
 
-  private def genExit(expr: Expr, symTable: SymbolTable[Dest]): ControlFlowGraph = {
-    ControlFlowGraph()
-     .add(genExpr(expr, symTable, freeRegs))
-     .add(
-      CfgNode(Mov(Rax, Rdi)),
-      CfgNode(CallAsm(Label("_exit"))),
-      CfgNode(Mov(Rax, Immediate(0)))
-    )
+  private def genExit(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = {
+    val is: ListBuffer[Instruction] = ListBuffer()
+    is ++= genExpr(expr, symTable, freeRegs)
+    is += Mov(Rax, Rdi)
+    is += CallAsm(Label("_exit"))
+    is += Mov(Rax, Immediate(0))
+    is
   }
 
-  private def genExpr(expr: Expr, symTable: SymbolTable[Dest], freeRegs: List[Dest]): ControlFlowGraph = ControlFlowGraph() // TODO
+  private def genExpr(expr: Expr, symTable: SymbolTable[Dest], freeRegs: List[Dest]): ListBuffer[Instruction] = ListBuffer[Instruction]() // TODO
 
-  private def genPrintLiteral(s: String): ControlFlowGraph = {
+  private def genPrintLiteral(s: String): ListBuffer[Instruction] = {
     val id: Int = stringLiters(s)
-    val graph = ControlFlowGraph().add(CfgNode(Label(s"_print$id")))
-    val printBody = ControlFlowGraph().add(
-      CfgNode(AndAsm(Rsp, Immediate(-16))),
-      CfgNode(Mov(Rdi, Rdx)),
-      CfgNode(Mov(Address(Immediate(-4), Rdi), Rsi)),
-      CfgNode(Lea(Rdi, Address(Label(s".L.str$id"), Rsi))),
-      CfgNode(Mov(Rax, Immediate(0))),
-      CfgNode(CallAsm(Label("printf@plt"))),
-      CfgNode(Mov(Rdi, Immediate(0))),
-      CfgNode(CallAsm(Label("fflush@plt")))
-    )
-    graph.add(genFuncBody(List.empty, printBody))
+    val graph: ListBuffer[Instruction] = ListBuffer(Label(s"_print$id"))
+    val printBody: ListBuffer[Instruction] = ListBuffer()
+    printBody += AndAsm(Rsp, Immediate(-16))
+    printBody += Mov(Rdi, Rdx)
+    printBody += Mov(Address(Immediate(-4), Rdi), Rsi)
+    printBody += Lea(Rdi, Address(Label(s".L.str$id"), Rsi))
+    printBody += Mov(Rax, Immediate(0))
+    printBody += CallAsm(Label("printf@plt"))
+    printBody += Mov(Rdi, Immediate(0))
+    printBody += CallAsm(Label("fflush@plt"))
+    graph ++= genFuncBody(List.empty, printBody)
   }
 }
