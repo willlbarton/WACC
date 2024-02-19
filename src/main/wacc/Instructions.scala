@@ -73,7 +73,6 @@ final case class Jne(label: Label) extends Instruction
 final case class Idiv(op: Operand) extends Instruction
 
 trait Formatter {
-  def apply(cfgNode: CfgNode): String = this(cfgNode.instruction)
   def apply(instruction: Instruction): String
   def apply(reg: Reg): String
   def apply(location: Location): String
