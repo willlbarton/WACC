@@ -110,7 +110,11 @@ object generator {
   private def genExpr(
       expr: Expr,
       symTable: SymbolTable[Dest]
-  ): ListBuffer[Instruction] = ListBuffer()
+  ): ListBuffer[Instruction] = lb(
+    expr match {
+      case Integer(i) => Mov(Eax(), Immediate(i.toLong))
+    }
+  )
 
   private def genExit(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
     lb(
