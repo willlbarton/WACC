@@ -10,7 +10,8 @@ object generator {
   private val nonParamRegs: List[Reg] = List(Ebx(), R10(), R11(), R12(), R13(), R14(), R15())
 
   def generate(program: Program, formatter: Formatter): String = genProgram(program)
-    .map(formatter(_)).mkString("\n")
+    .map(formatter(_))
+    .mkString("\n")
 
   private def genProgram(program: Program): List[Instruction] = {
     val graph: ListBuffer[Instruction] = ListBuffer(
@@ -46,13 +47,17 @@ object generator {
     graph.toList
   }
 
-  private def genFunc(func: Func, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = ListBuffer.empty // TODO
+  private def genFunc(func: Func, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
+    ListBuffer.empty // TODO
 
-  private def genFuncBody(toSave: List[Reg], body: ListBuffer[Instruction]): ListBuffer[Instruction] = {
+  private def genFuncBody(
+      toSave: List[Reg],
+      body: ListBuffer[Instruction]
+  ): ListBuffer[Instruction] = {
     val is: ListBuffer[Instruction] = ListBuffer()
     is ++= saveRegs(toSave)
-    is += body
-    is += restoreRegs(toSave)
+    is ++= body
+    is ++= restoreRegs(toSave)
     is += Ret
     body
   }
@@ -73,15 +78,23 @@ object generator {
     is += Pop(Rbp)
   }
 
-  private def genStmt(stmt: Stmt, symTable: SymbolTable[Dest], freeRegs: ListBuffer[Dest]): ListBuffer[Instruction] =
+  private def genStmt(
+      stmt: Stmt,
+      symTable: SymbolTable[Dest],
+      freeRegs: ListBuffer[Dest]
+  ): ListBuffer[Instruction] =
     stmt match {
-      case Skip => ListBuffer[Instruction]()
-      case Exit(expr) => genExit(expr, symTable)
+      case Skip         => ListBuffer[Instruction]()
+      case Exit(expr)   => genExit(expr, symTable)
       case Return(expr) => ListBuffer().addAll(genExpr(expr, symTable, freeRegs)).addOne(Ret)
-      case _ => ListBuffer[Instruction]() // TODO
+      case _            => ListBuffer[Instruction]() // TODO
     }
 
-  private def genExpr(expr: Expr, symTable: SymbolTable[Dest], freeRegs: ListBuffer[Dest]): ListBuffer[Instruction] = ListBuffer[Instruction]() // TODO
+  private def genExpr(
+      expr: Expr,
+      symTable: SymbolTable[Dest],
+      freeRegs: ListBuffer[Dest]
+  ): ListBuffer[Instruction] = ListBuffer[Instruction]() // TODO
 
   private def genExit(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = {
     val freeRegs: ListBuffer[Dest] = ListBuffer.from(nonParamRegs)
