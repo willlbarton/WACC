@@ -11,7 +11,7 @@ object generator {
 
   def generate(program: Program, formatter: Formatter): String = genProgram(program)
     .map(formatter(_))
-    .mkString("\n")
+    .mkString("\n") ++ "\n"
 
   private def genProgram(program: Program): List[Instruction] = {
     val graph: ListBuffer[Instruction] = ListBuffer(

@@ -79,34 +79,44 @@ trait Formatter {
 
 // x86-64 AT&T instructions
 object x86Formatter extends Formatter {
+
+  private lazy val indent = "        "
   override def apply(instruction: Instruction): String = {
     instruction match {
-      case Directive(name)   => s".$name"
+      case Directive(name)   =>
+        val start = name match {
+          case _ if name.startsWith("int") || name.startsWith("asciz")  => indent
+          case _                 => ""
+        }
+        start ++ s".$name"
       case Label(name)       => s"$name:"
-      case Ret               => "  ret\n"
-      case Cltd              => "  cltd"
-      case Mov(dest, op1)    => s"  mov${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
-      case Pop(dest)         => s"  pop${instructionPostfix(dest)}  ${this(dest)}"
-      case Push(op1)         => s"  push${instructionPostfix(op1)} ${this(op1)}"
-      case CallAsm(label)    => s"  call  ${label.name}"
-      case AndAsm(dest, op1) => s"  and   ${this(op1)}, ${this(dest)}"
-      case Setne(dest)       => s"  setne ${this(dest)}"
-      case Lea(dest, op1)    => s"  lea${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
-      case AddAsm(dest, op1) => s"  add${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
-      case SubAsm(dest, op1) => s"  sub${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
-      case Cmp(op1, op2)     => s"  cmp${instructionPostfix(op1)}  ${this(op1)}, ${this(op2)}"
-      case Jmp(label)        => s"  jmp   ${label.name}"
-      case Je(label)         => s"  je    ${label.name}"
-      case Jl(label)         => s"  jl    ${label.name}"
-      case Jo(label)         => s"  jo    ${label.name}"
-      case Jne(label)        => s"  jne   ${label.name}"
-      case Idiv(op1)         => s"  idiv${instructionPostfix(op1)} ${this(op1)}"
+      case Ret               => indent ++ "ret\n"
+      case Cltd              => indent ++ "cltd"
+      case Mov(dest, op1)    => indent ++ s"mov${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
+      case Pop(dest)         => indent ++ s"pop${instructionPostfix(dest)}  ${this(dest)}"
+      case Push(op1)         => indent ++ s"push${instructionPostfix(op1)} ${this(op1)}"
+      case CallAsm(label)    => indent ++ s"call  ${label.name}"
+      case AndAsm(dest, op1) => indent ++ s"and   ${this(op1)}, ${this(dest)}"
+      case Setne(dest)       => indent ++ s"setne ${this(dest)}"
+      case Lea(dest, op1)    => indent ++ s"lea${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
+      case AddAsm(dest, op1) => indent ++ s"add${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
+      case SubAsm(dest, op1) => indent ++ s"sub${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
+      case Cmp(op1, op2)     => indent ++ s"cmp${instructionPostfix(op1)}  ${this(op1)}, ${this(op2)}"
+      case Jmp(label)        => indent ++ s"jmp   ${label.name}"
+      case Je(label)         => indent ++ s"je    ${label.name}"
+      case Jl(label)         => indent ++ s"jl    ${label.name}"
+      case Jo(label)         => indent ++ s"jo    ${label.name}"
+      case Jne(label)        => indent ++ s"jne   ${label.name}"
+      case Idiv(op1)         => indent ++ s"idiv${instructionPostfix(op1)} ${this(op1)}"
     }
   }
 
   override def apply(location: Location): String = location match {
     case Address(offset, base, index, scale) =>
-      s"${memFormat(offset)}(${memFormat(base)}, ${memFormat(index)}, ${memFormat(scale)})"
+      val scl = if (scale == Immediate(1)) "" else s", ${memFormat(scale)}"
+      val optional = if (index == Immediate(0)) "" else s", ${memFormat(index)}$scl"
+      (if (offset == Immediate(0)) "" else s"${memFormat(offset)}") ++
+        s"(${memFormat(base)}$optional)"
     case Immediate(value) => s"$$$value"
     case Label(name)      => name
     case reg: Reg =>
@@ -229,7 +239,7 @@ object x86Formatter extends Formatter {
         case Size32 => "l"
         case Size64 => "q"
       }
-    case _ => ???
+    case _: Address => "q"
   }
 
 }
