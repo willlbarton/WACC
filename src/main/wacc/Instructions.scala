@@ -8,7 +8,7 @@ sealed trait Operand extends Location
 sealed trait MemOp extends Location
 
 sealed trait Reg extends Dest with Operand with MemOp {
-  var size: Size = Size32;
+  val size: Size
 }
 
 sealed trait Size
@@ -19,25 +19,26 @@ case object Size32 extends Size
 case object Size64 extends Size
 
 // Registers
-case class Eax() extends Reg
+case class Eax(override val size: Size = Size32) extends Reg
 // Param registers
-case class Edi() extends Reg
-case class Esi() extends Reg
-case class Edx() extends Reg
-case class Ecx() extends Reg
-case class R8() extends Reg
-case class R9() extends Reg
+case class Edi(override val size: Size = Size32) extends Reg
+case class Esi(override val size: Size = Size32) extends Reg
+case class Edx(override val size: Size = Size32) extends Reg
+case class Ecx(override val size: Size = Size32) extends Reg
+case class R8(override val size: Size = Size32) extends Reg
+case class R9(override val size: Size = Size32) extends Reg
 // Non-param registers
-case class Ebx() extends Reg
-case class R10() extends Reg
-case class R11() extends Reg
-case class R12() extends Reg
-case class R13() extends Reg
-case class R14() extends Reg
-case class R15() extends Reg
+case class Ebx(override val size: Size = Size32) extends Reg
+case class R10(override val size: Size = Size32) extends Reg
+case class R11(override val size: Size = Size32) extends Reg
+case class R12(override val size: Size = Size32) extends Reg
+case class R13(override val size: Size = Size32) extends Reg
+case class R14(override val size: Size = Size32) extends Reg
+case class R15(override val size: Size = Size32) extends Reg
 // Stack pointer and base pointer
-case object Rbp extends Reg
-case object Rsp extends Reg
+case object Rbp extends Reg { override val size: Size = Size64 }
+case object Rsp extends Reg { override val size: Size = Size64 }
+case object Rip extends Reg { override val size: Size = Size64 }
 
 final case class Address(
     offset: MemOp = Immediate(0),
@@ -123,6 +124,7 @@ object x86Formatter extends Formatter {
       case _: R15 => "%r15"
       case Rbp    => "%rbp"
       case Rsp    => "%rsp"
+      case Rip    => "%rip"
     }
 
   override def apply(location: Location): String = location match {
