@@ -7,7 +7,7 @@ sealed trait Dest extends Location
 sealed trait Operand extends Location
 sealed trait MemOp extends Location
 
-trait Temporary extends Operand with Dest {
+trait Temporary extends Operand with Dest with MemOp {
   def ++ : Temporary
 }
 final case class NonParamTemp(var value: Int) extends Temporary {
@@ -52,16 +52,16 @@ case object Cltd extends Instruction
 
 final case class Directive(name: String) extends Instruction
 final case class Label(name: String) extends Instruction with MemOp
-final case class Mov(op: Operand, dest: Dest) extends Instruction
+final case class Mov(dest: Dest, op: Operand) extends Instruction
 final case class Pop(dest: Dest) extends Instruction
 final case class Push(op: Operand) extends Instruction
 final case class CallAsm(label: Label) extends Instruction
-final case class AndAsm(op: Operand, dest: Dest) extends Instruction
+final case class AndAsm(dest: Dest, op: Operand) extends Instruction
 final case class Setne(dest: Dest) extends Instruction
-final case class Lea(op: Address, dest: Dest) extends Instruction
+final case class Lea(dest: Dest, op: Address) extends Instruction
 
-final case class AddAsm(op: Operand, dest: Reg) extends Instruction
-final case class SubAsm(op: Operand, dest: Reg) extends Instruction
+final case class AddAsm(dest: Reg, op: Operand) extends Instruction
+final case class SubAsm(dest: Reg, op: Operand) extends Instruction
 final case class Cmp(op1: Operand, op2: Operand) extends Instruction
 
 final case class Jmp(label: Label) extends Instruction

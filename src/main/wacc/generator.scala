@@ -35,7 +35,7 @@ object generator {
     graph.add(CfgNode(Label("_exit")))
     val exitBody = ControlFlowGraph().add(
       // Align stack pointer to 16 bytes
-      CfgNode(AndAsm(Immediate(-16), Rsp)),
+      CfgNode(AndAsm(Rsp, Immediate(-16))),
       CfgNode(CallAsm(Label("exit@plt")))
     )
     graph.add(genFuncBody(List.empty, exitBody))
@@ -85,7 +85,7 @@ object generator {
      .add(
       CfgNode(Mov(Rax, Rdi)),
       CfgNode(CallAsm(Label("_exit"))),
-      CfgNode(Mov(Immediate(0), Rax))
+      CfgNode(Mov(Rax, Immediate(0)))
     )
   }
 
@@ -95,13 +95,13 @@ object generator {
     val id: Int = stringLiters(s)
     val graph = ControlFlowGraph().add(CfgNode(Label(s"_print$id")))
     val printBody = ControlFlowGraph().add(
-      CfgNode(AndAsm(Immediate(-16), Rsp)),
+      CfgNode(AndAsm(Rsp, Immediate(-16))),
       CfgNode(Mov(Rdi, Rdx)),
       CfgNode(Mov(Address(Immediate(-4), Rdi), Rsi)),
-      CfgNode(Lea(Address(Label(s".L.str$id"), Rsi), Rdi)),
-      CfgNode(Mov(Immediate(0), Rax)),
+      CfgNode(Lea(Rdi, Address(Label(s".L.str$id"), Rsi))),
+      CfgNode(Mov(Rax, Immediate(0))),
       CfgNode(CallAsm(Label("printf@plt"))),
-      CfgNode(Mov(Immediate(0), Rdi)),
+      CfgNode(Mov(Rdi, Immediate(0))),
       CfgNode(CallAsm(Label("fflush@plt")))
     )
     graph.add(genFuncBody(List.empty, printBody))
