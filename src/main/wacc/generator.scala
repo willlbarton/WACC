@@ -55,16 +55,14 @@ object generator {
       CallAsm(Label("exit@plt"))
     )
 
-    lb(
-      instructions,
-      genFuncBody(List.empty, exitBody),
-      stringLiters.keys.map(s => genPrintLiteral(s))
-    ).toList
+    graph ++= genPrint(stringType, "%.*s")
+    graph ++= genPrint(intType, "%d")
+    graph ++= genPrint(printlnType, "")
+    graph ++= genPrint(charType, "%c")
 
   }
 
-  private def genFunc(func: Func, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
-    ListBuffer.empty // TODO
+  private def genFunc(func: Func, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = ListBuffer.empty // TODO
 
   private def genFuncBody(
       toSave: List[Reg],
@@ -100,11 +98,10 @@ object generator {
       symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] =
     stmt match {
-      case Skip       => ListBuffer()
-      case Exit(expr) => genExit(expr, symTable)
-      case Return(expr) =>
-        ListBuffer().addAll(genExpr(expr, symTable)).addOne(Ret) // WHAT ##########################
-      case _ => ListBuffer[Instruction]() // TODO
+      case Skip         => ListBuffer()
+      case Exit(expr)   => genExit(expr, symTable)
+      case Return(expr) => ListBuffer().addAll(genExpr(expr, symTable, freeRegs)).addOne(Ret)
+      case _            => ListBuffer() // TODO
     }
 
   private def genExpr(
@@ -124,23 +121,40 @@ object generator {
       Mov(Eax(), Immediate(0))
     )
 
-  private def genPrintLiteral(s: String): ListBuffer[Instruction] = {
-    val id: Int = stringLiters(s)
-    val graph: ListBuffer[Instruction] = lb(Label(s"_print$id"))
+  private lazy val stringType = 's'
+  private lazy val intType = 'i'
+  private lazy val charType = 'c'
+  private lazy val printlnType = 'n'
+  private def genPrint(typ: Char, format: String): ListBuffer[Instruction] = {
+    val graph: ListBuffer[Instruction] = ListBuffer()
+    graph += Directive("section .rodata")
+    graph += Directive(s"int ${format.length}")
+    graph += Label(s".print${typ}_format")
+    graph += Directive(s"asciz \"$format\"")
+    graph += Label(s"_print$typ")
+    val printBody: ListBuffer[Instruction] = ListBuffer()
+    printBody += AndAsm(Rsp, Immediate(-16))
 
-    genFuncBody(
-      List.empty,
-      lb(
-        AndAsm(Rsp, Immediate(-16)),
-        Mov(Edi(), Edx()),
-        Mov(Address(Immediate(-4), Edi()), Esi()),
-        Lea(Edi(), Address(Label(s".L.str$id"), Esi())),
-        Mov(Eax(), Immediate(0)),
-        CallAsm(Label("printf@plt")),
-        Mov(Edi(), Immediate(0)),
-        CallAsm(Label("fflush@plt"))
-      )
-    )
+    if (typ == stringType) {
+      printBody += Mov(Edi(Size64), Edx(Size64))
+      printBody += Mov(Address(Immediate(-4), Edi(Size64)), Esi())
+    } else if (typ == intType) {
+      printBody += Mov(Edi(), Esi())
+    } else if (typ == charType) {
+      printBody += Mov(Edi(Size8), Esi(Size8))
+    }
 
+    printBody += Lea(Edi(Size64), Address(Label(s".print${typ}_format"), Rip))
+    printBody += Mov(Eax(Size8), Immediate(0))
+
+    if (typ == printlnType) {
+      printBody += CallAsm(Label("puts@plt"))
+    } else {
+      printBody += CallAsm(Label("printf@plt"))
+    }
+
+    printBody += Mov(Edi(Size64), Immediate(0))
+    printBody += CallAsm(Label("fflush@plt"))
+    graph ++= genFuncBody(List.empty, printBody)
   }
 }
