@@ -130,7 +130,7 @@ object generator {
       symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] = lb(
     expr match {
-      case Integer(i) => Mov(Immediate(3333), Eax())
+      case Integer(i) => Mov(Immediate(i.toLong), Eax())
     }
   )
 
