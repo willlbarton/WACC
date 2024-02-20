@@ -110,7 +110,7 @@ object generator {
           Ret
         )
       case Print(expr)   => genPrintStmt(symTable, expr)
-      case PrintLn(expr) => genPrintStmt(symTable, expr) += CallAsm(Label("_println"))
+      case PrintLn(expr) => genPrintStmt(symTable, expr) += CallAsm(Label("_printn"))
       case Read(lval)    => genReadStmt(symTable, lval)
       case _             => lb() // TODO
     }
@@ -126,6 +126,7 @@ object generator {
   private def genPrintStmt(symTable: SymbolTable[Dest], expr: Expr): ListBuffer[Instruction] = {
     lb(
       genExpr(expr, symTable),
+      Pop(Eax(Size64)),
       Mov(Eax(Size64), Edi(Size64)),
       expr.typ.get match {
         case CharType                         => CallAsm(Label("_printc"))
@@ -151,7 +152,7 @@ object generator {
   private def genExpr(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
     expr match {
       case Integer(i)    => Mov(Immediate(i.toLong), Eax())
-      case StringAtom(s) => Mov(Address(Rip, Label(s".L.str${stringLiters(s)}")), Eax(Size64))
+      case StringAtom(s) => Lea(Address(Rip, Label(s".L.str${stringLiters(s)}")), Eax(Size64))
       case _             => ???
     },
     Push(Eax(Size64))
@@ -193,7 +194,7 @@ object generator {
       printBody += Mov(Edi(Size8), Esi(Size8))
     }
 
-    printBody += Lea(Address(Label(s".print${typ}_format"), Rip), Edi(Size64))
+    printBody += Lea(Address(Rip, Label(s".print${typ}_format")), Edi(Size64))
     printBody += Mov(Immediate(0), Eax(Size8))
 
     if (typ == printlnType) {
@@ -213,7 +214,7 @@ object generator {
       Label("_printb")
     )
     val printBody: ListBuffer[Instruction] = lb(
-      Cmp(Edi(Size8), Immediate(0)),
+      Cmp(Immediate(0), Edi(Size8)),
       Je(Label(".printb_true")),
       Lea(Address(Rip, Label(".printb_false_lit")), Edi(Size64)),
       Jmp(Label(".printb_end")),
