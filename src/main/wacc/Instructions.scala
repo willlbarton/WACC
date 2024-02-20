@@ -40,8 +40,8 @@ case object Rsp extends Reg { override val size: Size = Size64 }
 case object Rip extends Reg { override val size: Size = Size64 }
 
 final case class Address(
-    offset: MemOp = Immediate(0),
     base: MemOp,
+    offset: MemOp = Immediate(0),
     index: MemOp = Immediate(0),
     scale: MemOp = Immediate(1)
 ) extends Dest
@@ -116,7 +116,7 @@ object x86Formatter extends Formatter {
   }
 
   override def apply(location: Location): String = location match {
-    case Address(offset, base, index, scale) =>
+    case Address(base, offset, index, scale) =>
       val scl = if (scale == Immediate(1)) "" else s", ${memFormat(scale)}"
       val optional = if (index == Immediate(0)) "" else s", ${memFormat(index)}$scl"
       (if (offset == Immediate(0)) "" else s"${memFormat(offset)}") ++
