@@ -197,15 +197,13 @@ object generator {
           Movs(Eax(Size32), Eax(Size64))
         )
 
-      case Div => ???
-
       case Eq | NotEq | Gt | GtEq | Lt | LtEq =>
         lb(
           Cmp(Ebx(Size64), Eax(Size64)),
           SetAsm(Eax(Size8), op.asInstanceOf[Comparison]),
           Movs(Eax(Size8), Eax(Size64))
         )
-      case Mod =>
+      case Mod | Div =>
         lb(
           Cmp(Immediate(0), Ebx(Size32)),
           Je(Label("_errDivZero")),
@@ -213,7 +211,7 @@ object generator {
           Push(Edx(Size64)),
           Cltd,
           Idiv(Ebx(Size32)),
-          Mov(Edx(Size32), Eax(Size32)),
+          if (op == Mod) Mov(Edx(Size32), Eax(Size32)) else lb(),
           Movs(Eax(Size32), Eax(Size64)),
           Pop(Edx(Size64)) // Pop back
         )
