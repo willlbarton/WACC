@@ -57,7 +57,7 @@ object generator {
       genPrint(intType, "%d"),
       genPrint(printlnType, ""),
       genPrint(charType, "%c"),
-      genPrint(ptrType, "0x%x"),
+      genPrint(ptrType, "%p"),
       genPrintBool,
       genRead(intType, "%d"),
       genRead(charType, "%c"),
