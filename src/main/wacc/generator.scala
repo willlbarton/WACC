@@ -153,13 +153,34 @@ object generator {
     expr match {
       case Integer(i)    => Mov(Immediate(i.toLong), Eax())
       case StringAtom(s) => Lea(Address(Rip, Label(s".L.str${stringLiters(s)}")), Eax(Size64))
-      case _             => ???
+      case BinaryApp(op, left, right) => genBinaryApp(op, left, right, symTable)
+      case _                          => ???
     },
     Push(Eax(Size64))
   )
 
-  // Built-in functions
+  private def genBinaryApp(
+      op: BinaryOp,
+      left: Expr,
+      right: Expr,
+      symTable: SymbolTable[Dest]
+  ): ListBuffer[Instruction] = lb(
+    genExpr(right, symTable),
+    genExpr(left, symTable),
+    Pop(Eax(Size64)),
+    Pop(Ebx(Size64)),
+    op match {
+      case Add =>
+        lb(
+          AddAsm(Eax(Size32), Ebx(Size32)),
+          Jo(Label("_errOverflow")),
+          Movslq(Eax(Size32), Eax(Size64))
+        )
+      case _ => ???
+    }
+  )
 
+  // Built-in functions
   private def genDataSection(data: (String, String)*): ListBuffer[Instruction] = lb(
     Directive("section .data"),
     lb(
