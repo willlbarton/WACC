@@ -260,7 +260,7 @@ object generator {
           SetAsm(Eax(Size8), NotEq),
           Movs(Eax(Size8), Eax(Size64))
         )
-      case Ord => ???
+      case Ord => lb()
     }
   )
 
