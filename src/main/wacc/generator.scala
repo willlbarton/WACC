@@ -85,13 +85,13 @@ object generator {
     lb(
       Push(Rbp),
       regs.map(r => Push(r)),
-      Mov(Rbp, Rsp) // Set stack pointer to base pointer
+      Mov(Rsp, Rbp) // Set stack pointer to base pointer
     )
 
   // restore the stack pointer to exit a scope
   private def restoreRegs(regs: List[Reg]): ListBuffer[Instruction] = {
     lb(
-      Mov(Rsp, Rbp),
+      Mov(Rbp, Rsp),
       regs.map(r => Pop(r)),
       Pop(Rbp)
     )
@@ -117,16 +117,15 @@ object generator {
   private def genReadStmt(symTable: SymbolTable[Dest], lval: LVal): ListBuffer[Instruction] = {
     lb(
       genLVal(lval, symTable),
-      Mov(Edi(Size64), Eax(Size64)),
+      Mov(Eax(Size64), Edi(Size64)),
       CallAsm(Label("_readi"))
     )
   }
 
-
   private def genPrintStmt(symTable: SymbolTable[Dest], expr: Expr): ListBuffer[Instruction] = {
     lb(
       genExpr(expr, symTable),
-      Mov(Edi(), Eax()),
+      Mov(Eax(Size64), Edi(Size64)),
       expr.typ.get match {
         case CharType => CallAsm(Label("_printc"))
         case IntType => CallAsm(Label("_printi"))
@@ -149,8 +148,8 @@ object generator {
 
   private def genExpr(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
     expr match {
-      case Integer(i) => Mov(Eax(), Immediate(i.toLong))
-      case StringAtom(s) => Mov(Eax(Size64), Address(Rip, Label(s".L.str${stringLiters(s)}")))
+      case Integer(i) => Mov(Immediate(i.toLong), Eax())
+      case StringAtom(s) => Mov(Address(Rip, Label(s".L.str${stringLiters(s)}")), Eax(Size64))
     }
   )
 
@@ -177,15 +176,15 @@ object generator {
       genDataSection(format -> s".print${typ}_format"),
       Label(s"_print$typ")
     )
-    val printBody: ListBuffer[Instruction] = lb(AndAsm(Rsp, Immediate(-16)))
+    val printBody: ListBuffer[Instruction] = lb(AndAsm(Immediate(-16), Rsp))
 
     if (typ == stringType) {
-      printBody += Mov(Edx(Size64), Edi(Size64))
-      printBody += Mov(Esi(), Address(Immediate(-4), Edi(Size64)))
+      printBody += Mov(Edi(Size64), Edx(Size64))
+      printBody += Mov(Address(Edi(Size64), Immediate(-4)), Esi())
     } else if (typ == intType) {
-      printBody += Mov(Esi(), Edi())
+      printBody += Mov(Edi(), Esi())
     } else if (typ == charType) {
-      printBody += Mov(Esi(Size8), Edi(Size8))
+      printBody += Mov(Edi(Size8), Esi(Size8))
     }
 
     printBody += Lea(Address(Label(s".print${typ}_format"), Rip), Edi(Size64))
@@ -210,10 +209,10 @@ object generator {
     val printBody: ListBuffer[Instruction] = lb(
       Cmp(Edi(Size8), Immediate(0)),
       Je(Label(".printb_true")),
-      Lea(Edi(Size64), Address(Rip, Label(".printb_false_lit"))),
+      Lea(Address(Rip, Label(".printb_false_lit")), Edi(Size64)),
       Jmp(Label(".printb_end")),
       Label(".printb_true"),
-      Lea(Edi(Size64), Address(Rip, Label(".printb_true_lit"))),
+      Lea(Address(Rip, Label(".printb_true_lit")), Edi(Size64)),
       Label(".printb_end"),
       CallAsm(Label("_prints")),
     )
@@ -230,14 +229,14 @@ object generator {
     )
     val size = if (typ == intType) Size32 else Size8
     val readBody: ListBuffer[Instruction] = lb(
-      AndAsm(Rsp, Immediate(-16)),
-      SubAsm(Rsp, Immediate(16)),
-      Mov(Edi(size), Address(Rsp)),
-      Lea(Esi(Size64), Address(Rsp)),
-      Lea(Edi(Size64), Address(Rip, Label(s".read${typ}_format"))),
-      Mov(Eax(Size8), Immediate(0)),
+      AndAsm(Immediate(-16), Rsp),
+      SubAsm(Immediate(16), Rsp),
+      Mov(Address(Rsp), Edi(size)),
+      Lea(Address(Rsp), Esi(Size64)),
+      Lea(Address(Rip, Label(s".read${typ}_format")), Edi(Size64)),
+      Mov(Immediate(0), Eax(Size8)),
       CallAsm(Label("scanf@plt")),
-      Mov(Eax(size), Address(Rsp))
+      Mov(Address(Rsp), Eax(size))
     )
     instructions ++= genFuncBody(List.empty, readBody)
   }
