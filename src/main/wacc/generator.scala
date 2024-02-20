@@ -152,7 +152,9 @@ object generator {
     expr match {
       case Integer(i)    => Mov(Immediate(i.toLong), Eax())
       case StringAtom(s) => Mov(Address(Rip, Label(s".L.str${stringLiters(s)}")), Eax(Size64))
-    }
+      case _             => ???
+    },
+    Push(Eax(Size64))
   )
 
   // Built-in functions
