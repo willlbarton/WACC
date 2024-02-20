@@ -156,7 +156,7 @@ object generator {
     expr match {
       case Integer(i)    => Mov(Immediate(i.toLong), Eax())
       case StringAtom(s) => Lea(Address(Rip, Label(s".L.str${stringLiters(s)}")), Eax(Size64))
-      case Bool(value)   => Mov(Immediate(if (value) 1 else 0), Eax(Size8))
+      case Bool(value)   => Mov(Immediate(if (value) 1 else 0), Eax(Size64))
       case Character(c)  => Mov(Immediate(c.toLong), Eax(Size64))
 
       case ArrayElem(ident, exprs) => ???
@@ -188,21 +188,40 @@ object generator {
       case Add =>
         lb(
           AddAsm(Ebx(Size32), Eax(Size32)),
-          Jo(Label("_errOverflow"))
+          Jo(Label("_errOverflow")),
+          Movs(Eax(Size32), Eax(Size64))
         )
       case Sub =>
         lb(
           SubAsm(Ebx(Size32), Eax(Size32)),
-          Jo(Label("_errOverflow"))
+          Jo(Label("_errOverflow")),
+          Movs(Eax(Size32), Eax(Size64))
         )
       case Mul =>
         lb(
           Imul(Ebx(Size32), Eax(Size32)),
-          Jo(Label("_errOverflow"))
+          Jo(Label("_errOverflow")),
+          Movs(Eax(Size32), Eax(Size64))
         )
-      case _ => ???
-    },
-    Movslq(Eax(Size32), Eax(Size64))
+      case Div => ???
+
+      case Eq | NotEq | Gt | GtEq | Lt | LtEq =>
+        lb(
+          Cmp(Ebx(Size64), Eax(Size64)),
+          Set(Eax(Size8), op.asInstanceOf[Comparison]),
+          Movs(Eax(Size8), Eax(Size64))
+        )
+      case Mod => ???
+      case Or | And =>
+        lb(
+          Cmp(Immediate(1), Eax(Size64)),
+          if (op == Or) Je(Label(".L0")) else Jne(Label(".L0")),
+          Cmp(Immediate(1), Ebx(Size64)),
+          Label(".L0"),
+          Set(Eax(Size8), Eq),
+          Movs(Eax(Size8), Eax(Size64))
+        )
+    }
   )
 
   // Built-in functions
