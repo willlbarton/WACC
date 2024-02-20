@@ -165,7 +165,7 @@ object generator {
       case Null                    => ???
 
       case BinaryApp(op, left, right) => genBinaryApp(op, left, right, symTable)
-      case UnaryApp(op, expr)         => ???
+      case UnaryApp(op, expr)         => genUnaryApp(op, expr, symTable)
 
       case BracketedExpr(expr) => genExpr(expr, symTable)
 
@@ -225,6 +225,33 @@ object generator {
           Set(Eax(Size8), Eq),
           Movs(Eax(Size8), Eax(Size64))
         )
+    }
+  )
+
+  private def genUnaryApp(
+      op: UnaryOp,
+      expr: Expr,
+      symTable: SymbolTable[Dest]
+  ): ListBuffer[Instruction] = lb(
+    genExpr(expr, symTable),
+    op match {
+      case Chr => ???
+      case Len => ???
+      case Neg =>
+        // slightly different to how reference compiler does it, as we assume the answer of exp is stored in Eax
+        lb(
+          Mov(Immediate(0), Edx(Size64)),
+          SubAsm(Eax(Size32), Edx(Size32)),
+          Jo(Label("_errOverflow")),
+          Movs(Edx(Size32), Eax(Size64))
+        )
+      case Not =>
+        lb(
+          Cmp(Immediate(1), Eax(Size64)),
+          SetAsm(Eax(Size8), NotEq),
+          Movs(Eax(Size8), Eax(Size64))
+        )
+      case Ord => ???
     }
   )
 
