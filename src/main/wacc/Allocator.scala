@@ -35,7 +35,8 @@ object Allocator {
     List(R10(Size64), R11(Size64), R12(Size64), R13(Size64), R14(Size64), R15(Size64))
 
   def apply(vars: List[SymbolTableObj]): Allocator = {
-    val reservedSpace = vars.map(x => x.typ.get match {
+    val stackVars = vars.drop(NON_PARAM_REGS.length)
+    val reservedSpace = stackVars.map(x => x.typ.get match {
       case CharType | BoolType => 1
       case IntType => 4
       case StringType | ArrayType(_) | PairType(_,_) => 8

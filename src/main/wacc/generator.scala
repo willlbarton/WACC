@@ -103,9 +103,8 @@ object generator {
     body: ListBuffer[Instruction],
     vars: List[SymbolTableObj]
   ): ListBuffer[Instruction] = {
-    val numRegs = Math.min(Allocator.NON_PARAM_REGS.size, vars.size)
-    val toSave = Allocator.NON_PARAM_REGS.take(numRegs)
-    val toAllocate = vars.drop(numRegs)
+    val toSave = Allocator.NON_PARAM_REGS.take(vars.size)
+    val toAllocate = vars.drop(Allocator.NON_PARAM_REGS.size)
     genNewScope(body, toSave, toAllocate)
   }
 
