@@ -185,24 +185,17 @@ object generator {
     Pop(Eax(Size64)),
     Pop(Ebx(Size64)),
     op match {
-      case Add =>
+      case Add | Sub | Mul =>
         lb(
-          AddAsm(Ebx(Size32), Eax(Size32)),
+          op match {
+            case Add => AddAsm(Ebx(Size32), Eax(Size32))
+            case Sub => SubAsm(Ebx(Size32), Eax(Size32))
+            case Mul => Imul(Ebx(Size32), Eax(Size32))
+          },
           Jo(Label("_errOverflow")),
           Movs(Eax(Size32), Eax(Size64))
         )
-      case Sub =>
-        lb(
-          SubAsm(Ebx(Size32), Eax(Size32)),
-          Jo(Label("_errOverflow")),
-          Movs(Eax(Size32), Eax(Size64))
-        )
-      case Mul =>
-        lb(
-          Imul(Ebx(Size32), Eax(Size32)),
-          Jo(Label("_errOverflow")),
-          Movs(Eax(Size32), Eax(Size64))
-        )
+
       case Div => ???
 
       case Eq | NotEq | Gt | GtEq | Lt | LtEq =>
