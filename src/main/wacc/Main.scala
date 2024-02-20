@@ -36,6 +36,7 @@ object Main {
                     )
                     try {
                       writer.write(generator.generate(program, x86Formatter))
+                      writer.write("\n")
                       println(s"Compilation successful! Output written to $outputFile")
                     } finally writer.close()
                   case msg =>
