@@ -176,11 +176,16 @@ object generator {
       case Add =>
         lb(
           AddAsm(Ebx(Size32), Eax(Size32)),
-          Jo(Label("_errOverflow")),
-          Movslq(Eax(Size32), Eax(Size64))
+          Jo(Label("_errOverflow"))
+        )
+      case Sub =>
+        lb(
+          SubAsm(Ebx(Size32), Eax(Size32)),
+          Jo(Label("_errOverflow"))
         )
       case _ => ???
-    }
+    },
+    Movslq(Eax(Size32), Eax(Size64))
   )
 
   // Built-in functions
