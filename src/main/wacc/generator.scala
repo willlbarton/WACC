@@ -59,7 +59,8 @@ object generator {
       genPrint(charType, "%c"),
       genPrintBool,
       genRead(intType, "%d"),
-      genRead(charType, "%c")
+      genRead(charType, "%c"),
+      genErr("errOverflow", "fatal error: integer overflow or underflow occurred")
     )
 
     instructions
@@ -172,7 +173,7 @@ object generator {
     op match {
       case Add =>
         lb(
-          AddAsm(Eax(Size32), Ebx(Size32)),
+          AddAsm(Ebx(Size32), Eax(Size32)),
           Jo(Label("_errOverflow")),
           Movslq(Eax(Size32), Eax(Size64))
         )
@@ -249,10 +250,7 @@ object generator {
 
   private def genRead(typ: Char, format: String): ListBuffer[Instruction] = {
     val instructions: ListBuffer[Instruction] = lb(
-      Directive("section .rodata"),
-      Directive(s"int ${format.length}"),
-      Label(s".read${typ}_format"),
-      Directive(s"asciz \"$format\""),
+      genDataSection(format -> s".read${typ}_format"),
       Label(s"_read$typ")
     )
     val size = if (typ == intType) Size32 else Size8
@@ -267,5 +265,17 @@ object generator {
       Mov(Address(Rsp), Eax(size))
     )
     instructions ++= genFuncBody(List.empty, readBody)
+  }
+
+  private def genErr(name: String, msg: String): ListBuffer[Instruction] = {
+    lb(
+      genDataSection(s"$msg\\n" -> s".$name"),
+      Label(s"_$name"),
+      AddAsm(Immediate(-16), Rsp),
+      Lea(Address(Rip, Label(s".$name")), Edi(Size64)),
+      CallAsm(Label("_prints")),
+      Mov(Immediate(-1), Eax(Size64)),
+      CallAsm(Label("_exit"))
+    )
   }
 }
