@@ -59,7 +59,9 @@ object generator {
       genPrint(intType, "%d"),
       genPrint(printlnType, ""),
       genPrint(charType, "%c"),
-      genPrintBool
+      genPrintBool,
+      genRead(intType, "%d"),
+      genRead(charType, "%c")
     )
     instructions.toList
   }
@@ -108,8 +110,18 @@ object generator {
       )
       case Print(expr)   => genPrintStmt(symTable, expr)
       case PrintLn(expr) => genPrintStmt(symTable, expr) += CallAsm(Label("_println"))
+      case Read(lval)    => genReadStmt(symTable, lval)
       case _            => lb() // TODO
     }
+
+  private def genReadStmt(symTable: SymbolTable[Dest], lval: LVal): ListBuffer[Instruction] = {
+    lb(
+      genLVal(lval, symTable),
+      Mov(Edi(Size64), Eax(Size64)),
+      CallAsm(Label("_readi"))
+    )
+  }
+
 
   private def genPrintStmt(symTable: SymbolTable[Dest], expr: Expr): ListBuffer[Instruction] = {
     lb(
@@ -118,8 +130,8 @@ object generator {
       expr.typ.get match {
         case CharType => CallAsm(Label("_printc"))
         case IntType => CallAsm(Label("_printi"))
-        case StringType => CallAsm(Label("_prints"))
-        case BoolType => CallAsm(Label("_printbool"))
+        case StringType | ArrayType(CharType) => CallAsm(Label("_prints"))
+        case BoolType => CallAsm(Label("_printb"))
         case _ => ???
       }
     )
@@ -133,9 +145,12 @@ object generator {
       Mov(Eax(), Immediate(0))
     )
 
+  private def genLVal(lval: LVal, symTable: SymbolTable[Dest]) = ???
+
   private def genExpr(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
     expr match {
       case Integer(i) => Mov(Eax(), Immediate(i.toLong))
+      case StringAtom(s) => Mov(Eax(Size64), Address(Rip, Label(s".L.str${stringLiters(s)}")))
     }
   )
 
@@ -144,7 +159,7 @@ object generator {
   private lazy val charType = 'c'
   private lazy val printlnType = 'n'
   private def genPrint(typ: Char, format: String): ListBuffer[Instruction] = {
-    val graph: ListBuffer[Instruction] = lb(
+    val instructions: ListBuffer[Instruction] = lb(
        Directive("section .rodata"),
        Directive(s"int ${format.length}"),
        Label(s".print${typ}_format"),
@@ -155,14 +170,14 @@ object generator {
 
     if (typ == stringType) {
       printBody += Mov(Edi(Size64), Edx(Size64))
-      printBody += Mov(Address(Immediate(-4), Edi(Size64)), Esi())
+      printBody += Mov(Address(Edi(Size64), Immediate(-4)), Esi())
     } else if (typ == intType) {
       printBody += Mov(Edi(), Esi())
     } else if (typ == charType) {
       printBody += Mov(Edi(Size8), Esi(Size8))
     }
 
-    printBody += Lea(Edi(Size64), Address(Label(s".print${typ}_format"), Rip))
+    printBody += Lea(Edi(Size64), Address(Rip, Label(s".print${typ}_format")))
     printBody += Mov(Eax(Size8), Immediate(0))
 
     if (typ == printlnType) {
@@ -173,7 +188,7 @@ object generator {
 
     printBody += Mov(Edi(Size64), Immediate(0))
     printBody += CallAsm(Label("fflush@plt"))
-    graph ++= genFuncBody(List.empty, printBody)
+    instructions ++= genFuncBody(List.empty, printBody)
   }
 
   private val genPrintBool: ListBuffer[Instruction] = {
@@ -185,18 +200,40 @@ object generator {
       Directive("int 5"),
       Label(".printb_false_lit"),
       Directive("asciz \"false\""),
-      Label("_printbool")
+      Label("_printb")
     )
     val printBody: ListBuffer[Instruction] = lb(
       Cmp(Edi(Size8), Immediate(0)),
       Je(Label(".printb_true")),
-      Lea(Edi(Size64), Address(Label(".printb_false_lit"), Rip)),
+      Lea(Edi(Size64), Address(Rip, Label(".printb_false_lit"))),
       Jmp(Label(".printb_end")),
       Label(".printb_true"),
-      Lea(Edi(Size64), Address(Label(".printb_true_lit"), Rip)),
+      Lea(Edi(Size64), Address(Rip, Label(".printb_true_lit"))),
       Label(".printb_end"),
       CallAsm(Label("_prints")),
     )
     graph ++= genFuncBody(List.empty, printBody)
+  }
+
+  private def genRead(typ: Char, format: String): ListBuffer[Instruction] = {
+    val instructions: ListBuffer[Instruction] = lb(
+      Directive("section .rodata"),
+      Directive(s"int ${format.length}"),
+      Label(s".read${typ}_format"),
+      Directive(s"asciz \"$format\""),
+      Label(s"_read$typ")
+    )
+    val size = if (typ == intType) Size32 else Size8
+    val readBody: ListBuffer[Instruction] = lb(
+      AndAsm(Rsp, Immediate(-16)),
+      SubAsm(Rsp, Immediate(16)),
+      Mov(Edi(size), Address(Rsp)),
+      Lea(Esi(Size64), Address(Rsp)),
+      Lea(Edi(Size64), Address(Rip, Label(s".read${typ}_format"))),
+      Mov(Eax(Size8), Immediate(0)),
+      CallAsm(Label("scanf@plt")),
+      Mov(Eax(size), Address(Rsp))
+    )
+    instructions ++= genFuncBody(List.empty, readBody)
   }
 }
