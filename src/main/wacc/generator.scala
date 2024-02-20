@@ -136,12 +136,12 @@ object generator {
       Pop(Eax(Size64)),
       Mov(Eax(Size64), Edi(Size64)),
       expr.typ.get match {
-        case CharType                         => CallAsm(Label("_printc"))
-        case IntType                          => CallAsm(Label("_printi"))
-        case StringType | ArrayType(CharType) => CallAsm(Label("_prints"))
-        case BoolType                         => CallAsm(Label("_printb"))
-        case ArrayType(_) | PairType(_, _)    => CallAsm(Label("_printp"))
-        case _                                => ???
+        case CharType                             => CallAsm(Label("_printc"))
+        case IntType                              => CallAsm(Label("_printi"))
+        case StringType | ArrayType(CharType)     => CallAsm(Label("_prints"))
+        case BoolType                             => CallAsm(Label("_printb"))
+        case ArrayType(_) | PairType(_, _) | Pair => CallAsm(Label("_printp"))
+        case _                                    => println(expr.typ.get)
       }
     )
   }
@@ -166,7 +166,7 @@ object generator {
 
       case ArrayElem(ident, exprs) => ???
       case Ident(name)             => ???
-      case Null                    => ???
+      case Null                    => Mov(Immediate(0), Eax(Size64))
 
       case BinaryApp(op, left, right) => genBinaryApp(op, left, right, symTable)
       case UnaryApp(op, expr)         => genUnaryApp(op, expr, symTable)
@@ -260,6 +260,7 @@ object generator {
           SetAsm(Eax(Size8), NotEq),
           Movs(Eax(Size8), Eax(Size64))
         )
+      // Do nothing as char already being stored as a Long in eax
       case Ord => lb()
     }
   )
