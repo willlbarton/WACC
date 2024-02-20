@@ -60,7 +60,7 @@ final case class CallAsm(label: Label) extends Instruction
 final case class AndAsm(op: Operand, dest: Dest) extends Instruction
 final case class Lea(op: Address, dest: Dest) extends Instruction
 
-final case class Set(dest: Dest, comparison: Comparison) extends Instruction
+final case class SetAsm(dest: Dest, comparison: Comparison) extends Instruction
 
 final case class AddAsm(op: Operand, dest: Dest) extends Instruction
 final case class SubAsm(op: Operand, dest: Dest) extends Instruction
@@ -100,11 +100,12 @@ object x86Formatter extends Formatter {
         indent ++ s"mov${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
       case Movs(op, dest) =>
         indent ++ s"movs${instructionPostfix(op, dest)} ${this(op)}, ${this(dest)}"
-      case Pop(dest)             => indent ++ s"pop${instructionPostfix(dest)}  ${this(dest)}"
-      case Push(op1)             => indent ++ s"push${instructionPostfix(op1)} ${this(op1)}"
-      case CallAsm(label)        => indent ++ s"call  ${label.name}"
-      case AndAsm(op1, dest)     => indent ++ s"and   ${this(op1)}, ${this(dest)}"
-      case Set(dest, comparison) => indent ++ s"set${instructionPostfix(comparison)} ${this(dest)}"
+      case Pop(dest)         => indent ++ s"pop${instructionPostfix(dest)}  ${this(dest)}"
+      case Push(op1)         => indent ++ s"push${instructionPostfix(op1)} ${this(op1)}"
+      case CallAsm(label)    => indent ++ s"call  ${label.name}"
+      case AndAsm(op1, dest) => indent ++ s"and   ${this(op1)}, ${this(dest)}"
+      case SetAsm(dest, comparison) =>
+        indent ++ s"set${instructionPostfix(comparison)} ${this(dest)}"
       case Lea(op1, dest) =>
         indent ++ s"lea${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
       case AddAsm(op1, dest) =>

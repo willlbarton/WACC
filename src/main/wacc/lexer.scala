@@ -43,9 +43,33 @@ object lexer {
     // Keywords
     symbolDesc = SymbolDesc.plain.copy(
       hardKeywords = Set(
-        "begin", "end", "is", "skip", "read", "free", "return", "exit", "print", "println", "if",
-        "then", "else", "fi", "while", "do", "done", "newpair", "call", "fst", "snd", "int", "bool",
-        "char", "string", "pair", "null"
+        "begin",
+        "end",
+        "is",
+        "skip",
+        "read",
+        "free",
+        "return",
+        "exit",
+        "print",
+        "println",
+        "if",
+        "then",
+        "else",
+        "fi",
+        "while",
+        "do",
+        "done",
+        "newpair",
+        "call",
+        "fst",
+        "snd",
+        "int",
+        "bool",
+        "char",
+        "string",
+        "pair",
+        "null"
       )
     )
   )
@@ -56,7 +80,7 @@ object lexer {
     override def labelStringAsciiEnd(@unused multi: Boolean, @unused raw: Boolean): LabelConfig =
       Label("\" to end string literal")
     override def labelSymbol: Map[String, LabelWithExplainConfig] =
-      Map (
+      Map(
         "!" -> Label("unary operator"),
         "len " -> Label("unary operator"),
         "ord " -> Label("unary operator"),
@@ -77,7 +101,7 @@ object lexer {
         "true" -> Label("boolean"),
         "call" -> Label("function call"),
         "fst" -> Label("pair element"),
-        "snd" -> Label("pair element"),
+        "snd" -> Label("pair element")
       )
   }
 

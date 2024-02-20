@@ -201,7 +201,7 @@ object generator {
       case Eq | NotEq | Gt | GtEq | Lt | LtEq =>
         lb(
           Cmp(Ebx(Size64), Eax(Size64)),
-          Set(Eax(Size8), op.asInstanceOf[Comparison]),
+          SetAsm(Eax(Size8), op.asInstanceOf[Comparison]),
           Movs(Eax(Size8), Eax(Size64))
         )
       case Mod => ???
