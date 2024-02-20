@@ -75,6 +75,9 @@ final case class Jne(label: Label) extends Instruction
 final case class Idiv(op: Operand) extends Instruction
 final case class Imul(op1: Operand, dest: Dest) extends Instruction
 
+final case class Testq(op1: Operand, op2: Operand) extends Instruction
+final case class Cmovne(dest: Dest, src: Operand) extends Instruction
+
 trait Formatter {
   def apply(instruction: Instruction): String
   def apply(location: Location): String
@@ -121,7 +124,9 @@ object x86Formatter extends Formatter {
       case Idiv(op1)  => indent ++ s"idiv${instructionPostfix(op1)} ${this(op1)}"
       case Imul(op1, dest) =>
         indent ++ s"imul${instructionPostfix(dest)} ${this(op1)}, ${this(dest)}"
-
+      case Cmovne(dest, src) =>
+        indent ++ s"cmovne ${this(src)}, ${this(dest)}"
+      case Testq(op1, op2) => indent ++ s"test  ${this(op1)}, ${this(op2)}"
     }
   }
 

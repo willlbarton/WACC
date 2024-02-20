@@ -62,7 +62,11 @@ object generator {
       genRead(intType, "%d"),
       genRead(charType, "%c"),
       genErr("errOverflow", "fatal error: integer overflow or underflow occurred"),
-      genErr("errDivZero", "fatal error: division or modulo by zero")
+      genErr("errDivZero", "fatal error: division or modulo by zero"),
+      genErr(
+        "errBadChar",
+        "fatal error: int %d is not ascii character 0-127"
+      ) // TODO: fix this so populates %d in err message
     )
 
     instructions
@@ -235,7 +239,12 @@ object generator {
   ): ListBuffer[Instruction] = lb(
     genExpr(expr, symTable),
     op match {
-      case Chr => ???
+      case Chr =>
+        lb(
+          Testq(Immediate(-128), Eax(Size64)),
+          Cmovne(Eax(Size64), Esi(Size64)),
+          Jne(Label("_errBadChar"))
+        )
       case Len => ???
       case Neg =>
         // slightly different to how reference compiler does it, as we assume the answer of exp is stored in Eax
