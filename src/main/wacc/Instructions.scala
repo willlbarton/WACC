@@ -72,6 +72,8 @@ final case class Jo(label: Label) extends Instruction
 final case class Jne(label: Label) extends Instruction
 final case class Idiv(op: Operand) extends Instruction
 
+final case class Movslq(op: Dest, dest: Operand) extends Instruction
+
 trait Formatter {
   def apply(instruction: Instruction): String
   def apply(location: Location): String
@@ -112,6 +114,7 @@ object x86Formatter extends Formatter {
       case Jo(label)     => indent ++ s"jo    ${label.name}"
       case Jne(label)    => indent ++ s"jne   ${label.name}"
       case Idiv(op1)     => indent ++ s"idiv${instructionPostfix(op1)} ${this(op1)}"
+      case Movslq(op, dest) => indent ++ s"movslq ${this(op)}, ${this(dest)}"
     }
   }
 
