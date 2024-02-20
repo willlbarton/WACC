@@ -5,19 +5,17 @@ import scala.collection.mutable.ListBuffer
 
 object generator {
 
-  def lb(instructions: Any*): ListBuffer[Instruction] = {
+  private def lb(instructions: Any*): ListBuffer[Instruction] = {
     val resultBuffer = ListBuffer[Instruction]()
 
     for (instruction <- instructions) {
       instruction match {
         case inst: Instruction =>
           resultBuffer += inst
-        case instList: List[_] if instList.forall(_.isInstanceOf[Instruction]) => {
+        case instList: List[_] if instList.forall(_.isInstanceOf[Instruction]) =>
           resultBuffer ++= instList.asInstanceOf[List[Instruction]]
-        }
-        case instBuffer: ListBuffer[_] if instBuffer.forall(_.isInstanceOf[Instruction]) => {
+        case instBuffer: ListBuffer[_] if instBuffer.forall(_.isInstanceOf[Instruction]) =>
           resultBuffer ++= instBuffer.asInstanceOf[ListBuffer[Instruction]]
-        }
         case _ =>
           throw new IllegalArgumentException(s"Unsupported type: ${instruction.getClass}")
       }
@@ -59,6 +57,7 @@ object generator {
       genPrint(intType, "%d"),
       genPrint(printlnType, ""),
       genPrint(charType, "%c"),
+      genPrint(ptrType, "0x%x"),
       genPrintBool,
       genRead(intType, "%d"),
       genRead(charType, "%c"),
@@ -136,6 +135,7 @@ object generator {
         case IntType                          => CallAsm(Label("_printi"))
         case StringType | ArrayType(CharType) => CallAsm(Label("_prints"))
         case BoolType                         => CallAsm(Label("_printb"))
+        case ArrayType(_) | PairType(_, _)    => CallAsm(Label("_printp"))
         case _                                => ???
       }
     )
@@ -212,6 +212,7 @@ object generator {
   private lazy val intType = 'i'
   private lazy val charType = 'c'
   private lazy val printlnType = 'n'
+  private lazy val ptrType = 'p'
   private def genPrint(typ: Char, format: String): ListBuffer[Instruction] = {
     val graph: ListBuffer[Instruction] = lb(
       genDataSection(format -> s".print${typ}_format"),
@@ -226,6 +227,8 @@ object generator {
       printBody += Mov(Edi(), Esi())
     } else if (typ == charType) {
       printBody += Mov(Edi(Size8), Esi(Size8))
+    } else if (typ == ptrType) {
+      printBody += Mov(Address(Edi(Size64)), Esi(Size64))
     }
 
     printBody += Lea(Address(Rip, Label(s".print${typ}_format")), Edi(Size64))

@@ -3,10 +3,10 @@ import src.main.wacc._
 
 object Allocater {
   private val PARAM_REGS: List[Reg] = List(Edi(), Esi(), Edx(), Ecx(), R8(), R9())
-  private val NON_PARAM_REGS: List[Reg] = List(Ebx(), R10(), R11(), R12(), R13(), R14(), R15())
+  private val NON_PARAM_REGS: List[Reg] = List(R10(), R11(), R12(), R13(), R14(), R15())
 
-  var relativeToBasePointer: Int = 0;
-  var freeRegs: ListBuffer[Reg] = ListBuffer.empty
+  private var relativeToBasePointer: Int = 0;
+  private var freeRegs: ListBuffer[Reg] = ListBuffer.empty
 
   def allocateSpace(size: Size): Location = {
     if (freeRegs.nonEmpty) {
@@ -24,7 +24,7 @@ object Allocater {
     Address(Immediate(currentRelaltiveBP.toLong), Rbp)
   }
 
-  def resetAllocater(reservedSpace: Int) = {
+  def resetAllocater(reservedSpace: Int): Unit = {
     relativeToBasePointer = -reservedSpace;
     freeRegs = ListBuffer.from(NON_PARAM_REGS)
   }
