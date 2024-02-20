@@ -37,7 +37,9 @@ object analyser {
     }
 
     // Check the main program body
-    error ++= checkMainStmts(rootSymbolTable.makeChild, program.body)
+    val mainSymTable = rootSymbolTable.makeChild
+    error ++= checkMainStmts(mainSymTable, program.body)
+    program.vars = mainSymTable.vars
 
     error.toString
   }

@@ -1,5 +1,6 @@
+package src.main.wacc
+
 import scala.collection.mutable.ListBuffer
-import src.main.wacc._
 
 class Allocator(reservedSpace: Int) {
 
@@ -25,4 +26,13 @@ class Allocator(reservedSpace: Int) {
 object Allocator {
   private val PARAM_REGS: List[Reg] = List(Edi(), Esi(), Edx(), Ecx(), R8(), R9())
   private val NON_PARAM_REGS: List[Reg] = List(R10(), R11(), R12(), R13(), R14(), R15())
+
+  def apply(vars: List[SymbolTableObj]): Allocator = {
+    val reservedSpace = vars.map(x => x.typ.get match {
+      case CharType | BoolType => 1
+      case IntType => 4
+      case StringType | ArrayType(_) | PairType(_,_) => 8
+    }).sum
+    new Allocator(reservedSpace)
+  }
 }

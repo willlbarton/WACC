@@ -34,13 +34,14 @@ object generator {
     val instructions = lb(
       Directive("globl main"),
       genDataSection(stringLiters.view.mapValues(i => s".L.str$i").toSeq: _*),
-      program.functions.map(x => genFunc(x, SymbolTable(None))),
+      program.functions.map(x => genFunc(x, SymbolTable(None), Allocator(x.vars))),
       Label("main")
     )
 
     val mainSymTable: SymbolTable[Dest] = SymbolTable(None)
+    val allocator = Allocator(program.vars)
     val mainBody = lb(
-      program.body.flatMap(x => genStmt(x, mainSymTable)),
+      program.body.flatMap(x => genStmt(x, mainSymTable, allocator)),
       Mov(Immediate(0), Eax(Size64))
     )
 
@@ -67,8 +68,11 @@ object generator {
     instructions
   }
 
-  private def genFunc(func: Func, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
-    ListBuffer.empty // TODO
+  private def genFunc(
+    func: Func,
+    symTable: SymbolTable[Dest],
+    allocator: Allocator
+  ): ListBuffer[Instruction] = ListBuffer.empty // TODO
 
   private def genFuncBody(
       toSave: List[Reg],
@@ -101,7 +105,8 @@ object generator {
 
   private def genStmt(
       stmt: Stmt,
-      symTable: SymbolTable[Dest]
+      symTable: SymbolTable[Dest],
+      allocator: Allocator
   ): ListBuffer[Instruction] =
     stmt match {
       case Skip       => lb()
@@ -114,8 +119,18 @@ object generator {
       case Print(expr)   => genPrintStmt(symTable, expr)
       case PrintLn(expr) => genPrintStmt(symTable, expr) += CallAsm(Label("_printn"))
       case Read(lval)    => genReadStmt(symTable, lval)
+      case Decl(t, ident, value) => genDeclStmt(symTable, t, ident, value)
       case _             => lb() // TODO
     }
+
+  private def genDeclStmt(
+      symTable: SymbolTable[Dest],
+      t: Type,
+      ident: Ident,
+      value: RVal
+  ): ListBuffer[Instruction] = ???
+
+  private def genRval(value: RVal, symTable: SymbolTable[Dest]) = ???
 
   private def genReadStmt(symTable: SymbolTable[Dest], lval: LVal): ListBuffer[Instruction] = {
     lb(
