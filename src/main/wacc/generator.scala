@@ -28,15 +28,7 @@ object generator {
   private def genProgram(program: Program): List[Instruction] = {
     val instructions = lb(
       Directive("globl main"),
-      Directive("section .rodata"),
-      stringLiters.foreach { case (s, i) =>
-        lb(
-          Directive(s"int ${s.length}"),
-          Label(s".L.str$i"),
-          Directive(s"asciz \"$s\"")
-        )
-      },
-      Directive("text"),
+      genDataSection(stringLiters.view.mapValues(i => s".L.str$i").toSeq: _*),
       program.functions.map(x => genFunc(x, SymbolTable(None))),
       Label("main")
     )
@@ -46,7 +38,7 @@ object generator {
       program.body.map(x => genStmt(x, mainSymTable))
     )
 
-    instructions ++= lb(instructions, genFuncBody(List.empty, mainBody), Label("_exit"))
+    instructions ++= lb(genFuncBody(List.empty, mainBody), Label("_exit"))
 
     val exitBody: ListBuffer[Instruction] = lb(
       // Align stack pointer to 16 bytes
@@ -119,7 +111,7 @@ object generator {
         case CharType => CallAsm(Label("_printc"))
         case IntType => CallAsm(Label("_printi"))
         case StringType => CallAsm(Label("_prints"))
-        case BoolType => CallAsm(Label("_printbool"))
+        case BoolType => CallAsm(Label("_printb"))
         case _ => ???
       }
     )
@@ -139,17 +131,28 @@ object generator {
     }
   )
 
+  // Built-in functions
+
+  private def genDataSection(data: (String, String)*): ListBuffer[Instruction] = lb(
+    Directive("section .data"),
+    lb(data.map(
+      kv => lb(
+        Directive(s"int ${kv._1.length}"),
+        Label(kv._2),
+        Directive(s"asciz \"${kv._1}\"")
+      )
+    ) : _*),
+    Directive("text")
+  )
+
   private lazy val stringType = 's'
   private lazy val intType = 'i'
   private lazy val charType = 'c'
   private lazy val printlnType = 'n'
   private def genPrint(typ: Char, format: String): ListBuffer[Instruction] = {
     val graph: ListBuffer[Instruction] = lb(
-       Directive("section .rodata"),
-       Directive(s"int ${format.length}"),
-       Label(s".print${typ}_format"),
-       Directive(s"asciz \"$format\""),
-       Label(s"_print$typ")
+      genDataSection(format -> s".print${typ}_format"),
+      Label(s"_print$typ")
     )
     val printBody: ListBuffer[Instruction] = lb(AndAsm(Rsp, Immediate(-16)))
 
@@ -178,14 +181,8 @@ object generator {
 
   private val genPrintBool: ListBuffer[Instruction] = {
     val graph: ListBuffer[Instruction] = lb(
-      Directive("section .rodata"),
-      Directive("int 4"),
-      Label(".printb_true_lit"),
-      Directive("asciz \"true\""),
-      Directive("int 5"),
-      Label(".printb_false_lit"),
-      Directive("asciz \"false\""),
-      Label("_printbool")
+      genDataSection("true" -> ".printb_true_lit", "false" -> ".printb_false_lit"),
+      Label("_printb")
     )
     val printBody: ListBuffer[Instruction] = lb(
       Cmp(Edi(Size8), Immediate(0)),
