@@ -74,21 +74,25 @@ object generator {
   }
 
   private def genFunc(
-    func: Func,
-    symTable: SymbolTable[Dest],
-    allocator: Allocator
+      func: Func,
+      symTable: SymbolTable[Dest],
+      allocator: Allocator
   ): ListBuffer[Instruction] = ListBuffer.empty // TODO
 
   private def genNewScope(
-    body: ListBuffer[Instruction],
-    toSave: List[Reg],
-    toAllocate: List[SymbolTableObj]
+      body: ListBuffer[Instruction],
+      toSave: List[Reg],
+      toAllocate: List[SymbolTableObj]
   ): ListBuffer[Instruction] = {
-    val size = toAllocate.map(x => x.typ.get match {
-      case CharType | BoolType => 4
-      case IntType => 4
-      case StringType | ArrayType(_) | PairType(_,_) => 8
-    }).sum
+    val size = toAllocate
+      .map(x =>
+        x.typ.get match {
+          case CharType | BoolType                        => 4
+          case IntType                                    => 4
+          case StringType | ArrayType(_) | PairType(_, _) => 8
+        }
+      )
+      .sum
     lb(
       Push(Rbp),
       toSave.map(r => Push(r)),
@@ -105,8 +109,8 @@ object generator {
     genNewScope(body, List.empty, List.empty)
   }
   private def genNewScope(
-    body: ListBuffer[Instruction],
-    vars: List[SymbolTableObj]
+      body: ListBuffer[Instruction],
+      vars: List[SymbolTableObj]
   ): ListBuffer[Instruction] = {
     val toSave = Allocator.NON_PARAM_REGS.take(vars.size)
     val toAllocate = vars.drop(Allocator.NON_PARAM_REGS.size)
@@ -129,20 +133,25 @@ object generator {
       case Print(expr)   => genPrintStmt(symTable, expr)
       case PrintLn(expr) => genPrintStmt(symTable, expr) += CallAsm(Label("_printn"))
       case Read(lval)    => genReadStmt(symTable, lval)
-      case Decl(t, _, value) => genDeclStmt(t, value, symTable, allocator)
+      case Decl(t, ident, value) => {
+        // We can allocate the register before we generate rval as the stack machine will
+        // only use %eax and %ebx, which are protected
+        val dest = allocator.allocateSpace(t)
+        symTable.put(ident, dest)
+        genDeclStmt(value, dest, symTable)
+      }
       case Asgn(lval, value) => genAsgnStmt(lval, value, symTable)
-      case _             => lb() // TODO
+      case _                 => lb() // TODO
     }
 
   private def genDeclStmt(
-      t: Type,
       value: RVal,
-      symTable: SymbolTable[Dest],
-      allocator: Allocator
+      dest: Dest,
+      symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] = lb(
     genRval(value, symTable),
     Pop(Eax(Size64)),
-    Mov(Eax(Size64), allocator.allocateSpace(t))
+    Mov(Eax(Size64), dest)
   )
 
   private def genAsgnStmt(
@@ -164,7 +173,7 @@ object generator {
   private def genRval(value: RVal, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
     value match {
       case e: Expr => genExpr(e, symTable)
-      case _ => ???
+      case _       => ???
     }
 
   private def genReadStmt(symTable: SymbolTable[Dest], lval: LVal): ListBuffer[Instruction] = {
@@ -172,10 +181,11 @@ object generator {
       genLVal(lval, symTable),
       Mov(Eax(Size64), Edi(Size64)),
       lval match {
-        case id: Ident => id.typ.get match {
-          case CharType => CallAsm(Label("_readc"))
-          case IntType  => CallAsm(Label("_readi"))
-        }
+        case id: Ident =>
+          id.typ.get match {
+            case CharType => CallAsm(Label("_readc"))
+            case IntType  => CallAsm(Label("_readi"))
+          }
         case _ => ???
       }
     )
@@ -216,8 +226,12 @@ object generator {
       case Character(c)  => Mov(Immediate(c.toLong), Eax(Size64))
 
       case ArrayElem(ident, exprs) => ???
-      case Ident(name)             => ???
-      case Null                    => Mov(Immediate(0), Eax(Size64))
+      case Ident(name) =>
+        symTable(Ident(name)) match {
+          case Some(value) => Mov(value.asInstanceOf[Operand], Eax(Size64))
+          case None        => ???
+        }
+      case Null => Mov(Immediate(0), Eax(Size64))
 
       case BinaryApp(op, left, right) => genBinaryApp(op, left, right, symTable)
       case UnaryApp(op, expr)         => genUnaryApp(op, expr, symTable)
