@@ -300,7 +300,7 @@ object generator {
     } else if (typ == charType) {
       printBody += Mov(Edi(Size8), Esi(Size8))
     } else if (typ == ptrType) {
-      printBody += Mov(Address(Edi(Size64)), Esi(Size64))
+      printBody += Mov(Edi(Size64), Esi(Size64))
     }
 
     printBody += Lea(Address(Rip, Label(s".print${typ}_format")), Edi(Size64))
