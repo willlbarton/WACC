@@ -12,11 +12,12 @@ object generator {
       instruction match {
         case inst: Instruction =>
           resultBuffer += inst
-        case listBuffer: ListBuffer[Instruction] => {
-          resultBuffer ++= listBuffer
+        case instList: List[_] if instList.forall(_.isInstanceOf[Instruction]) => {
+          resultBuffer ++= instList.asInstanceOf[List[Instruction]]
         }
-        case list: List[Instruction] =>
-          resultBuffer ++= list
+        case instBuffer: ListBuffer[_] if instBuffer.forall(_.isInstanceOf[Instruction]) => {
+          resultBuffer ++= instBuffer.asInstanceOf[ListBuffer[Instruction]]
+        }
         case _ =>
           throw new IllegalArgumentException(s"Unsupported type: ${instruction.getClass}")
       }
