@@ -102,16 +102,17 @@ object generator {
       symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] =
     stmt match {
-      case Skip         => lb()
-      case Exit(expr)   => genExit(expr, symTable)
-      case Return(expr) => lb(
-        genExpr(expr, symTable),
-        Ret
-      )
+      case Skip       => lb()
+      case Exit(expr) => genExit(expr, symTable)
+      case Return(expr) =>
+        lb(
+          genExpr(expr, symTable),
+          Ret
+        )
       case Print(expr)   => genPrintStmt(symTable, expr)
       case PrintLn(expr) => genPrintStmt(symTable, expr) += CallAsm(Label("_println"))
       case Read(lval)    => genReadStmt(symTable, lval)
-      case _            => lb() // TODO
+      case _             => lb() // TODO
     }
 
   private def genReadStmt(symTable: SymbolTable[Dest], lval: LVal): ListBuffer[Instruction] = {
@@ -127,11 +128,11 @@ object generator {
       genExpr(expr, symTable),
       Mov(Eax(Size64), Edi(Size64)),
       expr.typ.get match {
-        case CharType => CallAsm(Label("_printc"))
-        case IntType => CallAsm(Label("_printi"))
+        case CharType                         => CallAsm(Label("_printc"))
+        case IntType                          => CallAsm(Label("_printi"))
         case StringType | ArrayType(CharType) => CallAsm(Label("_prints"))
-        case BoolType => CallAsm(Label("_printb"))
-        case _ => ???
+        case BoolType                         => CallAsm(Label("_printb"))
+        case _                                => ???
       }
     )
   }
@@ -139,7 +140,8 @@ object generator {
   private def genExit(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
     lb(
       genExpr(expr, symTable),
-      Mov(Eax(), Edi()),
+      Pop(Eax(Size64)),
+      Mov(Eax(Size64), Edi(Size64)),
       CallAsm(Label("_exit")),
       Mov(Immediate(0), Eax())
     )
@@ -148,7 +150,7 @@ object generator {
 
   private def genExpr(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
     expr match {
-      case Integer(i) => Mov(Immediate(i.toLong), Eax())
+      case Integer(i)    => Mov(Immediate(i.toLong), Eax())
       case StringAtom(s) => Mov(Address(Rip, Label(s".L.str${stringLiters(s)}")), Eax(Size64))
     }
   )
@@ -157,13 +159,15 @@ object generator {
 
   private def genDataSection(data: (String, String)*): ListBuffer[Instruction] = lb(
     Directive("section .data"),
-    lb(data.map(
-      kv => lb(
-        Directive(s"int ${kv._1.length}"),
-        Label(kv._2),
-        Directive(s"asciz \"${kv._1}\"")
-      )
-    ) : _*),
+    lb(
+      data.map(kv =>
+        lb(
+          Directive(s"int ${kv._1.length}"),
+          Label(kv._2),
+          Directive(s"asciz \"${kv._1}\"")
+        )
+      ): _*
+    ),
     Directive("text")
   )
 
@@ -214,7 +218,7 @@ object generator {
       Label(".printb_true"),
       Lea(Address(Rip, Label(".printb_true_lit")), Edi(Size64)),
       Label(".printb_end"),
-      CallAsm(Label("_prints")),
+      CallAsm(Label("_prints"))
     )
     graph ++= genFuncBody(List.empty, printBody)
   }
