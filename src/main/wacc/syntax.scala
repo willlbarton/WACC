@@ -11,7 +11,7 @@ sealed trait ScopedBody extends SymbolTableObj {
 }
 
 // Main program
-final case class Program(functions: List[Func], body: List[Stmt])
+final case class Program(functions: List[Func], body: List[Stmt]) extends ScopedBody
 
 // <func>
 final case class Func(t: Type, ident: Ident, params: List[Param], body: List[Stmt])

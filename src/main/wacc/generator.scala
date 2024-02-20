@@ -34,25 +34,26 @@ object generator {
     val instructions = lb(
       Directive("globl main"),
       genDataSection(stringLiters.view.mapValues(i => s".L.str$i").toSeq: _*),
-      program.functions.map(x => genFunc(x, SymbolTable(None))),
+      program.functions.map(x => genFunc(x, SymbolTable(None), Allocator(x.vars))),
       Label("main")
     )
 
     val mainSymTable: SymbolTable[Dest] = SymbolTable(None)
+    val allocator = Allocator(program.vars)
     val mainBody = lb(
-      program.body.flatMap(x => genStmt(x, mainSymTable)),
+      program.body.flatMap(x => genStmt(x, mainSymTable, allocator)),
       Mov(Immediate(0), Eax(Size64))
     )
 
-    instructions ++= lb(genFuncBody(List.empty, mainBody), Label("_exit"))
+    instructions ++= lb(genNewScope(mainBody, program.vars), Ret, Label("_exit"))
 
     val exitBody: ListBuffer[Instruction] = lb(
       // Align stack pointer to 16 bytes
       AndAsm(Immediate(-16), Rsp),
       CallAsm(Label("exit@plt"))
     )
-    instructions ++= lb(genFuncBody(List.empty, exitBody))
     instructions ++= lb(
+      genNewScope(exitBody),
       genPrint(stringType, "%.*s"),
       genPrint(intType, "%d"),
       genPrint(printlnType, ""),
@@ -72,41 +73,50 @@ object generator {
     instructions
   }
 
-  private def genFunc(func: Func, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
-    ListBuffer.empty // TODO
+  private def genFunc(
+    func: Func,
+    symTable: SymbolTable[Dest],
+    allocator: Allocator
+  ): ListBuffer[Instruction] = ListBuffer.empty // TODO
 
-  private def genFuncBody(
-      toSave: List[Reg],
-      body: ListBuffer[Instruction]
+  private def genNewScope(
+    body: ListBuffer[Instruction],
+    toSave: List[Reg],
+    toAllocate: List[SymbolTableObj]
   ): ListBuffer[Instruction] = {
-    lb(
-      saveRegs(toSave),
-      body,
-      restoreRegs(toSave),
-      Ret
-    )
-  }
-
-  // save the stack pointer to enter a new scope
-  private def saveRegs(regs: List[Reg]): ListBuffer[Instruction] =
+    val size = toAllocate.map(x => x.typ.get match {
+      case CharType | BoolType => 4
+      case IntType => 4
+      case StringType | ArrayType(_) | PairType(_,_) => 8
+    }).sum
     lb(
       Push(Rbp),
-      regs.map(r => Push(r)),
-      Mov(Rsp, Rbp) // Set stack pointer to base pointer
-    )
-
-  // restore the stack pointer to exit a scope
-  private def restoreRegs(regs: List[Reg]): ListBuffer[Instruction] = {
-    lb(
+      toSave.map(r => Push(r)),
+      Mov(Rsp, Rbp),
+      SubAsm(Immediate(size), Rsp),
+      body,
+      AddAsm(Immediate(size), Rsp),
       Mov(Rbp, Rsp),
-      regs.map(r => Pop(r)),
+      toSave.map(r => Pop(r)),
       Pop(Rbp)
     )
+  }
+  private def genNewScope(body: ListBuffer[Instruction]): ListBuffer[Instruction] = {
+    genNewScope(body, List.empty, List.empty)
+  }
+  private def genNewScope(
+    body: ListBuffer[Instruction],
+    vars: List[SymbolTableObj]
+  ): ListBuffer[Instruction] = {
+    val toSave = Allocator.NON_PARAM_REGS.take(vars.size)
+    val toAllocate = vars.drop(Allocator.NON_PARAM_REGS.size)
+    genNewScope(body, toSave, toAllocate)
   }
 
   private def genStmt(
       stmt: Stmt,
-      symTable: SymbolTable[Dest]
+      symTable: SymbolTable[Dest],
+      allocator: Allocator
   ): ListBuffer[Instruction] =
     stmt match {
       case Skip       => lb()
@@ -119,14 +129,55 @@ object generator {
       case Print(expr)   => genPrintStmt(symTable, expr)
       case PrintLn(expr) => genPrintStmt(symTable, expr) += CallAsm(Label("_printn"))
       case Read(lval)    => genReadStmt(symTable, lval)
+      case Decl(t, _, value) => genDeclStmt(t, value, symTable, allocator)
+      case Asgn(lval, value) => genAsgnStmt(lval, value, symTable)
       case _             => lb() // TODO
+    }
+
+  private def genDeclStmt(
+      t: Type,
+      value: RVal,
+      symTable: SymbolTable[Dest],
+      allocator: Allocator
+  ): ListBuffer[Instruction] = lb(
+    genRval(value, symTable),
+    Pop(Eax(Size64)),
+    Mov(Eax(Size64), allocator.allocateSpace(t))
+  )
+
+  private def genAsgnStmt(
+      lval: LVal,
+      value: RVal,
+      symTable: SymbolTable[Dest]
+  ): ListBuffer[Instruction] = {
+    val dest = lval match {
+      case id: Ident => symTable(id)
+      case _         => ???
+    }
+    lb(
+      genRval(value, symTable),
+      Pop(Eax(Size64)),
+      Mov(Eax(Size64), dest.get)
+    )
+  }
+
+  private def genRval(value: RVal, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
+    value match {
+      case e: Expr => genExpr(e, symTable)
+      case _ => ???
     }
 
   private def genReadStmt(symTable: SymbolTable[Dest], lval: LVal): ListBuffer[Instruction] = {
     lb(
       genLVal(lval, symTable),
       Mov(Eax(Size64), Edi(Size64)),
-      CallAsm(Label("_readi"))
+      lval match {
+        case id: Ident => id.typ.get match {
+          case CharType => CallAsm(Label("_readc"))
+          case IntType  => CallAsm(Label("_readi"))
+        }
+        case _ => ???
+      }
     )
   }
 
@@ -314,7 +365,7 @@ object generator {
 
     printBody += Mov(Immediate(0), Edi(Size64))
     printBody += CallAsm(Label("fflush@plt"))
-    graph ++= genFuncBody(List.empty, printBody)
+    graph ++= lb(genNewScope(printBody), Ret)
   }
 
   private val genPrintBool: ListBuffer[Instruction] = {
@@ -332,7 +383,7 @@ object generator {
       Label(".printb_end"),
       CallAsm(Label("_prints"))
     )
-    graph ++= genFuncBody(List.empty, printBody)
+    graph ++= lb(genNewScope(printBody), Ret)
   }
 
   private def genRead(typ: Char, format: String): ListBuffer[Instruction] = {
@@ -351,7 +402,7 @@ object generator {
       CallAsm(Label("scanf@plt")),
       Mov(Address(Rsp), Eax(size))
     )
-    instructions ++= genFuncBody(List.empty, readBody)
+    instructions ++= lb(genNewScope(readBody), Ret)
   }
 
   private def genErr(name: String, msg: String): ListBuffer[Instruction] = {

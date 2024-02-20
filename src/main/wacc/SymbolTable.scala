@@ -5,7 +5,7 @@ import scala.collection.mutable
 // Symbol table used in the semantic analyser
 case class SymbolTable[T](parent: Option[SymbolTable[T]]) {
   // The table is a map of identifiers to their corresponding AST node
-  private val table: mutable.Map[Ident, T] = mutable.HashMap()
+  val table: mutable.Map[Ident, T] = mutable.HashMap()
 
   // Adds a new identifier to the current scope
   def put(key: Ident, obj: T): Unit = table += key -> obj
@@ -24,5 +24,5 @@ case class SymbolTable[T](parent: Option[SymbolTable[T]]) {
   // Clears the current scope
   def clear(): Unit = table.clear()
 
-  val vars: List[T] = table.values.toList
+  def vars: List[T] = table.values.toList
 }
