@@ -119,18 +119,24 @@ object generator {
       case Print(expr)   => genPrintStmt(symTable, expr)
       case PrintLn(expr) => genPrintStmt(symTable, expr) += CallAsm(Label("_printn"))
       case Read(lval)    => genReadStmt(symTable, lval)
-      case Decl(t, ident, value) => genDeclStmt(symTable, t, ident, value)
+      case Decl(t, _, value) => genDeclStmt(t, value, symTable, allocator)
       case _             => lb() // TODO
     }
 
   private def genDeclStmt(
-      symTable: SymbolTable[Dest],
       t: Type,
-      ident: Ident,
-      value: RVal
-  ): ListBuffer[Instruction] = ???
+      value: RVal,
+      symTable: SymbolTable[Dest],
+      allocator: Allocator
+  ): ListBuffer[Instruction] = lb(
+    genRval(value, symTable),
+    Pop(Eax(Size64)),
+    Mov(Eax(Size64), allocator.allocateSpace(t))
+  )
 
-  private def genRval(value: RVal, symTable: SymbolTable[Dest]) = ???
+  private def genRval(value: RVal, symTable: SymbolTable[Dest]) = value match {
+    case e: Expr   => genExpr(e, symTable)
+  }
 
   private def genReadStmt(symTable: SymbolTable[Dest], lval: LVal): ListBuffer[Instruction] = {
     lb(
