@@ -156,10 +156,22 @@ object generator {
     expr match {
       case Integer(i)    => Mov(Immediate(i.toLong), Eax())
       case StringAtom(s) => Lea(Address(Rip, Label(s".L.str${stringLiters(s)}")), Eax(Size64))
+      case Bool(value)   => Mov(Immediate(if (value) 1 else 0), Eax(Size8))
+      case Character(c)  => Mov(Immediate(c.toLong), Eax(Size64))
+
+      case ArrayElem(ident, exprs) => ???
+      case Ident(name)             => ???
+      case Null                    => ???
+
       case BinaryApp(op, left, right) => genBinaryApp(op, left, right, symTable)
-      case _                          => ???
+      case UnaryApp(op, expr)         => ???
+
+      case BracketedExpr(expr) => genExpr(expr, symTable)
+
     },
-    Push(Eax(Size64))
+
+    // If the expression is a bracketed expression, the result will already be pushed to the stack
+    if (expr.isInstanceOf[BracketedExpr]) lb() else Push(Eax(Size64))
   )
 
   private def genBinaryApp(
@@ -251,7 +263,7 @@ object generator {
       Label("_printb")
     )
     val printBody: ListBuffer[Instruction] = lb(
-      Cmp(Immediate(0), Edi(Size8)),
+      Cmp(Immediate(1), Edi(Size8)),
       Je(Label(".printb_true")),
       Lea(Address(Rip, Label(".printb_false_lit")), Edi(Size64)),
       Jmp(Label(".printb_end")),
