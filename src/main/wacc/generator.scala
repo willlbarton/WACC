@@ -183,6 +183,11 @@ object generator {
           SubAsm(Ebx(Size32), Eax(Size32)),
           Jo(Label("_errOverflow"))
         )
+      case Mul =>
+        lb(
+          Imul(Ebx(Size32), Eax(Size32)),
+          Jo(Label("_errOverflow"))
+        )
       case _ => ???
     },
     Movslq(Eax(Size32), Eax(Size64))
