@@ -161,7 +161,13 @@ object generator {
     lb(
       genLVal(lval, symTable),
       Mov(Eax(Size64), Edi(Size64)),
-      CallAsm(Label("_readi"))
+      lval match {
+        case id: Ident => id.typ.get match {
+          case CharType => CallAsm(Label("_readc"))
+          case IntType  => CallAsm(Label("_readi"))
+        }
+        case _ => ???
+      }
     )
   }
 
