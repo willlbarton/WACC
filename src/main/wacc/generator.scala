@@ -45,15 +45,15 @@ object generator {
       Mov(Immediate(0), Eax(Size64))
     )
 
-    instructions ++= lb(genFuncBody(List.empty, mainBody), Label("_exit"))
+    instructions ++= lb(genNewScope(mainBody, program.vars), Ret, Label("_exit"))
 
     val exitBody: ListBuffer[Instruction] = lb(
       // Align stack pointer to 16 bytes
       AndAsm(Immediate(-16), Rsp),
       CallAsm(Label("exit@plt"))
     )
-    instructions ++= lb(genFuncBody(List.empty, exitBody))
     instructions ++= lb(
+      genNewScope(exitBody),
       genPrint(stringType, "%.*s"),
       genPrint(intType, "%d"),
       genPrint(printlnType, ""),
@@ -74,33 +74,39 @@ object generator {
     allocator: Allocator
   ): ListBuffer[Instruction] = ListBuffer.empty // TODO
 
-  private def genFuncBody(
-      toSave: List[Reg],
-      body: ListBuffer[Instruction]
+  private def genNewScope(
+    body: ListBuffer[Instruction],
+    toSave: List[Reg],
+    toAllocate: List[SymbolTableObj]
   ): ListBuffer[Instruction] = {
-    lb(
-      saveRegs(toSave),
-      body,
-      restoreRegs(toSave),
-      Ret
-    )
-  }
-
-  // save the stack pointer to enter a new scope
-  private def saveRegs(regs: List[Reg]): ListBuffer[Instruction] =
+    val size = toAllocate.map(x => x.typ.get match {
+      case CharType | BoolType => 4
+      case IntType => 4
+      case StringType | ArrayType(_) | PairType(_,_) => 8
+    }).sum
     lb(
       Push(Rbp),
-      regs.map(r => Push(r)),
-      Mov(Rsp, Rbp) // Set stack pointer to base pointer
-    )
-
-  // restore the stack pointer to exit a scope
-  private def restoreRegs(regs: List[Reg]): ListBuffer[Instruction] = {
-    lb(
+      toSave.map(r => Push(r)),
+      Mov(Rsp, Rbp),
+      SubAsm(Immediate(size), Rsp),
+      body,
+      AddAsm(Immediate(size), Rsp),
       Mov(Rbp, Rsp),
-      regs.map(r => Pop(r)),
+      toSave.map(r => Pop(r)),
       Pop(Rbp)
     )
+  }
+  private def genNewScope(body: ListBuffer[Instruction]): ListBuffer[Instruction] = {
+    genNewScope(body, List.empty, List.empty)
+  }
+  private def genNewScope(
+    body: ListBuffer[Instruction],
+    vars: List[SymbolTableObj]
+  ): ListBuffer[Instruction] = {
+    val numRegs = Math.min(Allocator.NON_PARAM_REGS.size, vars.size)
+    val toSave = Allocator.NON_PARAM_REGS.take(numRegs)
+    val toAllocate = vars.drop(numRegs)
+    genNewScope(body, toSave, toAllocate)
   }
 
   private def genStmt(
@@ -283,7 +289,7 @@ object generator {
 
     printBody += Mov(Immediate(0), Edi(Size64))
     printBody += CallAsm(Label("fflush@plt"))
-    graph ++= genFuncBody(List.empty, printBody)
+    graph ++= lb(genNewScope(printBody), Ret)
   }
 
   private val genPrintBool: ListBuffer[Instruction] = {
@@ -301,7 +307,7 @@ object generator {
       Label(".printb_end"),
       CallAsm(Label("_prints"))
     )
-    graph ++= genFuncBody(List.empty, printBody)
+    graph ++= lb(genNewScope(printBody), Ret)
   }
 
   private def genRead(typ: Char, format: String): ListBuffer[Instruction] = {
@@ -320,7 +326,7 @@ object generator {
       CallAsm(Label("scanf@plt")),
       Mov(Address(Rsp), Eax(size))
     )
-    instructions ++= genFuncBody(List.empty, readBody)
+    instructions ++= lb(genNewScope(readBody), Ret)
   }
 
   private def genErr(name: String, msg: String): ListBuffer[Instruction] = {

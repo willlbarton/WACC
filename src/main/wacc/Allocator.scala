@@ -31,7 +31,7 @@ class Allocator(reservedSpace: Int) {
 object Allocator {
   private val PARAM_REGS: List[Reg] =
     List(Edi(Size64), Esi(Size64), Edx(Size64), Ecx(Size64), R8(Size64), R9(Size64))
-  private val NON_PARAM_REGS: List[Reg] =
+  val NON_PARAM_REGS: List[Reg] =
     List(R10(Size64), R11(Size64), R12(Size64), R13(Size64), R14(Size64), R15(Size64))
 
   def apply(vars: List[SymbolTableObj]): Allocator = {
