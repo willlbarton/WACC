@@ -41,7 +41,8 @@ object generator {
 
     val mainSymTable: SymbolTable[Dest] = SymbolTable(None)
     val mainBody = lb(
-      program.body.flatMap(x => genStmt(x, mainSymTable))
+      program.body.flatMap(x => genStmt(x, mainSymTable)),
+      Mov(Immediate(0), Eax(Size64))
     )
 
     instructions ++= lb(genFuncBody(List.empty, mainBody), Label("_exit"))
