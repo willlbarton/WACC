@@ -54,6 +54,7 @@ case object Cltd extends Instruction
 final case class Directive(name: String) extends Instruction
 final case class Label(name: String) extends Instruction with MemOp
 final case class Mov(op: Operand, dest: Dest) extends Instruction
+final case class Movs(op: Operand, dest: Dest) extends Instruction
 final case class Pop(dest: Dest) extends Instruction
 final case class Push(op: Operand) extends Instruction
 final case class CallAsm(label: Label) extends Instruction
@@ -73,8 +74,6 @@ final case class Jo(label: Label) extends Instruction
 final case class Jne(label: Label) extends Instruction
 final case class Idiv(op: Operand) extends Instruction
 final case class Imul(op1: Operand, dest: Dest) extends Instruction
-
-final case class Movs(op: Operand, dest: Dest) extends Instruction
 
 trait Formatter {
   def apply(instruction: Instruction): String

@@ -61,7 +61,8 @@ object generator {
       genPrintBool,
       genRead(intType, "%d"),
       genRead(charType, "%c"),
-      genErr("errOverflow", "fatal error: integer overflow or underflow occurred")
+      genErr("errOverflow", "fatal error: integer overflow or underflow occurred"),
+      genErr("errDivZero", "fatal error: division or modulo by zero")
     )
 
     instructions
@@ -204,7 +205,19 @@ object generator {
           SetAsm(Eax(Size8), op.asInstanceOf[Comparison]),
           Movs(Eax(Size8), Eax(Size64))
         )
-      case Mod => ???
+      case Mod =>
+        lb(
+          Cmp(Immediate(0), Ebx(Size32)),
+          Je(Label("_errDivZero")),
+          // As Cltd will write into edx?? This isn't in reference compiler I just did it.
+          Push(Edx(Size64)),
+          Cltd,
+          Idiv(Ebx(Size32)),
+          Mov(Edx(Size32), Eax(Size32)),
+          Movs(Eax(Size32), Eax(Size64)),
+          Pop(Edx(Size64)) // Pop back
+        )
+
       case Or | And =>
         lb(
           Cmp(Immediate(1), Eax(Size64)),
