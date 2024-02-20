@@ -107,7 +107,7 @@ object x86Formatter extends Formatter {
         indent ++ s"add${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
       case SubAsm(op1, dest) =>
         indent ++ s"sub${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
-      case Cmp(op1, op2) => indent ++ s"cmp${instructionPostfix(op1)}  ${this(op1)}, ${this(op2)}"
+      case Cmp(op1, op2) => indent ++ s"cmp${instructionPostfix(op2)}  ${this(op1)}, ${this(op2)}"
       case Jmp(label)    => indent ++ s"jmp   ${label.name}"
       case Je(label)     => indent ++ s"je    ${label.name}"
       case Jl(label)     => indent ++ s"jl    ${label.name}"
