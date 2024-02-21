@@ -10,15 +10,7 @@ object builtInFunctions {
     toSave: List[Reg],
     toAllocate: List[SymbolTableObj]
   ): ListBuffer[Instruction] = {
-    val size = toAllocate
-      .map(x =>
-        x.typ.get match {
-          case CharType | BoolType                        => 4
-          case IntType                                    => 4
-          case StringType | ArrayType(_) | PairType(_, _) => 8
-        }
-      )
-      .sum
+    val size = toAllocate.map(x => Allocator.getTypeWidth(x.typ.get)).sum
     lb(
       Push(Rbp),
       toSave.map(r => Push(r)),
@@ -84,13 +76,13 @@ object builtInFunctions {
     printBody += Mov(Immediate(0), Eax(Size8))
 
     if (typ == printlnType) {
-      printBody += CallAsm(Label("puts@plt"))
+      printBody += CallAsm(provided.puts)
     } else {
-      printBody += CallAsm(Label("printf@plt"))
+      printBody += CallAsm(provided.printf)
     }
 
     printBody += Mov(Immediate(0), Edi(Size64))
-    printBody += CallAsm(Label("fflush@plt"))
+    printBody += CallAsm(provided.fflush)
     graph ++= lb(genNewScope(printBody), Ret)
   }
 
@@ -125,7 +117,7 @@ object builtInFunctions {
       Lea(Address(Rsp), Esi(Size64)),
       Lea(Address(Rip, Label(s".read${typ}_format")), Edi(Size64)),
       Mov(Immediate(0), Eax(Size8)),
-      CallAsm(Label("scanf@plt")),
+      CallAsm(provided.scanf),
       Mov(Address(Rsp), Eax(size))
     )
     instructions ++= lb(genNewScope(readBody), Ret)
@@ -142,4 +134,12 @@ object builtInFunctions {
       CallAsm(Label("_exit"))
     )
   }
+}
+
+object provided {
+  val puts: Label = Label("puts@plt")
+  val printf: Label = Label("printf@plt")
+  val fflush: Label = Label("fflush@plt")
+  val scanf: Label = Label("scanf@plt")
+  val malloc: Label = Label("malloc@plt")
 }

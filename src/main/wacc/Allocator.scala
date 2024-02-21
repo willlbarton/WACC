@@ -37,11 +37,13 @@ object Allocator {
 
   def apply(vars: List[SymbolTableObj]): Allocator = {
     val stackVars = vars.drop(NON_PARAM_REGS.length)
-    val reservedSpace = stackVars.map(x => x.typ.get match {
-      case CharType | BoolType => byteSize
-      case IntType => intSize
-      case StringType | ArrayType(_) | PairType(_,_) => ptrSize
-    }).sum
+    val reservedSpace = stackVars.map(x => getTypeWidth(x.typ.get)).sum
     new Allocator(reservedSpace)
+  }
+
+  def getTypeWidth(t: Type): Int = t match {
+    case CharType | BoolType => byteSize
+    case IntType => intSize
+    case StringType | ArrayType(_) | PairType(_, _) => ptrSize
   }
 }

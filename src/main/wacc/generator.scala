@@ -144,11 +144,7 @@ object generator {
    a: ArrayLiter,
    symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] = {
-    val elemSize = t match {
-      case CharType | BoolType => byteSize
-      case IntType => intSize
-      case StringType | ArrayType(_) | PairType(_, _) => ptrSize
-    }
+    val elemSize = Allocator.getTypeWidth(t)
     val size = intSize + a.elems.length * elemSize
     var position = -elemSize
     lb(
