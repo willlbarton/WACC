@@ -26,10 +26,8 @@ object builtInFunctions {
     genErr("errOverflow", "fatal error: integer overflow or underflow occurred"),
     genErr("errDivZero", "fatal error: division or modulo by zero"),
     genErr("errOutOfMemory", "fatal error: out of memory"),
-    genErr(
-      "errBadChar",
-      "fatal error: int %d is not ascii character 0-127"
-    ) // TODO: fix this so populates %d in err message
+    genErr1Arg("errBadChar", "fatal error: int %d is not ascii character 0-127"),
+    genErr1Arg("errOutOfBounds", "fatal error: array index %d out of bounds")
   )
 
   def genNewScope(
@@ -167,6 +165,22 @@ object builtInFunctions {
       Lea(Address(Rip, Label(s".$name")), Edi(Size64)),
       CallAsm(Label("_prints")),
       Mov(Immediate(-1), Eax(Size64)),
+      CallAsm(provided.exit),
+    )
+  }
+
+  // Should be called with format string argument in %rsi
+  private def genErr1Arg(name: String, msg: String): ListBuffer[Instruction] = {
+    lb(
+      genDataSection(s"$msg\\n" -> s".$name"),
+      Label(s"_$name"),
+      AddAsm(Immediate(-16), Rsp),
+      Lea(Address(Rip, Label(s".$name")), Edi(Size64)),
+      Mov(Immediate(0), Eax(Size8)),
+      CallAsm(provided.printf),
+      Mov(Immediate(0), Edi(Size64)),
+      CallAsm(provided.fflush),
+      Mov(Immediate(-1), Edi(Size8)),
       CallAsm(provided.exit),
     )
   }
