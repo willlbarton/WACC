@@ -32,7 +32,7 @@ class Allocator(reservedSpace: Int) {
 In x86-64 assembly, r12, r13, r14, r15, rbx, rsp, and rbp are callee-saved registers.
 Rax, rdi, rsi, rdx, rcx, r8, r9, r10, and r11 are caller-saved registers.
 
-Functions like printf@plt overwrite r11 and r12
+Functions like printf@plt overwrite r10 and r11
  */
 object Allocator {
   private val PARAM_REGS: List[Reg] =
