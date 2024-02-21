@@ -28,11 +28,19 @@ class Allocator(reservedSpace: Int) {
   }
 }
 
+/*
+In x86-64 assembly, r12, r13, r14, r15, rbx, rsp, and rbp are callee-saved registers.
+Rax, rdi, rsi, rdx, rcx, r8, r9, r10, and r11 are caller-saved registers.
+
+Functions like printf@plt overwrite r11 and r12
+ */
 object Allocator {
   private val PARAM_REGS: List[Reg] =
     List(Edi(Size64), Esi(Size64), Edx(Size64), Ecx(Size64), R8(Size64), R9(Size64))
   val NON_PARAM_REGS: List[Reg] =
     List( /*R10(Size64), R11(Size64),*/ R12(Size64), R13(Size64), R14(Size64), R15(Size64))
+
+  var label = 0
 
   def apply(vars: List[SymbolTableObj]): Allocator = {
     val stackVars = vars.drop(NON_PARAM_REGS.length)
@@ -46,5 +54,11 @@ object Allocator {
       )
       .sum
     new Allocator(reservedSpace)
+  }
+
+  def allocateLabel: Label = {
+    val oldLabel = label;
+    label += 1
+    Label(s".L$oldLabel")
   }
 }
