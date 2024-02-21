@@ -47,32 +47,11 @@ object generator {
       Mov(Immediate(0), Eax(Size64))
     )
 
-    instructions ++= lb(genNewScope(mainBody, program.vars), Ret, Label("_exit"))
-
-    val exitBody: ListBuffer[Instruction] = lb(
-      // Align stack pointer to 16 bytes
-      AndAsm(Immediate(-16), Rsp),
-      CallAsm(Label("exit@plt"))
-    )
     instructions ++= lb(
-      genNewScope(exitBody),
-      genPrint(stringType, "%.*s"),
-      genPrint(intType, "%d"),
-      genPrint(printlnType, ""),
-      genPrint(charType, "%c"),
-      genPrint(ptrType, "%p"),
-      genPrintBool,
-      genRead(intType, "%d"),
-      genRead(charType, "%c"),
-      genErr("errOverflow", "fatal error: integer overflow or underflow occurred"),
-      genErr("errDivZero", "fatal error: division or modulo by zero"),
-      genErr(
-        "errBadChar",
-        "fatal error: int %d is not ascii character 0-127"
-      ) // TODO: fix this so populates %d in err message
+      genNewScope(mainBody, program.vars),
+      Ret,
+      genFunctions
     )
-
-    instructions
   }
 
   private def genFunc(

@@ -5,6 +5,28 @@ import src.main.wacc.generator.lb
 
 object builtInFunctions {
 
+  private val maskRsp = AndAsm(Immediate(-16), Rsp)
+
+  lazy val genFunctions: ListBuffer[Instruction] = lb(
+    genExitFunc,
+    genPrint(stringType, "%.*s"),
+    genPrint(intType, "%d"),
+    genPrint(printlnType, ""),
+    genPrint(charType, "%c"),
+    genPrint(ptrType, "%p"),
+    genPrintBool,
+    genRead(intType, "%d"),
+    genRead(charType, "%c"),
+    genMalloc,
+    genErr("errOverflow", "fatal error: integer overflow or underflow occurred"),
+    genErr("errDivZero", "fatal error: division or modulo by zero"),
+    genErr("errOutOfMemory", "fatal error: out of memory"),
+    genErr(
+      "errBadChar",
+      "fatal error: int %d is not ascii character 0-127"
+    ) // TODO: fix this so populates %d in err message
+  )
+
   def genNewScope(
     body: ListBuffer[Instruction],
     toSave: List[Reg],
@@ -40,7 +62,7 @@ object builtInFunctions {
     lb(
       data.map(kv =>
         lb(
-          Directive(s"int ${kv._1.length}"),
+          Directive(s"int ${kv._1.length - kv._1.count(_ == '\\')}"),
           Label(kv._2),
           Directive(s"asciz \"${kv._1}\"")
         )
@@ -49,17 +71,25 @@ object builtInFunctions {
     Directive("text")
   )
 
-  lazy val stringType = 's'
-  lazy val intType = 'i'
-  lazy val charType = 'c'
-  lazy val printlnType = 'n'
-  lazy val ptrType = 'p'
-  def genPrint(typ: Char, format: String): ListBuffer[Instruction] = {
+  private val genExitFunc: ListBuffer[Instruction] = lb(
+    Label("_exit"),
+    genNewScope(lb(
+      maskRsp,
+      CallAsm(provided.exit)
+    ))
+  )
+
+  private lazy val stringType = 's'
+  private lazy val intType = 'i'
+  private lazy val charType = 'c'
+  private lazy val printlnType = 'n'
+  private lazy val ptrType = 'p'
+  private def genPrint(typ: Char, format: String): ListBuffer[Instruction] = {
     val graph: ListBuffer[Instruction] = lb(
       genDataSection(format -> s".print${typ}_format"),
       Label(s"_print$typ")
     )
-    val printBody: ListBuffer[Instruction] = lb(AndAsm(Immediate(-16), Rsp))
+    val printBody: ListBuffer[Instruction] = lb(maskRsp)
 
     if (typ == stringType) {
       printBody += Mov(Edi(Size64), Edx(Size64))
@@ -86,7 +116,7 @@ object builtInFunctions {
     graph ++= lb(genNewScope(printBody), Ret)
   }
 
-  val genPrintBool: ListBuffer[Instruction] = {
+  private val genPrintBool: ListBuffer[Instruction] = {
     val graph: ListBuffer[Instruction] = lb(
       genDataSection("true" -> ".printb_true_lit", "false" -> ".printb_false_lit"),
       Label("_printb")
@@ -104,14 +134,14 @@ object builtInFunctions {
     graph ++= lb(genNewScope(printBody), Ret)
   }
 
-  def genRead(typ: Char, format: String): ListBuffer[Instruction] = {
+  private def genRead(typ: Char, format: String): ListBuffer[Instruction] = {
     val instructions: ListBuffer[Instruction] = lb(
       genDataSection(format -> s".read${typ}_format"),
       Label(s"_read$typ")
     )
     val size = if (typ == intType) Size32 else Size8
     val readBody: ListBuffer[Instruction] = lb(
-      AndAsm(Immediate(-16), Rsp),
+      maskRsp,
       SubAsm(Immediate(16), Rsp),
       Mov(Address(Rsp), Edi(size)),
       Lea(Address(Rsp), Esi(Size64)),
@@ -123,7 +153,7 @@ object builtInFunctions {
     instructions ++= lb(genNewScope(readBody), Ret)
   }
 
-  def genErr(name: String, msg: String): ListBuffer[Instruction] = {
+  private def genErr(name: String, msg: String): ListBuffer[Instruction] = {
     lb(
       genDataSection(s"$msg\\n" -> s".$name"),
       Label(s"_$name"),
@@ -131,12 +161,24 @@ object builtInFunctions {
       Lea(Address(Rip, Label(s".$name")), Edi(Size64)),
       CallAsm(Label("_prints")),
       Mov(Immediate(-1), Eax(Size64)),
-      CallAsm(Label("_exit"))
+      CallAsm(provided.exit),
     )
+  }
+
+  private val genMalloc: ListBuffer[Instruction] = {
+    val instructions: ListBuffer[Instruction] = lb(
+      Label("_malloc"),
+      maskRsp,
+      CallAsm(provided.malloc),
+      Cmp(Immediate(0), Eax(Size64)),
+      Je(Label("_errOutOfMemory")),
+    )
+    genNewScope(instructions) += Ret
   }
 }
 
 object provided {
+  val exit: Label = Label("exit@plt")
   val puts: Label = Label("puts@plt")
   val printf: Label = Label("printf@plt")
   val fflush: Label = Label("fflush@plt")
