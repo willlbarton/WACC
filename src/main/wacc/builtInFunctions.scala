@@ -8,7 +8,7 @@ object builtInFunctions {
   private val maskRsp = AndAsm(Immediate(-16), Rsp)
 
   lazy val genFunctions: ListBuffer[Instruction] = lb(
-    genExitFunc,
+    genCall("exit", provided.exit),
     genPrint(stringType, "%.*s"),
     genPrint(intType, "%d"),
     genPrint(printlnType, ""),
@@ -18,6 +18,7 @@ object builtInFunctions {
     genRead(intType, "%d"),
     genRead(charType, "%c"),
     genMalloc,
+    genCall("free", provided.free),
     genErr("errOverflow", "fatal error: integer overflow or underflow occurred"),
     genErr("errDivZero", "fatal error: division or modulo by zero"),
     genErr("errOutOfMemory", "fatal error: out of memory"),
@@ -71,12 +72,13 @@ object builtInFunctions {
     Directive("text")
   )
 
-  private val genExitFunc: ListBuffer[Instruction] = lb(
-    Label("_exit"),
+  private def genCall(name: String, func: Label): ListBuffer[Instruction] = lb(
+    Label(s"_$name"),
     genNewScope(lb(
       maskRsp,
-      CallAsm(provided.exit)
-    ))
+      CallAsm(func)
+    )),
+    Ret
   )
 
   private lazy val stringType = 's'
@@ -165,16 +167,16 @@ object builtInFunctions {
     )
   }
 
-  private val genMalloc: ListBuffer[Instruction] = {
-    val instructions: ListBuffer[Instruction] = lb(
-      Label("_malloc"),
+  private val genMalloc: ListBuffer[Instruction] = lb (
+    Label("_malloc"),
+    genNewScope(lb(
       maskRsp,
       CallAsm(provided.malloc),
       Cmp(Immediate(0), Eax(Size64)),
       Je(Label("_errOutOfMemory")),
-    )
-    genNewScope(instructions) += Ret
-  }
+    )),
+    Ret
+  )
 }
 
 object provided {
@@ -184,4 +186,5 @@ object provided {
   val fflush: Label = Label("fflush@plt")
   val scanf: Label = Label("scanf@plt")
   val malloc: Label = Label("malloc@plt")
+  val free: Label = Label("free@plt")
 }
