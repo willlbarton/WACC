@@ -83,6 +83,7 @@ object generator {
         symTable.put(ident, dest)
         genDeclStmt(value, dest, symTable)
       case Asgn(lval, value) => genAsgnStmt(lval, value, symTable)
+      case Free(expr)        => genFreeStmt(expr, symTable)
       case _                 => lb() // TODO
     }
 
@@ -111,6 +112,14 @@ object generator {
       Mov(Eax(Size64), dest.get)
     )
   }
+
+  private def genFreeStmt(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
+    genExpr(expr, symTable),
+    Pop(Eax(Size64)),
+    Mov(Eax(Size64), Edi(Size64)),
+    SubAsm(Immediate(4), Edi(Size64)),
+    CallAsm(Label("_free"))
+  )
 
   private def genRval(value: RVal, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
     value match {
@@ -141,7 +150,7 @@ object generator {
             Mov(Eax(Size64), Address(R11(Size64), Immediate(position))),
           )
       },
-      Mov(R11(Size64), Eax(Size64))
+      Push(R11(Size64))
     )
   }
 
