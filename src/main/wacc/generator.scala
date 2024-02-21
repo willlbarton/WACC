@@ -291,7 +291,7 @@ object generator {
           if (op == Or) Je(Label(".L0")) else Jne(Label(".L0")),
           Cmp(Immediate(1), Ebx(Size64)),
           Label(".L0"),
-          Set(Eax(Size8), Eq),
+          SetAsm(Eax(Size8), Eq),
           Movs(Eax(Size8), Eax(Size64))
         )
     }
