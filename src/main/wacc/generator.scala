@@ -2,6 +2,7 @@ package src.main.wacc
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
+import src.main.wacc.constants._
 
 object generator {
 
@@ -97,9 +98,9 @@ object generator {
       Push(Rbp),
       toSave.map(r => Push(r)),
       Mov(Rsp, Rbp),
-      SubAsm(Immediate(size), Rsp),
+      SubAsm(Immediate(size.toLong), Rsp),
       body,
-      AddAsm(Immediate(size), Rsp),
+      AddAsm(Immediate(size.toLong), Rsp),
       Mov(Rbp, Rsp),
       toSave.map(r => Pop(r)),
       Pop(Rbp)
@@ -133,13 +134,12 @@ object generator {
       case Print(expr)   => genPrintStmt(symTable, expr)
       case PrintLn(expr) => genPrintStmt(symTable, expr) += CallAsm(Label("_printn"))
       case Read(lval)    => genReadStmt(symTable, lval)
-      case Decl(t, ident, value) => {
+      case Decl(t, ident, value) =>
         // We can allocate the register before we generate rval as the stack machine will
         // only use %eax and %ebx, which are protected
         val dest = allocator.allocateSpace(t)
         symTable.put(ident, dest)
         genDeclStmt(value, dest, symTable)
-      }
       case Asgn(lval, value) => genAsgnStmt(lval, value, symTable)
       case _                 => lb() // TODO
     }
@@ -173,8 +173,40 @@ object generator {
   private def genRval(value: RVal, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
     value match {
       case e: Expr => genExpr(e, symTable)
-      case _       => ???
+      case a: ArrayLiter => genArray(value.typ.get, a, symTable)
     }
+
+  private def genArray(
+   t: Type,
+   a: ArrayLiter,
+   symTable: SymbolTable[Dest]
+  ): ListBuffer[Instruction] = {
+    val elemSize = t match {
+      case CharType | BoolType => byteSize
+      case IntType => intSize
+      case StringType | ArrayType(_) | PairType(_, _) => ptrSize
+    }
+    val size = intSize + a.elems.length * elemSize
+    var position = -elemSize
+    lb(
+      Mov(Immediate(size), Edi()),
+      CallAsm(Label("_malloc")),
+      Mov(Immediate(a.elems.length), Address(Eax(Size64))),
+      AddAsm(Immediate(intSize), Eax(Size64)),
+      Push(Eax(Size64)),
+      a.elems.flatMap {
+        x => position += elemSize
+          lb(
+            genExpr(x, symTable),
+            Pop(Eax(Size64)),
+            Pop(Ebx(Size64)),
+            Mov(Eax(Size64), Address(Ebx(Size64), Immediate(position))),
+            Push(Ebx(Size64))
+          )
+      },
+      Pop(Eax(Size64))
+    )
+  }
 
   private def genReadStmt(symTable: SymbolTable[Dest], lval: LVal): ListBuffer[Instruction] = {
     lb(

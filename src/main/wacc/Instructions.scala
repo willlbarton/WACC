@@ -277,3 +277,9 @@ object x86Formatter extends Formatter {
   }
 
 }
+
+object constants {
+  val byteSize: Int = 1
+  val intSize: Int = 4
+  val ptrSize: Int = 8
+}

@@ -1,6 +1,7 @@
 package src.main.wacc
 
 import scala.collection.mutable.ListBuffer
+import src.main.wacc.constants._
 
 class Allocator(reservedSpace: Int) {
 
@@ -13,10 +14,10 @@ class Allocator(reservedSpace: Int) {
     } else {
       val currentRelativeBP = relativeToBasePointer
       relativeToBasePointer += (size match {
-        case Size8 => 1
+        case Size8 => byteSize
         case Size16 => 2
-        case Size32 => 4
-        case Size64 => 8
+        case Size32 => intSize
+        case Size64 => ptrSize
       })
       Address(Immediate(currentRelativeBP.toLong), Rbp)
     }
@@ -37,9 +38,9 @@ object Allocator {
   def apply(vars: List[SymbolTableObj]): Allocator = {
     val stackVars = vars.drop(NON_PARAM_REGS.length)
     val reservedSpace = stackVars.map(x => x.typ.get match {
-      case CharType | BoolType => 1
-      case IntType => 4
-      case StringType | ArrayType(_) | PairType(_,_) => 8
+      case CharType | BoolType => byteSize
+      case IntType => intSize
+      case StringType | ArrayType(_) | PairType(_,_) => ptrSize
     }).sum
     new Allocator(reservedSpace)
   }
