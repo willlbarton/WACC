@@ -13,18 +13,18 @@ class Allocator(reservedSpace: Int) {
     } else {
       val currentRelativeBP = relativeToBasePointer
       relativeToBasePointer += (size match {
-        case Size8 => 1
+        case Size8  => 1
         case Size16 => 2
         case Size32 => 4
         case Size64 => 8
       })
-      Address(Immediate(currentRelativeBP.toLong), Rbp)
+      Address(Rbp, Immediate(currentRelativeBP.toLong))
     }
   }
   def allocateSpace(t: Type): Dest = t match {
-    case CharType | BoolType => allocateSpace(Size8)
-    case IntType => allocateSpace(Size32)
-    case StringType | ArrayType(_) | PairType(_,_) => allocateSpace(Size64)
+    case CharType | BoolType                        => allocateSpace(Size8)
+    case IntType                                    => allocateSpace(Size32)
+    case StringType | ArrayType(_) | PairType(_, _) => allocateSpace(Size64)
   }
 }
 
@@ -36,11 +36,15 @@ object Allocator {
 
   def apply(vars: List[SymbolTableObj]): Allocator = {
     val stackVars = vars.drop(NON_PARAM_REGS.length)
-    val reservedSpace = stackVars.map(x => x.typ.get match {
-      case CharType | BoolType => 1
-      case IntType => 4
-      case StringType | ArrayType(_) | PairType(_,_) => 8
-    }).sum
+    val reservedSpace = stackVars
+      .map(x =>
+        x.typ.get match {
+          case CharType | BoolType                        => 1
+          case IntType                                    => 4
+          case StringType | ArrayType(_) | PairType(_, _) => 8
+        }
+      )
+      .sum
     new Allocator(reservedSpace)
   }
 }
