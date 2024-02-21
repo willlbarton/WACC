@@ -123,26 +123,25 @@ object generator {
    a: ArrayLiter,
    symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] = {
-    val elemSize = Allocator.getTypeWidth(t)
+    val ArrayType(typ) = t
+    val elemSize = Allocator.getTypeWidth(typ)
     val size = intSize + a.elems.length * elemSize
     var position = -elemSize
     lb(
       Mov(Immediate(size), Edi()),
       CallAsm(Label("_malloc")),
-      Mov(Immediate(a.elems.length), Address(Eax(Size64))),
-      AddAsm(Immediate(intSize), Eax(Size64)),
-      Push(Eax(Size64)),
+      Mov(Eax(Size64), R11(Size64)),
+      Mov(Immediate(a.elems.length), Address(R11(Size64))),
+      AddAsm(Immediate(intSize), R11(Size64)),
       a.elems.flatMap {
         x => position += elemSize
           lb(
             genExpr(x, symTable),
             Pop(Eax(Size64)),
-            Pop(Ebx(Size64)),
-            Mov(Eax(Size64), Address(Ebx(Size64), Immediate(position))),
-            Push(Ebx(Size64))
+            Mov(Eax(Size64), Address(R11(Size64), Immediate(position))),
           )
       },
-      Pop(Eax(Size64))
+      Mov(R11(Size64), Eax(Size64))
     )
   }
 
