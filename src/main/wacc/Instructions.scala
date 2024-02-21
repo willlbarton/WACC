@@ -3,11 +3,11 @@ package src.main.wacc
 sealed trait Instruction
 
 sealed trait Location
-sealed trait Dest extends Location
 sealed trait Operand extends Location
+sealed trait Dest extends Location with Operand
 sealed trait MemOp extends Location
 
-sealed trait Reg extends Dest with Operand with MemOp {
+sealed trait Reg extends Dest with MemOp {
   val size: Size
 }
 
@@ -45,7 +45,6 @@ final case class Address(
     index: MemOp = Immediate(0),
     scale: MemOp = Immediate(1)
 ) extends Dest
-    with Operand
 final case class Immediate(value: Long) extends Operand with MemOp
 
 case object Ret extends Instruction
@@ -76,6 +75,8 @@ final case class Idiv(op: Operand) extends Instruction
 final case class Imul(op1: Operand, dest: Dest) extends Instruction
 
 final case class Testq(op1: Operand, op2: Operand) extends Instruction
+final case class CMovl(op: Operand, dest: Dest) extends Instruction
+final case class CMovge(dest: Dest, src: Operand) extends Instruction
 final case class Cmovne(dest: Dest, src: Operand) extends Instruction
 
 trait Formatter {
@@ -125,6 +126,10 @@ object x86Formatter extends Formatter {
       case Idiv(op1)  => indent ++ s"idiv${instructionPostfix(op1)} ${this(op1)}"
       case Imul(op1, dest) =>
         indent ++ s"imul${instructionPostfix(dest)} ${this(op1)}, ${this(dest)}"
+      case CMovl(dest, src) =>
+        indent ++ s"cmovl ${this(src)}, ${this(dest)}"
+      case CMovge(dest, src) =>
+        indent ++ s"cmovge ${this(src)}, ${this(dest)}"
       case Cmovne(dest, src) =>
         indent ++ s"cmovne ${this(src)}, ${this(dest)}"
       case Testq(op1, op2) => indent ++ s"test  ${this(op1)}, ${this(op2)}"

@@ -2,6 +2,7 @@ package src.main.wacc
 
 import scala.collection.mutable.ListBuffer
 import src.main.wacc.generator.lb
+import src.main.wacc.constants._
 
 object builtInFunctions {
 
@@ -19,6 +20,9 @@ object builtInFunctions {
     genRead(charType, "%c"),
     genMalloc,
     genCall("free", provided.free),
+    genArrLoad(Size8),
+    genArrLoad(Size32),
+    genArrLoad(Size64),
     genErr("errOverflow", "fatal error: integer overflow or underflow occurred"),
     genErr("errDivZero", "fatal error: division or modulo by zero"),
     genErr("errOutOfMemory", "fatal error: out of memory"),
@@ -177,6 +181,32 @@ object builtInFunctions {
     )),
     Ret
   )
+
+  // Special calling convention:
+  // R9: array address
+  // R10: index
+  // Return: R9 = array[index]
+  private def genArrLoad(size: Size): ListBuffer[Instruction] = {
+    val s = size match {
+      case Size8  => byteSize
+      case Size32 => intSize
+      case Size64 => ptrSize
+    }
+    lb(
+      Label(s"_arrLoad$s"),
+      genNewScope(lb(
+        Cmp(Immediate(0), R10()),
+        CMovl(R10(Size64), Esi(Size64)),
+        Jl(Label("_errOutOfBounds")),
+        Mov(Address(R9(Size64), Immediate(-4)), Ebx()),
+        Cmp(Ebx(), R10()),
+        CMovge(R10(Size64), Esi(Size64)),
+        Je(Label("_errOutOfBounds")),
+        Mov(Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)), R9(Size64))
+      )),
+      Ret
+    )
+  }
 }
 
 object provided {

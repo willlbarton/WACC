@@ -206,7 +206,7 @@ object generator {
       case ArrayElem(ident, exprs) => ???
       case Ident(name) =>
         symTable(Ident(name)) match {
-          case Some(value) => Mov(value.asInstanceOf[Operand], Eax(Size64))
+          case Some(value) => Mov(value, Eax(Size64))
           case None        => ???
         }
       case Null => Mov(Immediate(0), Eax(Size64))
