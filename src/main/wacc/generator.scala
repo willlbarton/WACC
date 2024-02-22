@@ -201,7 +201,22 @@ object generator {
       case a: ArrayElem => genArrayElem(a, symTable)
     }
 
-  private def genArrayElem(a: ArrayElem, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = ???
+  private def genArrayElem(a: ArrayElem, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = {
+    val ArrayElem(ident, exprs) = a
+    val dest = symTable(ident).get
+    var typ: Type = ArrayType(ident.typ.get)
+    val instructions = lb(Mov(dest, R9(Size64)))
+    for (expr <- exprs) {
+      typ = typ match { case ArrayType(t) => t }
+      val s = Allocator.getTypeWidth(typ)
+      instructions ++= lb(
+        genExpr(expr, symTable),
+        Pop(R10(Size64)),
+        CallAsm(Label(s"_arrLoad$s"))
+      )
+    }
+    instructions += Push(R9(Size64))
+  }
 
   private def genExpr(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
     expr match {
@@ -210,7 +225,7 @@ object generator {
       case Bool(value)   => Mov(Immediate(if (value) 1 else 0), Eax(Size64))
       case Character(c)  => Mov(Immediate(c.toLong), Eax(Size64))
 
-      case ArrayElem(ident, exprs) => ???
+      case arr: ArrayElem => genArrayElem(arr, symTable)
       case Ident(name) =>
         symTable(Ident(name)) match {
           case Some(value) => Mov(value, Eax(Size64))

@@ -243,7 +243,9 @@ object analyser {
     case ArrayElem(ident, exprs) =>
       checkArrayElem(symTable, ident, exprs) match {
         case Left(err)  => (err, None)
-        case Right(typ) => ("", Some(typ))
+        case Right(typ) =>
+          ident.typ = Some(typ)
+          ("", Some(typ))
       }
     case BracketedExpr(expr) => checkExpr(symTable, expr)
     // Unary and binary operators mutually recursive with this function
