@@ -1,5 +1,7 @@
 package src.main.wacc
 
+import src.main.wacc
+
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import src.main.wacc.constants._
@@ -102,15 +104,20 @@ object generator {
       value: RVal,
       symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] = {
-    val dest = lval match {
-      case id: Ident => symTable(id)
-      case _         => ???
+    lval match {
+      case id: Ident => lb(
+        genRval(value, symTable),
+        Pop(Eax(Size64)),
+        Mov(Eax(Size64), symTable(id).get)
+      )
+      case ArrayElem(ident, exprs) =>lb(
+        genLVal(ArrayElem(ident, exprs), symTable),
+        genRval(value, symTable),
+        Pop(Eax(Size64)),
+        Pop(Ebx(Size64)),
+        Mov(Eax(Size64), Address(Ebx(Size64)))
+      )
     }
-    lb(
-      genRval(value, symTable),
-      Pop(Eax(Size64)),
-      Mov(Eax(Size64), dest.get)
-    )
   }
 
   private def genFreeStmt(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
@@ -198,13 +205,16 @@ object generator {
   private def genLVal(lval: LVal, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
     lval match {
       case id: Ident => lb(Push(symTable(id).get))
-      case a: ArrayElem => genArrayElem(a, symTable)
+      case ArrayElem(ident, exprs) => genArrayElem(ident, exprs, symTable)
     }
 
-  private def genArrayElem(a: ArrayElem, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = {
-    val ArrayElem(ident, exprs) = a
+  private def genArrayElem(
+    ident: Ident,
+    exprs: List[Expr],
+    symTable: SymbolTable[Dest]
+  ): ListBuffer[Instruction] = {
     val dest = symTable(ident).get
-    var typ: Type = ArrayType(ident.typ.get)
+    var typ: Type = ident.typ.get
     val instructions = lb(Mov(dest, R9(Size64)))
     for (expr <- exprs) {
       typ = typ match { case ArrayType(t) => t }
@@ -225,7 +235,7 @@ object generator {
       case Bool(value)   => Mov(Immediate(if (value) 1 else 0), Eax(Size64))
       case Character(c)  => Mov(Immediate(c.toLong), Eax(Size64))
 
-      case arr: ArrayElem => genArrayElem(arr, symTable)
+      case ArrayElem(ident, exprs) => genArrayElem(ident, exprs, symTable)
       case Ident(name) =>
         symTable(Ident(name)) match {
           case Some(value) => Mov(value, Eax(Size64))

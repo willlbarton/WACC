@@ -244,7 +244,7 @@ object analyser {
       checkArrayElem(symTable, ident, exprs) match {
         case Left(err)  => (err, None)
         case Right(typ) =>
-          ident.typ = Some(typ)
+          ident.typ = Some(ArrayType(typ))
           ("", Some(typ))
       }
     case BracketedExpr(expr) => checkExpr(symTable, expr)
@@ -486,7 +486,12 @@ object analyser {
   // and returns its type if valid
   private def checkLVal(symTable: SymbolTable[SymbolTableObj], lval: LVal): Either[String, Type] = lval match {
     case id: Ident               => checkIdent(symTable, id)
-    case ArrayElem(ident, exprs) => checkArrayElem(symTable, ident, exprs)
+    case ArrayElem(ident, exprs) =>
+      val res = checkArrayElem(symTable, ident, exprs)
+      if (res.isRight) {
+        ident.typ = Some(ArrayType(res.right.get))
+      }
+      res
     case Fst(value) =>
       checkLVal(symTable, value) match {
         // The type of fst is the type of the first element of the pair
