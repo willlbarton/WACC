@@ -263,15 +263,17 @@ object generator {
           Pop(Edx(Size64)) // Pop back
         )
 
-      case Or | And =>
+      case Or | And => {
+        val label = Allocator.allocateLabel
         lb(
           Cmp(Immediate(1), Eax(Size64)),
-          if (op == Or) Je(Label(".L0")) else Jne(Label(".L0")),
+          if (op == Or) Je(label) else Jne(label),
           Cmp(Immediate(1), Ebx(Size64)),
-          Label(".L0"),
-          Set(Eax(Size8), Eq),
+          label,
+          SetAsm(Eax(Size8), Eq),
           Movs(Eax(Size8), Eax(Size64))
         )
+      }
     }
   )
 
