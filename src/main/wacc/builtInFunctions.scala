@@ -31,9 +31,9 @@ object builtInFunctions {
   )
 
   def genNewScope(
-    body: ListBuffer[Instruction],
-    toSave: List[Reg],
-    toAllocate: List[SymbolTableObj]
+      body: ListBuffer[Instruction],
+      toSave: List[Reg],
+      toAllocate: List[SymbolTableObj]
   ): ListBuffer[Instruction] = {
     val size = toAllocate.map(x => Allocator.getTypeWidth(x.typ.get)).sum
     lb(
@@ -52,9 +52,9 @@ object builtInFunctions {
     genNewScope(body, List.empty, List.empty)
   }
   def genNewScope(
-                           body: ListBuffer[Instruction],
-                           vars: List[SymbolTableObj]
-                         ): ListBuffer[Instruction] = {
+      body: ListBuffer[Instruction],
+      vars: List[SymbolTableObj]
+  ): ListBuffer[Instruction] = {
     val toSave = Allocator.NON_PARAM_REGS.take(vars.size)
     val toAllocate = vars.drop(Allocator.NON_PARAM_REGS.size)
     genNewScope(body, toSave, toAllocate)
@@ -76,10 +76,12 @@ object builtInFunctions {
 
   private def genCall(name: String, func: Label): ListBuffer[Instruction] = lb(
     Label(s"_$name"),
-    genNewScope(lb(
-      maskRsp,
-      CallAsm(func)
-    )),
+    genNewScope(
+      lb(
+        maskRsp,
+        CallAsm(func)
+      )
+    ),
     Ret
   )
 
@@ -165,7 +167,7 @@ object builtInFunctions {
       Lea(Address(Rip, Label(s".$name")), Edi(Size64)),
       CallAsm(Label("_prints")),
       Mov(Immediate(-1), Eax(Size64)),
-      CallAsm(provided.exit),
+      CallAsm(provided.exit)
     )
   }
 
@@ -181,18 +183,20 @@ object builtInFunctions {
       Mov(Immediate(0), Edi(Size64)),
       CallAsm(provided.fflush),
       Mov(Immediate(-1), Edi(Size8)),
-      CallAsm(provided.exit),
+      CallAsm(provided.exit)
     )
   }
 
-  private val genMalloc: ListBuffer[Instruction] = lb (
+  private val genMalloc: ListBuffer[Instruction] = lb(
     Label("_malloc"),
-    genNewScope(lb(
-      maskRsp,
-      CallAsm(provided.malloc),
-      Cmp(Immediate(0), Eax(Size64)),
-      Je(Label("_errOutOfMemory")),
-    )),
+    genNewScope(
+      lb(
+        maskRsp,
+        CallAsm(provided.malloc),
+        Cmp(Immediate(0), Eax(Size64)),
+        Je(Label("_errOutOfMemory"))
+      )
+    ),
     Ret
   )
 
@@ -208,16 +212,18 @@ object builtInFunctions {
     }
     lb(
       Label(s"_arrLoad$s"),
-      genNewScope(lb(
-        Cmp(Immediate(0), R10()),
-        CMovl(R10(Size64), Esi(Size64)),
-        Jl(Label("_errOutOfBounds")),
-        Mov(Address(R9(Size64), Immediate(-4)), Ebx()),
-        Cmp(Ebx(), R10()),
-        CMovge(R10(Size64), Esi(Size64)),
-        Je(Label("_errOutOfBounds")),
-        Mov(Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)), R9(Size64))
-      )),
+      genNewScope(
+        lb(
+          Cmp(Immediate(0), R10()),
+          CMovl(R10(Size64), Esi(Size64)),
+          Jl(Label("_errOutOfBounds")),
+          Mov(Address(R9(Size64), Immediate(-4)), Ebx()),
+          Cmp(Ebx(), R10()),
+          CMovge(R10(Size64), Esi(Size64)),
+          Je(Label("_errOutOfBounds")),
+          Mov(Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)), R9(Size64))
+        )
+      ),
       Ret
     )
   }

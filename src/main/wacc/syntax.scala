@@ -61,10 +61,10 @@ final case class Print(expr: Expr) extends Stmt { override def toString: String 
 final case class PrintLn(expr: Expr) extends Stmt {
   override def toString: String = s"println $expr"
 }
-final case class IfStmt(cond: Expr, body1: List[Stmt], body2: List[Stmt])
-    extends Stmt
-    with ScopedBody {
+final case class IfStmt(cond: Expr, body1: List[Stmt], body2: List[Stmt]) extends Stmt {
   override def toString: String = s"if $cond then $body1 else $body2 fi"
+  var branch1Vars: List[SymbolTableObj] = List.empty
+  var branch2Vars: List[SymbolTableObj] = List.empty
 }
 final case class While(cond: Expr, body: List[Stmt]) extends Stmt with ScopedBody {
   override def toString: String = s"while $cond do $body done"

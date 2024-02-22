@@ -43,7 +43,7 @@ object generator {
     val mainSymTable: SymbolTable[Dest] = SymbolTable(None)
     val allocator = Allocator(program.vars)
     val mainBody = lb(
-      program.body.flatMap(x => genStmt(x, mainSymTable, allocator)),
+      genStmts(program.body, mainSymTable, allocator),
       Mov(Immediate(0), Eax(Size64))
     )
 
@@ -60,6 +60,26 @@ object generator {
       allocator: Allocator
   ): ListBuffer[Instruction] = ListBuffer.empty // TODO
 
+  private def genStmts(
+      stmts: ListBuffer[Stmt],
+      symTable: SymbolTable[Dest],
+      allocator: Allocator
+  ): ListBuffer[Instruction] =
+    lb(
+      stmts.flatMap(x => genStmt(x, symTable, allocator))
+    )
+
+  private def genStmts(
+      stmts: List[Stmt],
+      symTable: SymbolTable[Dest],
+      allocator: Allocator
+  ): ListBuffer[Instruction] =
+    genStmts(
+      ListBuffer() ++= stmts,
+      symTable,
+      allocator
+    )
+
   private def genStmt(
       stmt: Stmt,
       symTable: SymbolTable[Dest],
@@ -73,9 +93,9 @@ object generator {
           genExpr(expr, symTable),
           Ret
         )
-      case Print(expr)   => genPrintStmt(symTable, expr)
-      case PrintLn(expr) => genPrintStmt(symTable, expr) += CallAsm(Label("_printn"))
-      case Read(lval)    => genReadStmt(symTable, lval)
+      case Print(expr)           => genPrintStmt(symTable, expr)
+      case PrintLn(expr)         => genPrintStmt(symTable, expr) += CallAsm(Label("_printn"))
+      case Read(lval)            => genReadStmt(symTable, lval)
       case Decl(t, ident, value) =>
         // We can allocate the register before we generate rval as the stack machine will
         // only use %eax and %ebx, which are protected
@@ -84,8 +104,38 @@ object generator {
         genDeclStmt(value, dest, symTable)
       case Asgn(lval, value) => genAsgnStmt(lval, value, symTable)
       case Free(expr)        => genFreeStmt(expr, symTable)
-      case _                 => lb() // TODO
+      case ifStmt: IfStmt =>
+        genIfStmt(ifStmt, symTable, allocator) // handle IfStmt case
+      case ScopedStmt(_) => ??? // handle ScopedStmt case
+      case While(_, _)   => ??? // handle While case
     }
+
+  private def genIfStmt(
+      ifStmt: IfStmt,
+      symTable: SymbolTable[Dest],
+      allocator: Allocator
+  ): ListBuffer[Instruction] = {
+    val IfStmt(expr: Expr, body1: List[Stmt], body2: List[Stmt]) = ifStmt
+
+    lb(
+      genExpr(expr, symTable), {
+        val labelTrue = Allocator.allocateLabel
+        val labelContinue = Allocator.allocateLabel
+
+        val childSymTable = symTable.makeChild
+
+        lb(
+          Je(labelTrue),
+          genNewScope(genStmts(body2, childSymTable, allocator), ifStmt.branch2Vars),
+          Jmp(labelContinue),
+          labelTrue,
+          genNewScope(genStmts(body1, childSymTable, allocator), ifStmt.branch1Vars),
+          labelContinue
+        )
+      }
+    )
+
+  }
 
   private def genDeclStmt(
       value: RVal,
@@ -123,14 +173,14 @@ object generator {
 
   private def genRval(value: RVal, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
     value match {
-      case e: Expr => genExpr(e, symTable)
+      case e: Expr       => genExpr(e, symTable)
       case a: ArrayLiter => genArray(value.typ.get, a, symTable)
     }
 
   private def genArray(
-   t: Type,
-   a: ArrayLiter,
-   symTable: SymbolTable[Dest]
+      t: Type,
+      a: ArrayLiter,
+      symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] = {
     val ArrayType(typ) = t
     val elemSize = Allocator.getTypeWidth(typ)
@@ -142,13 +192,13 @@ object generator {
       Mov(Eax(Size64), R11(Size64)),
       Mov(Immediate(a.elems.length), Address(R11(Size64))),
       AddAsm(Immediate(intSize), R11(Size64)),
-      a.elems.flatMap {
-        x => position += elemSize
-          lb(
-            genExpr(x, symTable),
-            Pop(Eax(Size64)),
-            Mov(Eax(Size64), Address(R11(Size64), Immediate(position))),
-          )
+      a.elems.flatMap { x =>
+        position += elemSize
+        lb(
+          genExpr(x, symTable),
+          Pop(Eax(Size64)),
+          Mov(Eax(Size64), Address(R11(Size64), Immediate(position)))
+        )
       },
       Push(R11(Size64))
     )
