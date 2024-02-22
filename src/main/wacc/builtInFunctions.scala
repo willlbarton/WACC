@@ -20,9 +20,12 @@ object builtInFunctions {
     genRead(charType, "%c"),
     genMalloc,
     genCall("free", provided.free),
-    genArrLoad(Size8),
-    genArrLoad(Size32),
-    genArrLoad(Size64),
+    genArrAccess(Size8, direction = true),
+    genArrAccess(Size32, direction = true),
+    genArrAccess(Size64, direction = true),
+    genArrAccess(Size8, direction = false),
+    genArrAccess(Size32, direction = false),
+    genArrAccess(Size64, direction = false),
     genErr("errOverflow", "fatal error: integer overflow or underflow occurred"),
     genErr("errDivZero", "fatal error: division or modulo by zero"),
     genErr("errOutOfMemory", "fatal error: out of memory"),
@@ -200,14 +203,14 @@ object builtInFunctions {
   // R9: array address
   // R10: index
   // Return: R9 = array[index]
-  private def genArrLoad(size: Size): ListBuffer[Instruction] = {
+  private def genArrAccess(size: Size, direction: Boolean): ListBuffer[Instruction] = {
     val s = size match {
       case Size8  => byteSize
       case Size32 => intSize
       case Size64 => ptrSize
     }
     lb(
-      Label(s"_arrLoad$s"),
+      Label(s"_arr${if (direction) "Store" else "Load"}$s"),
       genNewScope(lb(
         Cmp(Immediate(0), R10()),
         CMovl(R10(Size64), Esi(Size64)),
@@ -216,7 +219,10 @@ object builtInFunctions {
         Cmp(Ebx(), R10()),
         CMovge(R10(Size64), Esi(Size64)),
         Je(Label("_errOutOfBounds")),
-        Mov(Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)), R9(Size64))
+        if (direction)
+          Mov(R9(Size64), Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)))
+        else
+          Mov(Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)), R9(Size64))
       )),
       Ret
     )

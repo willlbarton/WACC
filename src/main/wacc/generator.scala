@@ -194,7 +194,14 @@ object generator {
       Mov(Immediate(0), Eax())
     )
 
-  private def genLVal(lval: LVal, symTable: SymbolTable[Dest]) = ???
+
+  private def genLVal(lval: LVal, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
+    lval match {
+      case id: Ident => lb(Push(symTable(id).get))
+      case a: ArrayElem => genArrayElem(a, symTable)
+    }
+
+  private def genArrayElem(a: ArrayElem, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = ???
 
   private def genExpr(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
     expr match {
@@ -263,7 +270,7 @@ object generator {
           Pop(Edx(Size64)) // Pop back
         )
 
-      case Or | And => {
+      case Or | And =>
         val label = Allocator.allocateLabel
         lb(
           Cmp(Immediate(1), Eax(Size64)),
@@ -273,7 +280,6 @@ object generator {
           SetAsm(Eax(Size8), Eq),
           Movs(Eax(Size8), Eax(Size64))
         )
-      }
     }
   )
 
