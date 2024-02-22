@@ -129,7 +129,7 @@ object builtInFunctions {
     )
     val printBody: ListBuffer[Instruction] = lb(
       Cmp(Immediate(1), Edi(Size8)),
-      Je(Label(".printb_true")),
+      JmpComparison(Label(".printb_true"), Eq),
       Lea(Address(Rip, Label(".printb_false_lit")), Edi(Size64)),
       Jmp(Label(".printb_end")),
       Label(".printb_true"),
@@ -194,7 +194,7 @@ object builtInFunctions {
         maskRsp,
         CallAsm(provided.malloc),
         Cmp(Immediate(0), Eax(Size64)),
-        Je(Label("_errOutOfMemory"))
+        JmpComparison(Label("_errOutOfMemory"), Eq)
       )
     ),
     Ret
@@ -216,11 +216,11 @@ object builtInFunctions {
         lb(
           Cmp(Immediate(0), R10()),
           CMovl(R10(Size64), Esi(Size64)),
-          Jl(Label("_errOutOfBounds")),
+          JmpComparison(Label("_errOutOfBounds"), Lt),
           Mov(Address(R9(Size64), Immediate(-4)), Ebx()),
           Cmp(Ebx(), R10()),
           CMovge(R10(Size64), Esi(Size64)),
-          Je(Label("_errOutOfBounds")),
+          JmpComparison(Label("_errOutOfBounds"), Eq),
           Mov(Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)), R9(Size64))
         )
       ),

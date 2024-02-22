@@ -124,8 +124,11 @@ object generator {
 
         val childSymTable = symTable.makeChild
 
+        println(expr)
         lb(
-          Je(labelTrue),
+          Pop(Eax(Size64)),
+          Cmp(Immediate(1), Eax(Size64)),
+          JmpComparison(labelTrue, Eq),
           genNewScope(genStmts(body2, childSymTable, allocator), ifStmt.branch2Vars),
           Jmp(labelContinue),
           labelTrue,
@@ -303,7 +306,7 @@ object generator {
       case Mod | Div =>
         lb(
           Cmp(Immediate(0), Ebx(Size32)),
-          Je(Label("_errDivZero")),
+          JmpComparison(Label("_errDivZero"), Eq),
           // As Cltd will write into edx?? This isn't in reference compiler I just did it.
           Push(Edx(Size64)),
           Cltd,
@@ -317,7 +320,7 @@ object generator {
         val label = Allocator.allocateLabel
         lb(
           Cmp(Immediate(1), Eax(Size64)),
-          if (op == Or) Je(label) else Jne(label),
+          if (op == Or) JmpComparison(label, Eq) else JmpComparison(label, NotEq),
           Cmp(Immediate(1), Ebx(Size64)),
           label,
           SetAsm(Eax(Size8), Eq),
@@ -338,7 +341,7 @@ object generator {
         lb(
           Testq(Immediate(-128), Eax(Size64)),
           Cmovne(Eax(Size64), Esi(Size64)),
-          Jne(Label("_errBadChar"))
+          JmpComparison(Label("_errBadChar"), NotEq)
         )
       case Len => ???
       case Neg =>
