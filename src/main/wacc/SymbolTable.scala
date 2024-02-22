@@ -25,4 +25,6 @@ case class SymbolTable[T](parent: Option[SymbolTable[T]]) {
   def clear(): Unit = table.clear()
 
   def vars: List[T] = table.values.toList
+
+  def reverseLookup(value: T): Option[Ident] = table.find(_._2 == value).map(_._1)
 }

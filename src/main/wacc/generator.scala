@@ -48,7 +48,9 @@ object generator {
     )
 
     instructions ++= lb(
-      genNewScope(mainBody, program.vars),
+      genNewScopeEnter(program.vars, allocator.reservedSpace, mainSymTable),
+      mainBody,
+      genNewScopeExit(program.vars, allocator.reservedSpace, mainSymTable),
       Ret,
       genFunctions
     )
@@ -66,7 +68,10 @@ object generator {
       allocator: Allocator
   ): ListBuffer[Instruction] =
     lb(
-      stmts.flatMap(x => genStmt(x, symTable, allocator))
+      stmts.flatMap(x => {
+        println(symTable.table)
+        genStmt(x, symTable, allocator)
+      })
     )
 
   private def genStmts(
@@ -116,23 +121,32 @@ object generator {
       allocator: Allocator
   ): ListBuffer[Instruction] = {
     val IfStmt(expr: Expr, body1: List[Stmt], body2: List[Stmt]) = ifStmt
-
+    println(symTable.table)
+    println("yeahh")
     lb(
       genExpr(expr, symTable), {
         val labelTrue = Allocator.allocateLabel
         val labelContinue = Allocator.allocateLabel
 
         val childSymTable = symTable.makeChild
+        println("after make child:")
+        println(symTable.table)
 
-        println(expr)
         lb(
           Pop(Eax(Size64)),
           Cmp(Immediate(1), Eax(Size64)),
           JmpComparison(labelTrue, Eq),
-          genNewScope(genStmts(body2, childSymTable, allocator), ifStmt.branch2Vars),
+          genNewScopeEnter(ifStmt.branch2Vars, allocator.reservedSpace, symTable),
+          // genNewScope(genStmts(body2, childSymTable, allocator), ifStmt.branch2Vars, symTable),
+          genStmts(body2, childSymTable, allocator),
+          genNewScopeExit(ifStmt.branch2Vars, allocator.reservedSpace, symTable),
           Jmp(labelContinue),
           labelTrue,
-          genNewScope(genStmts(body1, childSymTable, allocator), ifStmt.branch1Vars),
+          genNewScopeEnter(ifStmt.branch2Vars, allocator.reservedSpace, symTable),
+          genStmts(body1, childSymTable, allocator),
+
+          // genNewScope(genStmts(body1, childSymTable, allocator), ifStmt.branch1Vars, symTable),
+          genNewScopeExit(ifStmt.branch2Vars, allocator.reservedSpace, symTable),
           labelContinue
         )
       }
