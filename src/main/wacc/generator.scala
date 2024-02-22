@@ -2,10 +2,12 @@ package src.main.wacc
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
+import src.main.wacc.constants._
+import src.main.wacc.builtInFunctions._
 
 object generator {
 
-  private def lb(instructions: Any*): ListBuffer[Instruction] = {
+  def lb(instructions: Any*): ListBuffer[Instruction] = {
     val resultBuffer = ListBuffer[Instruction]()
 
     for (instruction <- instructions) {
@@ -45,32 +47,11 @@ object generator {
       Mov(Immediate(0), Eax(Size64))
     )
 
-    instructions ++= lb(genNewScope(mainBody, program.vars), Ret, Label("_exit"))
-
-    val exitBody: ListBuffer[Instruction] = lb(
-      // Align stack pointer to 16 bytes
-      AndAsm(Immediate(-16), Rsp),
-      CallAsm(Label("exit@plt"))
-    )
     instructions ++= lb(
-      genNewScope(exitBody),
-      genPrint(stringType, "%.*s"),
-      genPrint(intType, "%d"),
-      genPrint(printlnType, ""),
-      genPrint(charType, "%c"),
-      genPrint(ptrType, "%p"),
-      genPrintBool,
-      genRead(intType, "%d"),
-      genRead(charType, "%c"),
-      genErr("errOverflow", "fatal error: integer overflow or underflow occurred"),
-      genErr("errDivZero", "fatal error: division or modulo by zero"),
-      genErr(
-        "errBadChar",
-        "fatal error: int %d is not ascii character 0-127"
-      ) // TODO: fix this so populates %d in err message
+      genNewScope(mainBody, program.vars),
+      Ret,
+      genFunctions
     )
-
-    instructions
   }
 
   private def genFunc(
@@ -78,44 +59,6 @@ object generator {
       symTable: SymbolTable[Dest],
       allocator: Allocator
   ): ListBuffer[Instruction] = ListBuffer.empty // TODO
-
-  private def genNewScope(
-      body: ListBuffer[Instruction],
-      toSave: List[Reg],
-      toAllocate: List[SymbolTableObj]
-  ): ListBuffer[Instruction] = {
-    val size = toAllocate
-      .map(x =>
-        x.typ.get match {
-          case CharType | BoolType                        => 4
-          case IntType                                    => 4
-          case StringType | ArrayType(_) | PairType(_, _) => 8
-        }
-      )
-      .sum
-    lb(
-      Push(Rbp),
-      toSave.map(r => Push(r)),
-      Mov(Rsp, Rbp),
-      SubAsm(Immediate(size), Rsp),
-      body,
-      AddAsm(Immediate(size), Rsp),
-      Mov(Rbp, Rsp),
-      toSave.map(r => Pop(r)),
-      Pop(Rbp)
-    )
-  }
-  private def genNewScope(body: ListBuffer[Instruction]): ListBuffer[Instruction] = {
-    genNewScope(body, List.empty, List.empty)
-  }
-  private def genNewScope(
-      body: ListBuffer[Instruction],
-      vars: List[SymbolTableObj]
-  ): ListBuffer[Instruction] = {
-    val toSave = Allocator.NON_PARAM_REGS.take(vars.size)
-    val toAllocate = vars.drop(Allocator.NON_PARAM_REGS.size)
-    genNewScope(body, toSave, toAllocate)
-  }
 
   private def genStmt(
       stmt: Stmt,
@@ -133,14 +76,14 @@ object generator {
       case Print(expr)   => genPrintStmt(symTable, expr)
       case PrintLn(expr) => genPrintStmt(symTable, expr) += CallAsm(Label("_printn"))
       case Read(lval)    => genReadStmt(symTable, lval)
-      case Decl(t, ident, value) => {
+      case Decl(t, ident, value) =>
         // We can allocate the register before we generate rval as the stack machine will
         // only use %eax and %ebx, which are protected
         val dest = allocator.allocateSpace(t)
         symTable.put(ident, dest)
         genDeclStmt(value, dest, symTable)
-      }
       case Asgn(lval, value) => genAsgnStmt(lval, value, symTable)
+      case Free(expr)        => genFreeStmt(expr, symTable)
       case _                 => lb() // TODO
     }
 
@@ -170,11 +113,46 @@ object generator {
     )
   }
 
+  private def genFreeStmt(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
+    genExpr(expr, symTable),
+    Pop(Eax(Size64)),
+    Mov(Eax(Size64), Edi(Size64)),
+    SubAsm(Immediate(4), Edi(Size64)),
+    CallAsm(Label("_free"))
+  )
+
   private def genRval(value: RVal, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
     value match {
       case e: Expr => genExpr(e, symTable)
-      case _       => ???
+      case a: ArrayLiter => genArray(value.typ.get, a, symTable)
     }
+
+  private def genArray(
+   t: Type,
+   a: ArrayLiter,
+   symTable: SymbolTable[Dest]
+  ): ListBuffer[Instruction] = {
+    val ArrayType(typ) = t
+    val elemSize = Allocator.getTypeWidth(typ)
+    val size = intSize + a.elems.length * elemSize
+    var position = -elemSize
+    lb(
+      Mov(Immediate(size), Edi()),
+      CallAsm(Label("_malloc")),
+      Mov(Eax(Size64), R11(Size64)),
+      Mov(Immediate(a.elems.length), Address(R11(Size64))),
+      AddAsm(Immediate(intSize), R11(Size64)),
+      a.elems.flatMap {
+        x => position += elemSize
+          lb(
+            genExpr(x, symTable),
+            Pop(Eax(Size64)),
+            Mov(Eax(Size64), Address(R11(Size64), Immediate(position))),
+          )
+      },
+      Push(R11(Size64))
+    )
+  }
 
   private def genReadStmt(symTable: SymbolTable[Dest], lval: LVal): ListBuffer[Instruction] = {
     lb(
@@ -228,7 +206,7 @@ object generator {
       case ArrayElem(ident, exprs) => ???
       case Ident(name) =>
         symTable(Ident(name)) match {
-          case Some(value) => Mov(value.asInstanceOf[Operand], Eax(Size64))
+          case Some(value) => Mov(value, Eax(Size64))
           case None        => ???
         }
       case Null => Mov(Immediate(0), Eax(Size64))
@@ -331,105 +309,4 @@ object generator {
       case Ord => lb()
     }
   )
-
-  // Built-in functions
-  private def genDataSection(data: (String, String)*): ListBuffer[Instruction] = lb(
-    Directive("section .data"),
-    lb(
-      data.map(kv =>
-        lb(
-          Directive(s"int ${kv._1.length}"),
-          Label(kv._2),
-          Directive(s"asciz \"${kv._1}\"")
-        )
-      ): _*
-    ),
-    Directive("text")
-  )
-
-  private lazy val stringType = 's'
-  private lazy val intType = 'i'
-  private lazy val charType = 'c'
-  private lazy val printlnType = 'n'
-  private lazy val ptrType = 'p'
-  private def genPrint(typ: Char, format: String): ListBuffer[Instruction] = {
-    val graph: ListBuffer[Instruction] = lb(
-      genDataSection(format -> s".print${typ}_format"),
-      Label(s"_print$typ")
-    )
-    val printBody: ListBuffer[Instruction] = lb(AndAsm(Immediate(-16), Rsp))
-
-    if (typ == stringType) {
-      printBody += Mov(Edi(Size64), Edx(Size64))
-      printBody += Mov(Address(Edi(Size64), Immediate(-4)), Esi())
-    } else if (typ == intType) {
-      printBody += Mov(Edi(), Esi())
-    } else if (typ == charType) {
-      printBody += Mov(Edi(Size8), Esi(Size8))
-    } else if (typ == ptrType) {
-      printBody += Mov(Edi(Size64), Esi(Size64))
-    }
-
-    printBody += Lea(Address(Rip, Label(s".print${typ}_format")), Edi(Size64))
-    printBody += Mov(Immediate(0), Eax(Size8))
-
-    if (typ == printlnType) {
-      printBody += CallAsm(Label("puts@plt"))
-    } else {
-      printBody += CallAsm(Label("printf@plt"))
-    }
-
-    printBody += Mov(Immediate(0), Edi(Size64))
-    printBody += CallAsm(Label("fflush@plt"))
-    graph ++= lb(genNewScope(printBody), Ret)
-  }
-
-  private val genPrintBool: ListBuffer[Instruction] = {
-    val graph: ListBuffer[Instruction] = lb(
-      genDataSection("true" -> ".printb_true_lit", "false" -> ".printb_false_lit"),
-      Label("_printb")
-    )
-    val printBody: ListBuffer[Instruction] = lb(
-      Cmp(Immediate(1), Edi(Size8)),
-      Je(Label(".printb_true")),
-      Lea(Address(Rip, Label(".printb_false_lit")), Edi(Size64)),
-      Jmp(Label(".printb_end")),
-      Label(".printb_true"),
-      Lea(Address(Rip, Label(".printb_true_lit")), Edi(Size64)),
-      Label(".printb_end"),
-      CallAsm(Label("_prints"))
-    )
-    graph ++= lb(genNewScope(printBody), Ret)
-  }
-
-  private def genRead(typ: Char, format: String): ListBuffer[Instruction] = {
-    val instructions: ListBuffer[Instruction] = lb(
-      genDataSection(format -> s".read${typ}_format"),
-      Label(s"_read$typ")
-    )
-    val size = if (typ == intType) Size32 else Size8
-    val readBody: ListBuffer[Instruction] = lb(
-      AndAsm(Immediate(-16), Rsp),
-      SubAsm(Immediate(16), Rsp),
-      Mov(Address(Rsp), Edi(size)),
-      Lea(Address(Rsp), Esi(Size64)),
-      Lea(Address(Rip, Label(s".read${typ}_format")), Edi(Size64)),
-      Mov(Immediate(0), Eax(Size8)),
-      CallAsm(Label("scanf@plt")),
-      Mov(Address(Rsp), Eax(size))
-    )
-    instructions ++= lb(genNewScope(readBody), Ret)
-  }
-
-  private def genErr(name: String, msg: String): ListBuffer[Instruction] = {
-    lb(
-      genDataSection(s"$msg\\n" -> s".$name"),
-      Label(s"_$name"),
-      AddAsm(Immediate(-16), Rsp),
-      Lea(Address(Rip, Label(s".$name")), Edi(Size64)),
-      CallAsm(Label("_prints")),
-      Mov(Immediate(-1), Eax(Size64)),
-      CallAsm(Label("_exit"))
-    )
-  }
 }
