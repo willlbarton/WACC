@@ -123,18 +123,13 @@ object generator {
       symTable: SymbolTable[Dest],
       allocator: Allocator
   ): ListBuffer[Instruction] = {
-    val IfStmt(expr: Expr, body1: List[Stmt], body2: List[Stmt]) = ifStmt
-    println(symTable.table)
-    println("yeahh")
+    val IfStmt(expr, body1, body2) = ifStmt
     lb(
       genExpr(expr, symTable), {
         val labelTrue = Allocator.allocateLabel
         val labelContinue = Allocator.allocateLabel
 
         val childSymTable = symTable.makeChild
-        println("after make child:")
-        println(symTable.table)
-
         symTableEnterScope(symTable, allocator)
 
         val instructions = lb(
@@ -147,11 +142,11 @@ object generator {
           genNewScopeExit(ifStmt.branch2Vars, allocator.reservedSpace, symTable),
           Jmp(labelContinue),
           labelTrue,
-          genNewScopeEnter(ifStmt.branch2Vars, allocator.reservedSpace, symTable, allocator),
+          genNewScopeEnter(ifStmt.branch1Vars, allocator.reservedSpace, symTable, allocator),
           genStmts(body1, childSymTable, allocator),
 
           // genNewScope(genStmts(body1, childSymTable, allocator), ifStmt.branch1Vars, symTable),
-          genNewScopeExit(ifStmt.branch2Vars, allocator.reservedSpace, symTable),
+          genNewScopeExit(ifStmt.branch1Vars, allocator.reservedSpace, symTable),
           labelContinue
         )
 

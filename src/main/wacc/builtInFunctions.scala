@@ -31,7 +31,7 @@ object builtInFunctions {
   )
 
   def symTableEnterScope(symTable: SymbolTable[Dest], allocator: Allocator): Unit = {
-    allocator.usedRegs.reverse.zipWithIndex.foreach {
+    allocator.usedRegs.zipWithIndex.foreach {
       case (r, i) =>
         val ident = symTable.reverseLookup(r).get
         symTable.put(ident, Address(Rbp, Immediate(i.toLong * 8))) // might be (i + 1)
@@ -71,7 +71,7 @@ object builtInFunctions {
           ident,
           table(ident) match {
             case Address(Rbp, Immediate(offset), _, _) =>
-              Address(Rbp, Immediate(offset + (allocator.usedRegs.size * 8)))
+              Address(Rbp, Immediate(offset + allocator.usedRegs.size * 8))
             case r: Reg => r
           }
         )
@@ -91,7 +91,7 @@ object builtInFunctions {
     val size = toAllocate.map(x => Allocator.getTypeWidth(x.typ.get)).sum
     lb(
       Push(Rbp),
-      toSave.map(r => Push(r)),
+      allocator.usedRegs.map(r => Push(r)),
       Mov(Rsp, Rbp),
       SubAsm(Immediate(size.toLong), Rsp)
     )
