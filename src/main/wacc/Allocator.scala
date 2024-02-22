@@ -27,6 +27,9 @@ case class Allocator(reservedSpace: Int) {
     case IntType                                    => allocateSpace(Size32)
     case StringType | ArrayType(_) | PairType(_, _) => allocateSpace(Size64)
   }
+
+  def usedRegs: List[Reg] =
+    Allocator.NON_PARAM_REGS.take(Allocator.NON_PARAM_REGS.length - freeRegs.length)
 }
 
 /*

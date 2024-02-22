@@ -30,101 +30,86 @@ object builtInFunctions {
     genErr1Arg("errOutOfBounds", "fatal error: array index %d out of bounds")
   )
 
-  // // Main one
-  // def genNewScope(
-  //     body: ListBuffer[Instruction],
-  //     toSave: List[Reg],
-  //     toAllocate: List[SymbolTableObj],
-  //     symTable: SymbolTable[Dest]
-  // ): ListBuffer[Instruction] = {
+  def symTableEnterScope(symTable: SymbolTable[Dest], allocator: Allocator): Unit = {
+    allocator.usedRegs.reverse.zipWithIndex.foreach {
+      case (r, i) =>
+        val ident = symTable.reverseLookup(r).get
+        symTable.put(ident, Address(Rbp, Immediate(i.toLong * 8))) // might be (i + 1)
+    }
 
-  //   val size = toAllocate.map(x => Allocator.getTypeWidth(x.typ.get)).sum
-  //   lb(
-  //     Push(Rbp),
-  //     toSave.zipWithIndex.map {
-  //       case (r, i) => {
-  //         var ident = symTable.reverseLookup(r).get
+    var st = Option(symTable)
+    while (st.isDefined) {
+      val table = st.get.table
+      table.keySet.foreach(ident =>
+        table.put(
+          ident,
+          table(ident) match {
+            case Address(Rbp, Immediate(offset), _, _) =>
+              Address(Rbp, Immediate(offset - allocator.usedRegs.size * 8))
+            case _ => ???
+          }
+        )
+      )
+      st = st.get.parent
+    }
+  }
 
-  //         Push(r)
-  //       }
-  //     },
-  //     Mov(Rsp, Rbp),
-  //     SubAsm(Immediate(size.toLong), Rsp),
-  //     body,
-  //     AddAsm(Immediate(size.toLong), Rsp),
-  //     Mov(Rbp, Rsp),
-  //     toSave.map(r => Pop(r)),
-  //     Pop(Rbp)
-  //   )
-  // }
-  // def genNewScope(
-  //     body: ListBuffer[Instruction]
-  // ): ListBuffer[Instruction] = {
-  //   genNewScope(body, List.empty, List.empty, SymbolTable(None))
-  // }
-  // def genNewScope(
-  //     body: ListBuffer[Instruction],
-  //     vars: List[SymbolTableObj],
-  //     symTable: SymbolTable[Dest]
-  // ): ListBuffer[Instruction] = {
-  //   val toSave = Allocator.NON_PARAM_REGS.take(vars.size)
-  //   val toAllocate = vars.drop(Allocator.NON_PARAM_REGS.size)
-  //   genNewScope(body, toSave, toAllocate, symTable)
-  // }
+  def symTableExitScope(symTable: SymbolTable[Dest], allocator: Allocator): Unit = {
+
+    allocator.usedRegs.zipWithIndex.foreach {
+      case (r, i) =>
+        val ident =
+          symTable.reverseLookup(Address(Rbp, Immediate(-(i + 1).toLong * 8))).get // might be (i + 1)
+        symTable.put(ident, r)
+    }
+
+    var st = Option(symTable)
+    while (st.isDefined) {
+      val table = st.get.table
+      table.keySet.foreach(ident =>
+        table.put(
+          ident,
+          table(ident) match {
+            case Address(Rbp, Immediate(offset), _, _) =>
+              Address(Rbp, Immediate(offset + (allocator.usedRegs.size * 8)))
+            case r: Reg => r
+          }
+        )
+      )
+      st = st.get.parent
+    }
+
+  }
 
   def genNewScopeEnter(
       toSave: List[Reg],
       toAllocate: List[SymbolTableObj],
       prevSize: Int,
-      symTable: SymbolTable[Dest]
+      symTable: SymbolTable[Dest],
+      allocator : Allocator,
   ): ListBuffer[Instruction] = {
     val size = toAllocate.map(x => Allocator.getTypeWidth(x.typ.get)).sum
     lb(
       Push(Rbp),
-      toSave.map(r => Push(r)), {
-        toSave.reverse.zipWithIndex.map {
-          case (r, i) => {
-            // println(toSave)
-            // println(r)
-            // println(symTable.table)
-            var ident = symTable.reverseLookup(r).get
-            symTable.put(ident, Address(Rbp, Immediate(i.toLong * 8))) // might be (i + 1)
-          }
-        }
-
-        var st = symTable.parent
-        while (st.isDefined) {
-          val table = st.get.table
-          table.keySet.foreach(ident =>
-            table.put(
-              ident,
-              table.get(ident).get match {
-                case Address(Rbp, Immediate(offset), _, _) =>
-                  Address(Rbp, Immediate(offset + prevSize))
-                case _ => ???
-              }
-            )
-          )
-          st = st.get.parent
-        }
-
-        Mov(Rsp, Rbp)
-      },
+      toSave.map(r => Push(r)),
+      Mov(Rsp, Rbp),
       SubAsm(Immediate(size.toLong), Rsp)
     )
   }
 
   def genNewScopeEnter(): ListBuffer[Instruction] = {
-    genNewScopeEnter(List.empty, List.empty, 0, SymbolTable(None))
+    genNewScopeEnter(List.empty, List.empty, 0, SymbolTable(None), Allocator(0))
   }
 
   def genNewScopeEnter(
-      toAllocate: List[SymbolTableObj],
+      vars: List[SymbolTableObj],
       prevSize: Int,
-      symTable: SymbolTable[Dest]
+      symTable: SymbolTable[Dest],
+      allocator: Allocator
   ): ListBuffer[Instruction] = {
-    val toSave = Allocator.NON_PARAM_REGS.take(toAllocate.size)
-    genNewScopeEnter(toSave, toAllocate, prevSize, symTable)
+    val toSave = Allocator.NON_PARAM_REGS.take(vars.size)
+    val toAllocate = vars.drop(Allocator.NON_PARAM_REGS.size)
+    genNewScopeEnter(toSave, toAllocate, prevSize, symTable, allocator)
   }
 
   def genNewScopeExit(
@@ -138,33 +123,8 @@ object builtInFunctions {
     lb(
       AddAsm(Immediate(size.toLong), Rsp),
       Mov(Rbp, Rsp),
-      toSave.map(r => { Pop(r) }), {
-
-        toSave.zipWithIndex.map {
-          case (r, i) => {
-            var ident =
-              symTable.reverseLookup(Address(Rbp, Immediate(i.toLong * 8))).get // might be (i + 1)
-            symTable.put(ident, r)
-          }
-        }
-
-        var st = symTable.parent
-        while (st.isDefined) {
-          val table = st.get.table
-          table.keySet.foreach(ident =>
-            table.put(
-              ident,
-              table.get(ident).get match {
-                case Address(Rbp, Immediate(offset), _, _) =>
-                  Address(Rbp, Immediate(offset - (prevSize + 8)))
-                case _ => ???
-              }
-            )
-          )
-          st = st.get.parent
-        }
-        Pop(Rbp)
-      }
+      toSave.map(r => { Pop(r) }),
+      Pop(Rbp)
     )
   }
 

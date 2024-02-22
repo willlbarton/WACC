@@ -106,9 +106,14 @@ object analyser {
   // Main program body
   private def checkMainStmt(st: SymbolTable[SymbolTableObj], stmt: Stmt): String = stmt match {
     case Return(_) => s"Return not allowed in main\n" withContext stmt
-    case IfStmt(cond, body1, body2) =>
-      checkCond(st, cond, isIf = true) ++
-        checkMainStmts(st.makeChild, body1) ++ checkMainStmts(st.makeChild, body2)
+    case f@IfStmt(cond, body1, body2) =>
+      val childTable1 = st.makeChild
+      val childTable2 = st.makeChild
+      val err = checkCond(st, cond, isIf = true) ++
+        checkMainStmts(childTable1, body1) ++ checkMainStmts(childTable2, body2)
+      f.branch1Vars = childTable1.vars
+      f.branch2Vars = childTable2.vars
+      err
     case While(cond, body) =>
       checkCond(st, cond, isIf = false) ++ checkMainStmts(st.makeChild, body)
     case ScopedStmt(stmt) => checkMainStmts(st.makeChild, stmt)

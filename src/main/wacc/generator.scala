@@ -47,13 +47,16 @@ object generator {
       Mov(Immediate(0), Eax(Size64))
     )
 
+    symTableEnterScope(mainSymTable, allocator)
     instructions ++= lb(
-      genNewScopeEnter(program.vars, allocator.reservedSpace, mainSymTable),
+      genNewScopeEnter(program.vars, allocator.reservedSpace, mainSymTable, allocator),
       mainBody,
       genNewScopeExit(program.vars, allocator.reservedSpace, mainSymTable),
       Ret,
       genFunctions
     )
+    symTableExitScope(mainSymTable, allocator)
+    instructions
   }
 
   private def genFunc(
@@ -132,23 +135,29 @@ object generator {
         println("after make child:")
         println(symTable.table)
 
-        lb(
+        symTableEnterScope(symTable, allocator)
+
+        val instructions = lb(
           Pop(Eax(Size64)),
           Cmp(Immediate(1), Eax(Size64)),
           JmpComparison(labelTrue, Eq),
-          genNewScopeEnter(ifStmt.branch2Vars, allocator.reservedSpace, symTable),
+          genNewScopeEnter(ifStmt.branch2Vars, allocator.reservedSpace, symTable, allocator),
           // genNewScope(genStmts(body2, childSymTable, allocator), ifStmt.branch2Vars, symTable),
           genStmts(body2, childSymTable, allocator),
           genNewScopeExit(ifStmt.branch2Vars, allocator.reservedSpace, symTable),
           Jmp(labelContinue),
           labelTrue,
-          genNewScopeEnter(ifStmt.branch2Vars, allocator.reservedSpace, symTable),
+          genNewScopeEnter(ifStmt.branch2Vars, allocator.reservedSpace, symTable, allocator),
           genStmts(body1, childSymTable, allocator),
 
           // genNewScope(genStmts(body1, childSymTable, allocator), ifStmt.branch1Vars, symTable),
           genNewScopeExit(ifStmt.branch2Vars, allocator.reservedSpace, symTable),
           labelContinue
         )
+
+        symTableExitScope(symTable, allocator)
+
+        instructions
       }
     )
 
