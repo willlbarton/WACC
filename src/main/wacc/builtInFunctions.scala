@@ -4,14 +4,41 @@ import scala.collection.mutable.ListBuffer
 import src.main.wacc.generator.lb
 import src.main.wacc.constants._
 
-import scala.annotation.tailrec
-
 object builtInFunctions {
 
   private val maskRsp = AndAsm(Immediate(-16), Rsp)
+  private val errOutOfMemory = "errOutOfMemory"
+  private val errOutOfBounds = "errOutOfBounds"
+
+  val dirGlobl: Directive = Directive("globl main")
+  private val dirStr = "asciz"
+  private val dirSectionData = Directive("section .data")
+
+  val mainLabel: Label = Label("main")
+
+  val errOverflow = "errOverflow"
+  val errDivZero = "errDivZero"
+  val errBadChar = "errBadChar"
+
+  val exit = "exit"
+  val free = "free"
+  val malloc = "malloc"
+
+  val print = "print"
+  val read = "read"
+
+  val stringType = 's'
+  val intType = 'i'
+  val charType = 'c'
+  val printlnType = 'n'
+  val ptrType = 'p'
+  val boolType = 'b'
+
+  val arrStore = "arrStore"
+  val arrLoad = "arrLoad"
 
   lazy val genFunctions: ListBuffer[Instruction] = lb(
-    genCall("exit", provided.exit),
+    genCall(exit, provided.exit),
     genPrint(stringType, "%.*s"),
     genPrint(intType, "%d"),
     genPrint(printlnType, ""),
@@ -21,15 +48,18 @@ object builtInFunctions {
     genRead(intType, "%d"),
     genRead(charType, "%c"),
     genMalloc,
-    genCall("free", provided.free),
-    genArrLoad(Size8),
-    genArrLoad(Size32),
-    genArrLoad(Size64),
-    genErr("errOverflow", "fatal error: integer overflow or underflow occurred"),
-    genErr("errDivZero", "fatal error: division or modulo by zero"),
-    genErr("errOutOfMemory", "fatal error: out of memory"),
-    genErr1Arg("errBadChar", "fatal error: int %d is not ascii character 0-127"),
-    genErr1Arg("errOutOfBounds", "fatal error: array index %d out of bounds")
+    genCall(free, provided.free),
+    genArrAccess(Size8, direction = true),
+    genArrAccess(Size32, direction = true),
+    genArrAccess(Size64, direction = true),
+    genArrAccess(Size8, direction = false),
+    genArrAccess(Size32, direction = false),
+    genArrAccess(Size64, direction = false),
+    genErr(errOverflow, "fatal error: integer overflow or underflow occurred"),
+    genErr(errDivZero, "fatal error: division or modulo by zero"),
+    genErr(errOutOfMemory, "fatal error: out of memory"),
+    genErr1Arg(errBadChar, "fatal error: int %d is not ascii character 0-127"),
+    genErr1Arg(errOutOfBounds, "fatal error: array index %d out of bounds")
   )
 
   def symTableEnterScope(symTable: SymbolTable[Dest], allocator: Allocator, toSave: List[Reg]): Unit = {
@@ -131,13 +161,13 @@ object builtInFunctions {
   }
 
   def genDataSection(data: (String, String)*): ListBuffer[Instruction] = lb(
-    Directive("section .data"),
+    dirSectionData,
     lb(
       data.map(kv =>
         lb(
           Directive(s"int ${kv._1.length - kv._1.count(_ == '\\')}"),
           Label(kv._2),
-          Directive(s"asciz \"${kv._1}\"")
+          Directive(s"$dirStr \"${kv._1}\"")
         )
       ): _*
     ),
@@ -152,20 +182,9 @@ object builtInFunctions {
       CallAsm(func)
     ),
     genNewScopeExit(),
-    // genNewScope(
-    //   lb(
-    //     maskRsp,
-    //     CallAsm(func)
-    //   )
-    // ),
     Ret
   )
 
-  private lazy val stringType = 's'
-  private lazy val intType = 'i'
-  private lazy val charType = 'c'
-  private lazy val printlnType = 'n'
-  private lazy val ptrType = 'p'
   private def genPrint(typ: Char, format: String): ListBuffer[Instruction] = {
     val graph: ListBuffer[Instruction] = lb(
       genDataSection(format -> s".print${typ}_format"),
@@ -264,13 +283,13 @@ object builtInFunctions {
   }
 
   private val genMalloc: ListBuffer[Instruction] = lb(
-    Label("_malloc"),
+    Label(s"_$malloc"),
     genNewScopeEnter(),
     lb(
       maskRsp,
       CallAsm(provided.malloc),
       Cmp(Immediate(0), Eax(Size64)),
-      JmpComparison(Label("_errOutOfMemory"), Eq)
+      JmpComparison(Label(s"_$errOutOfMemory"), Eq)
     ),
     genNewScopeExit(),
     Ret
@@ -279,25 +298,29 @@ object builtInFunctions {
   // Special calling convention:
   // R9: array address
   // R10: index
-  // Return: R9 = array[index]
-  private def genArrLoad(size: Size): ListBuffer[Instruction] = {
+  // Rax: value to store (only or store)
+  // Return: R9 = value (only for load)
+  private def genArrAccess(size: Size, direction: Boolean): ListBuffer[Instruction] = {
     val s = size match {
       case Size8  => byteSize
       case Size32 => intSize
       case Size64 => ptrSize
     }
     lb(
-      Label(s"_arrLoad$s"),
+      Label(s"_arr${if (direction) "Store" else "Load"}$s"),
       genNewScopeEnter(),
       lb(
         Cmp(Immediate(0), R10()),
         CMovl(R10(Size64), Esi(Size64)),
-        JmpComparison(Label("_errOutOfBounds"), Lt),
+        JmpComparison(Label(s"_$errOutOfBounds"), Lt),
         Mov(Address(R9(Size64), Immediate(-4)), Ebx()),
         Cmp(Ebx(), R10()),
         CMovge(R10(Size64), Esi(Size64)),
-        JmpComparison(Label("_errOutOfBounds"), Eq),
-        Mov(Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)), R9(Size64))
+        JmpComparison(Label(s"_$errOutOfBounds"), GtEq),
+        if (direction)
+          Mov(Eax(Size64), Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)))
+        else
+          Mov(Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)), R9(Size64))
       ),
       genNewScopeExit(),
       Ret

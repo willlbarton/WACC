@@ -34,10 +34,10 @@ object generator {
 
   private def genProgram(program: Program): ListBuffer[Instruction] = {
     val instructions = lb(
-      Directive("globl main"),
+      dirGlobl,
       genDataSection(stringLiters.view.mapValues(i => s".L.str$i").toSeq: _*),
       program.functions.map(x => genFunc(x, SymbolTable(None), Allocator(x.vars))),
-      Label("main")
+      mainLabel
     )
 
     val mainSymTable: SymbolTable[Dest] = SymbolTable(None)
@@ -64,7 +64,7 @@ object generator {
       func: Func,
       symTable: SymbolTable[Dest],
       allocator: Allocator
-  ): ListBuffer[Instruction] = ListBuffer.empty // TODO
+  ): ListBuffer[Instruction] = ??? // TODO
 
   private def genStmts(
       stmts: ListBuffer[Stmt],
@@ -101,9 +101,9 @@ object generator {
           genExpr(expr, symTable),
           Ret
         )
-      case Print(expr)           => genPrintStmt(symTable, expr)
-      case PrintLn(expr)         => genPrintStmt(symTable, expr) += CallAsm(Label("_printn"))
-      case Read(lval)            => genReadStmt(symTable, lval)
+      case Print(expr)   => genPrintStmt(symTable, expr)
+      case PrintLn(expr) => genPrintStmt(symTable, expr) += CallAsm(Label(s"_$print$printlnType"))
+      case Read(lval)    => genReadStmt(symTable, lval)
       case Decl(t, ident, value) =>
         // We can allocate the register before we generate rval as the stack machine will
         // only use %eax and %ebx, which are protected
@@ -174,15 +174,25 @@ object generator {
       value: RVal,
       symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] = {
-    val dest = lval match {
-      case id: Ident => symTable(id)
-      case _         => ???
+    lval match {
+      case id: Ident => lb(
+        genRval(value, symTable),
+        Pop(Eax(Size64)),
+        Mov(Eax(Size64), symTable(id).get)
+      )
+      case arr@ArrayElem(ident, exprs) =>
+        var typ = ident.typ.get
+        typ = exprs.foldLeft(typ) { case (t, _) => t match { case ArrayType(t) => t } }
+        lb(
+          genLVal(arr, symTable),
+          genExpr(exprs.last, symTable),
+          genRval(value, symTable),
+          Pop(Eax(Size64)),
+          Pop(R10(Size64)),
+          Pop(R9(Size64)),
+          CallAsm(Label(s"_$arrStore${Allocator.getTypeWidth(typ)}"))
+        )
     }
-    lb(
-      genRval(value, symTable),
-      Pop(Eax(Size64)),
-      Mov(Eax(Size64), dest.get)
-    )
   }
 
   private def genFreeStmt(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
@@ -190,7 +200,7 @@ object generator {
     Pop(Eax(Size64)),
     Mov(Eax(Size64), Edi(Size64)),
     SubAsm(Immediate(4), Edi(Size64)),
-    CallAsm(Label("_free"))
+    CallAsm(Label(s"_$free"))
   )
 
   private def genRval(value: RVal, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
@@ -210,7 +220,7 @@ object generator {
     var position = -elemSize
     lb(
       Mov(Immediate(size), Edi()),
-      CallAsm(Label("_malloc")),
+      CallAsm(Label(s"_$malloc")),
       Mov(Eax(Size64), R11(Size64)),
       Mov(Immediate(a.elems.length), Address(R11(Size64))),
       AddAsm(Immediate(intSize), R11(Size64)),
@@ -233,8 +243,8 @@ object generator {
       lval match {
         case id: Ident =>
           id.typ.get match {
-            case CharType => CallAsm(Label("_readc"))
-            case IntType  => CallAsm(Label("_readi"))
+            case CharType => CallAsm(Label(s"_$read$charType"))
+            case IntType  => CallAsm(Label(s"_$read$intType"))
           }
         case _ => ???
       }
@@ -247,12 +257,13 @@ object generator {
       Pop(Eax(Size64)),
       Mov(Eax(Size64), Edi(Size64)),
       expr.typ.get match {
-        case CharType                             => CallAsm(Label("_printc"))
-        case IntType                              => CallAsm(Label("_printi"))
-        case StringType | ArrayType(CharType)     => CallAsm(Label("_prints"))
-        case BoolType                             => CallAsm(Label("_printb"))
-        case ArrayType(_) | PairType(_, _) | Pair => CallAsm(Label("_printp"))
-        case _                                    => println(expr.typ.get)
+        case CharType                             => CallAsm(Label(s"_$print$charType"))
+        case IntType                              => CallAsm(Label(s"_$print$intType"))
+        case StringType | ArrayType(CharType)     => CallAsm(Label(s"_$print$stringType"))
+        case BoolType                             => CallAsm(Label(s"_$print$boolType"))
+        case ArrayType(_) | PairType(_, _) | Pair => CallAsm(Label(s"_$print$ptrType"))
+        case _                                    =>
+          throw new IllegalArgumentException(s"Unsupported type: ${expr.typ.get}")
       }
     )
   }
@@ -262,11 +273,36 @@ object generator {
       genExpr(expr, symTable),
       Pop(Eax(Size64)),
       Mov(Eax(Size64), Edi(Size64)),
-      CallAsm(Label("_exit")),
+      CallAsm(Label(s"_$exit")),
       Mov(Immediate(0), Eax())
     )
 
-  private def genLVal(lval: LVal, symTable: SymbolTable[Dest]) = ???
+
+  private def genLVal(lval: LVal, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
+    lval match {
+      case id: Ident => lb(Push(symTable(id).get))
+      case ArrayElem(ident, exprs) => genArrayElem(ident, exprs.init, symTable)
+    }
+
+  private def genArrayElem(
+    ident: Ident,
+    exprs: List[Expr],
+    symTable: SymbolTable[Dest]
+  ): ListBuffer[Instruction] = {
+    val dest = symTable(ident).get
+    var typ: Type = ident.typ.get
+    val instructions = lb(Mov(dest, R9(Size64)))
+    for (expr <- exprs) {
+      typ = typ match { case ArrayType(t) => t }
+      val s = Allocator.getTypeWidth(typ)
+      instructions ++= lb(
+        genExpr(expr, symTable),
+        Pop(R10(Size64)),
+        CallAsm(Label(s"_$arrLoad$s"))
+      )
+    }
+    instructions += Push(R9(Size64))
+  }
 
   private def genExpr(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
     expr match {
@@ -275,11 +311,11 @@ object generator {
       case Bool(value)   => Mov(Immediate(if (value) 1 else 0), Eax(Size64))
       case Character(c)  => Mov(Immediate(c.toLong), Eax(Size64))
 
-      case ArrayElem(ident, exprs) => ???
+      case ArrayElem(ident, exprs) => genArrayElem(ident, exprs, symTable)
       case Ident(name) =>
         symTable(Ident(name)) match {
           case Some(value) => Mov(value, Eax(Size64))
-          case None        => ???
+          case None        => throw new NoSuchElementException(s"Variable $name not found")
         }
       case Null => Mov(Immediate(0), Eax(Size64))
 
@@ -291,7 +327,8 @@ object generator {
     },
 
     // If the expression is a bracketed expression, the result will already be pushed to the stack
-    if (expr.isInstanceOf[BracketedExpr]) lb() else Push(Eax(Size64))
+    if (expr.isInstanceOf[BracketedExpr] || expr.isInstanceOf[ArrayElem])
+      lb() else Push(Eax(Size64))
   )
 
   private def genBinaryApp(
@@ -312,7 +349,7 @@ object generator {
             case Sub => SubAsm(Ebx(Size32), Eax(Size32))
             case Mul => Imul(Ebx(Size32), Eax(Size32))
           },
-          Jo(Label("_errOverflow")),
+          Jo(Label(s"_$errOverflow")),
           Movs(Eax(Size32), Eax(Size64))
         )
 
@@ -325,7 +362,7 @@ object generator {
       case Mod | Div =>
         lb(
           Cmp(Immediate(0), Ebx(Size32)),
-          JmpComparison(Label("_errDivZero"), Eq),
+          JmpComparison(Label(s"_$errDivZero"), Eq),
           // As Cltd will write into edx?? This isn't in reference compiler I just did it.
           Push(Edx(Size64)),
           Cltd,
@@ -359,7 +396,7 @@ object generator {
         lb(
           Testq(Immediate(-128), Eax(Size64)),
           Cmovne(Eax(Size64), Esi(Size64)),
-          JmpComparison(Label("_errBadChar"), NotEq)
+          JmpComparison(Label(s"_$errBadChar"), NotEq)
         )
       case Len => ???
       case Neg =>
@@ -367,7 +404,7 @@ object generator {
         lb(
           Mov(Immediate(0), Edx(Size64)),
           SubAsm(Eax(Size32), Edx(Size32)),
-          Jo(Label("_errOverflow")),
+          Jo(Label(s"_$errOverflow")),
           Movs(Edx(Size32), Eax(Size64))
         )
       case Not =>

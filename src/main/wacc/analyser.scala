@@ -249,31 +249,32 @@ object analyser {
 
   // Checks the validity of an expression and finds it type if possible
   @tailrec
-  private def checkExpr(symTable: SymbolTable[SymbolTableObj], expr: Expr): (String, Option[Type]) =
-    expr match {
-      case Integer(_)   => ("", Some(IntType))
-      case Bool(_)      => ("", Some(BoolType))
-      case Character(_) => ("", Some(CharType))
-      case StringAtom(s) =>
-        generator.stringLiters += (s -> generator.stringLiters.size)
-        ("", Some(StringType))
-      case Null => ("", Some(Pair))
-      case id: Ident =>
-        checkIdent(symTable, id) match {
-          case Left(err)  => (err withContext expr, None)
-          case Right(typ) => ("", Some(typ))
-        }
-      // Array indexing
-      case ArrayElem(ident, exprs) =>
-        checkArrayElem(symTable, ident, exprs) match {
-          case Left(err)  => (err, None)
-          case Right(typ) => ("", Some(typ))
-        }
-      case BracketedExpr(expr) => checkExpr(symTable, expr)
-      // Unary and binary operators mutually recursive with this function
-      case UnaryApp(op, expr)         => checkUnaryApp(symTable, op, expr)
-      case BinaryApp(op, left, right) => checkBinaryApp(symTable, op, left, right)
-    }
+  private def checkExpr(symTable: SymbolTable[SymbolTableObj], expr: Expr): (String, Option[Type]) = expr match {
+    case Integer(_)    => ("", Some(IntType))
+    case Bool(_)       => ("", Some(BoolType))
+    case Character(_)  => ("", Some(CharType))
+    case StringAtom(s) =>
+      generator.stringLiters += (s -> generator.stringLiters.size)
+      ("", Some(StringType))
+    case Null          => ("", Some(Pair))
+    case id: Ident =>
+      checkIdent(symTable, id) match {
+        case Left(err)  => (err withContext expr, None)
+        case Right(typ) => ("", Some(typ))
+      }
+    // Array indexing
+    case ArrayElem(ident, exprs) =>
+      checkArrayElem(symTable, ident, exprs) match {
+        case Left(err)  => (err, None)
+        case Right(typ) =>
+          ident.typ = Some(ArrayType(typ))
+          ("", Some(typ))
+      }
+    case BracketedExpr(expr) => checkExpr(symTable, expr)
+    // Unary and binary operators mutually recursive with this function
+    case UnaryApp(op, expr)         => checkUnaryApp(symTable, op, expr)
+    case BinaryApp(op, left, right) => checkBinaryApp(symTable, op, left, right)
+  }
 
   // Checks that an identifier is defined and returns its type if possible
   private def checkIdent(
@@ -509,28 +510,30 @@ object analyser {
 
   // Checks that the left hand side of an assignment or declaration is valid
   // and returns its type if valid
-  private def checkLVal(symTable: SymbolTable[SymbolTableObj], lval: LVal): Either[String, Type] =
-    lval match {
-      case id: Ident               => checkIdent(symTable, id)
-      case ArrayElem(ident, exprs) => checkArrayElem(symTable, ident, exprs)
-      case Fst(value) =>
-        checkLVal(symTable, value) match {
-          // The type of fst is the type of the first element of the pair
-          case Left(err)               => Left(err)
-          case Right(PairType(typ, _)) => Right(typ)
-          case Right(Pair) => Right(NullType) // We don't know the type of the pair, but it is valid
-          case Right(typ) =>
-            Left(typeErrorMsg("pair element access", s"fst $value", "pair", s"$typ"))
-        }
-      case Snd(value) =>
-        checkLVal(symTable, value) match {
-          case Left(err)               => Left(err)
-          case Right(PairType(_, typ)) => Right(typ)
-          case Right(Pair) => Right(NullType) // We don't know the type of the pair, but it is valid
-          case Right(typ) =>
-            Left(typeErrorMsg("pair element access", s"snd $value", "pair", s"$typ"))
-        }
-    }
+  private def checkLVal(symTable: SymbolTable[SymbolTableObj], lval: LVal): Either[String, Type] = lval match {
+    case id: Ident               => checkIdent(symTable, id)
+    case ArrayElem(ident, exprs) =>
+      val res = checkArrayElem(symTable, ident, exprs)
+      if (res.isRight) {
+        ident.typ = Some(ArrayType(res.right.get))
+      }
+      res
+    case Fst(value) =>
+      checkLVal(symTable, value) match {
+        // The type of fst is the type of the first element of the pair
+        case Left(err)               => Left(err)
+        case Right(PairType(typ, _)) => Right(typ)
+        case Right(Pair) => Right(NullType) // We don't know the type of the pair, but it is valid
+        case Right(typ) => Left(typeErrorMsg("pair element access", s"fst $value", "pair", s"$typ"))
+      }
+    case Snd(value) =>
+      checkLVal(symTable, value) match {
+        case Left(err)               => Left(err)
+        case Right(PairType(_, typ)) => Right(typ)
+        case Right(Pair) => Right(NullType) // We don't know the type of the pair, but it is valid
+        case Right(typ) => Left(typeErrorMsg("pair element access", s"snd $value", "pair", s"$typ"))
+      }
+  }
 
   // Checks the validity of the right hand side of an assignment or declaration
   // and returns its type if valid
