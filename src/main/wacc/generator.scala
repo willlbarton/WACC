@@ -343,7 +343,7 @@ object generator {
       case Mod | Div =>
         lb(
           Cmp(Immediate(0), Ebx(Size32)),
-          JmpComparison(Label("_errDivZero"), Eq),
+          JmpComparison(Label(s"_$errDivZero"), Eq),
           // As Cltd will write into edx?? This isn't in reference compiler I just did it.
           Push(Edx(Size64)),
           Cltd,
@@ -377,7 +377,7 @@ object generator {
         lb(
           Testq(Immediate(-128), Eax(Size64)),
           Cmovne(Eax(Size64), Esi(Size64)),
-          JmpComparison(Label("_errBadChar"), NotEq)
+          JmpComparison(Label(s"_$errBadChar"), NotEq)
         )
       case Len => ???
       case Neg =>

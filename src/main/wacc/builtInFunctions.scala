@@ -220,7 +220,7 @@ object builtInFunctions {
       maskRsp,
       CallAsm(provided.malloc),
       Cmp(Immediate(0), Eax(Size64)),
-      Je(Label(s"_$errOutOfMemory")),
+      JmpComparison(Label(s"_$errOutOfMemory"), Eq),
     )),
     Ret
   )
@@ -241,11 +241,11 @@ object builtInFunctions {
       genNewScope(lb(
         Cmp(Immediate(0), R10()),
         CMovl(R10(Size64), Esi(Size64)),
-        Jl(Label(s"_$errOutOfBounds")),
+        JmpComparison(Label(s"_$errOutOfBounds"), Lt),
         Mov(Address(R9(Size64), Immediate(-4)), Ebx()),
         Cmp(Ebx(), R10()),
         CMovge(R10(Size64), Esi(Size64)),
-        Je(Label(s"_$errOutOfBounds")),
+        JmpComparison(Label(s"_$errOutOfBounds"), GtEq),
         if (direction)
           Mov(Eax(Size64), Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)))
         else
