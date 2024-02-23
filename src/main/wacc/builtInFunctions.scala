@@ -7,9 +7,38 @@ import src.main.wacc.constants._
 object builtInFunctions {
 
   private val maskRsp = AndAsm(Immediate(-16), Rsp)
+  private val errOutOfMemory = "errOutOfMemory"
+  private val errOutOfBounds = "errOutOfBounds"
+
+  val dirGlobl: Directive = Directive("globl main")
+  private val dirStr = "asciz"
+  private val dirSectionData = Directive("section .data")
+
+  val mainLabel: Label = Label("main")
+
+  val errOverflow = "errOverflow"
+  val errDivZero = "errDivZero"
+  val errBadChar = "errBadChar"
+
+  val exit = "exit"
+  val free = "free"
+  val malloc = "malloc"
+
+  val print = "print"
+  val read = "read"
+
+  val stringType = 's'
+  val intType = 'i'
+  val charType = 'c'
+  val printlnType = 'n'
+  val ptrType = 'p'
+  val boolType = 'b'
+
+  val arrStore = "arrStore"
+  val arrLoad = "arrLoad"
 
   lazy val genFunctions: ListBuffer[Instruction] = lb(
-    genCall("exit", provided.exit),
+    genCall(exit, provided.exit),
     genPrint(stringType, "%.*s"),
     genPrint(intType, "%d"),
     genPrint(printlnType, ""),
@@ -19,18 +48,18 @@ object builtInFunctions {
     genRead(intType, "%d"),
     genRead(charType, "%c"),
     genMalloc,
-    genCall("free", provided.free),
+    genCall(free, provided.free),
     genArrAccess(Size8, direction = true),
     genArrAccess(Size32, direction = true),
     genArrAccess(Size64, direction = true),
     genArrAccess(Size8, direction = false),
     genArrAccess(Size32, direction = false),
     genArrAccess(Size64, direction = false),
-    genErr("errOverflow", "fatal error: integer overflow or underflow occurred"),
-    genErr("errDivZero", "fatal error: division or modulo by zero"),
-    genErr("errOutOfMemory", "fatal error: out of memory"),
-    genErr1Arg("errBadChar", "fatal error: int %d is not ascii character 0-127"),
-    genErr1Arg("errOutOfBounds", "fatal error: array index %d out of bounds")
+    genErr(errOverflow, "fatal error: integer overflow or underflow occurred"),
+    genErr(errDivZero, "fatal error: division or modulo by zero"),
+    genErr(errOutOfMemory, "fatal error: out of memory"),
+    genErr1Arg(errBadChar, "fatal error: int %d is not ascii character 0-127"),
+    genErr1Arg(errOutOfBounds, "fatal error: array index %d out of bounds")
   )
 
   def genNewScope(
@@ -64,13 +93,13 @@ object builtInFunctions {
   }
 
   def genDataSection(data: (String, String)*): ListBuffer[Instruction] = lb(
-    Directive("section .data"),
+    dirSectionData,
     lb(
       data.map(kv =>
         lb(
           Directive(s"int ${kv._1.length - kv._1.count(_ == '\\')}"),
           Label(kv._2),
-          Directive(s"asciz \"${kv._1}\"")
+          Directive(s"$dirStr \"${kv._1}\"")
         )
       ): _*
     ),
@@ -86,11 +115,6 @@ object builtInFunctions {
     Ret
   )
 
-  private lazy val stringType = 's'
-  private lazy val intType = 'i'
-  private lazy val charType = 'c'
-  private lazy val printlnType = 'n'
-  private lazy val ptrType = 'p'
   private def genPrint(typ: Char, format: String): ListBuffer[Instruction] = {
     val graph: ListBuffer[Instruction] = lb(
       genDataSection(format -> s".print${typ}_format"),
@@ -189,12 +213,12 @@ object builtInFunctions {
   }
 
   private val genMalloc: ListBuffer[Instruction] = lb (
-    Label("_malloc"),
+    Label(s"_$malloc"),
     genNewScope(lb(
       maskRsp,
       CallAsm(provided.malloc),
       Cmp(Immediate(0), Eax(Size64)),
-      Je(Label("_errOutOfMemory")),
+      Je(Label(s"_$errOutOfMemory")),
     )),
     Ret
   )
@@ -215,11 +239,11 @@ object builtInFunctions {
       genNewScope(lb(
         Cmp(Immediate(0), R10()),
         CMovl(R10(Size64), Esi(Size64)),
-        Jl(Label("_errOutOfBounds")),
+        Jl(Label(s"_$errOutOfBounds")),
         Mov(Address(R9(Size64), Immediate(-4)), Ebx()),
         Cmp(Ebx(), R10()),
         CMovge(R10(Size64), Esi(Size64)),
-        Je(Label("_errOutOfBounds")),
+        Je(Label(s"_$errOutOfBounds")),
         if (direction)
           Mov(Eax(Size64), Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)))
         else
