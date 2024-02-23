@@ -114,7 +114,21 @@ object generator {
       case Free(expr)        => genFreeStmt(expr, symTable)
       case ifStmt: IfStmt =>
         genIfStmt(ifStmt, symTable, allocator) // handle IfStmt case
-      case ScopedStmt(_)      => ??? // handle ScopedStmt case
+      case s @ ScopedStmt(stmts) => {
+
+        val toSave = allocator.usedRegs
+
+        symTableEnterScope(symTable, allocator, toSave)
+
+        val instructions = lb(
+          genNewScopeEnter(s.vars),
+          genStmts(stmts, symTable.makeChild, allocator),
+          genNewScopeExit(s.vars)
+        )
+
+        symTableExitScope(symTable, allocator, toSave)
+        instructions
+      }
       case While(expr, stmts) => genWhile(expr, stmts, symTable, allocator)
     }
 
