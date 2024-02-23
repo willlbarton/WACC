@@ -40,26 +40,27 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
   def buildAsm(testFile: String): String = {
     val fileName = testFile.split("/").last
     val outputFile = fileName.replaceFirst("\\.\\w+$", ".s")
-    val buildCommand = s"scala-cli run . -nowarn -- $testFile"
+    val buildCommand = s"scala-cli run . -nowarn -q -- $testFile"
     buildCommand.!
     outputFile
   }
 
-  def assembleAndRun(testFile: String): Either[Err, (LazyList[String], Int)] = {
+  def assembleAndRun(testFile: String): Either[Err, (String, Int)] = {
     val binaryFile = "output"
     val compileCommand = s"gcc $testFile -o $binaryFile"
     val compileResult = compileCommand.!
     Files.delete(Paths.get(testFile))
     if (compileResult != 0) {
-      Left(CompilationError)
+      return Left(CompilationError)
     }
     val process = Process(s"./$binaryFile")
-    val output = process.lazyLines_!
+    val output = process.lazyLines_!.mkString(",")
     val exitCode = process.!
+    Files.delete(Paths.get(binaryFile))
     Right((output, exitCode))
   }
 
-  def regex(testFile: String): (LazyList[String], Int) = {
+  def regex(testFile: String): (String, Int) = {
     val source = Source.fromFile(testFile)
     val fileString = source.getLines().mkString("\n");
     val exitCodeRegex: Regex = """Exit:\s*(# \d+)""".r
@@ -69,8 +70,16 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
       case None        => 0
     }
     val output = outputRegex.findFirstMatchIn(fileString).map(_.group(1)) match {
-      case Some(value) => value.replace("#", "").split("\n").view.toList.map(_.trim())
-      case None        => LazyList.empty[Nothing]
+      case Some(value) =>
+        value
+          .split("\n")
+          .map {
+            case str if str.startsWith("#") => str.substring(1)
+            case x                          => x
+          }
+          .map(_.trim())
+          .mkString(",")
+      case None => ""
     }
     (output, exitCode)
   }
@@ -79,15 +88,15 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
 
 object Generator {
   def main(args: Array[String]): Unit = {
-    val testFile = "src/test/test_files/valid/expressions/andExpr.wacc"
+    val testFile = "src/test/test_files/valid/array/printRef.wacc"
     val generator = new Generator()
     val (output, exitCode) = generator.regex(testFile)
 
     val input = generator.buildAsm(testFile)
 
     val result = generator.assembleAndRun(input) match {
-      case Left(value)  => ("", 0)
-      case Right(value) => value
+      case Left(value)        => (List(), 0)
+      case Right((out, code)) => (out, code)
     }
     println(s"Output: $output")
     println(s"Exit code: $exitCode")
