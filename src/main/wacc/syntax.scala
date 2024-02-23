@@ -86,11 +86,11 @@ final case class Call(ident: Ident, args: List[Expr]) extends RVal {
 }
 
 // <lvalue> Left hand side of declaration or assignment
-sealed trait LVal
-final case class Fst(value: LVal) extends LVal with RVal {
+sealed trait LVal extends RVal
+final case class Fst(value: LVal) extends LVal {
   override def toString: String = s"fst $value"
 }
-final case class Snd(value: LVal) extends LVal with RVal {
+final case class Snd(value: LVal) extends LVal {
   override def toString: String = s"snd $value"
 }
 

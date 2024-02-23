@@ -228,6 +228,7 @@ object analyser {
     checkLVal(st, value) match {
       case Left(err) => err
       case Right(typ) =>
+        value.typ = Some(typ)
         typ match {
           case IntType | CharType => ""
           case _ => // Only int and char are allowed
