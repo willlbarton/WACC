@@ -114,9 +114,30 @@ object generator {
       case Free(expr)        => genFreeStmt(expr, symTable)
       case ifStmt: IfStmt =>
         genIfStmt(ifStmt, symTable, allocator) // handle IfStmt case
-      case ScopedStmt(_) => ??? // handle ScopedStmt case
-      case While(_, _)   => ??? // handle While case
+      case ScopedStmt(_)      => ??? // handle ScopedStmt case
+      case While(expr, stmts) => genWhile(expr, stmts, symTable, allocator)
     }
+
+  private def genWhile(
+      expr: Expr,
+      stmts: List[Stmt],
+      symTable: SymbolTable[Dest],
+      allocator: Allocator
+  ): ListBuffer[Instruction] = {
+    val labelExpr = Allocator.allocateLabel
+    val labelStmts = Allocator.allocateLabel
+
+    lb(
+      Jmp(labelExpr),
+      labelStmts,
+      genStmts(stmts, symTable, allocator),
+      labelExpr,
+      genExpr(expr, symTable),
+      Pop(Eax(Size64)),
+      Cmp(Immediate(1), Eax(Size64)),
+      JmpComparison(labelStmts, Eq)
+    )
+  }
 
   private def genIfStmt(
       ifStmt: IfStmt,
@@ -137,13 +158,11 @@ object generator {
         val instructions = lb(
           Pop(Eax(Size64)),
           Cmp(Immediate(1), Eax(Size64)),
-
           JmpComparison(labelTrue, Eq),
           genNewScopeEnter(ifStmt.branch2Vars),
           genStmts(body2, childSymTable, allocator),
           genNewScopeExit(ifStmt.branch2Vars),
           Jmp(labelContinue),
-
           labelTrue,
           genNewScopeEnter(ifStmt.branch1Vars),
           genStmts(body1, childSymTable, allocator),
@@ -175,17 +194,20 @@ object generator {
       symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] = {
     lval match {
-      case id: Ident => lb(
-        genRval(value, symTable),
-        Pop(Eax(Size64)),
-        Mov(Eax(Size64), symTable(id).get)
-      )
-      case arr@ArrayElem(ident, exprs) =>
+      case id: Ident =>
+        lb(
+          genRval(value, symTable),
+          Pop(Eax(Size64)),
+          Mov(Eax(Size64), symTable(id).get)
+        )
+      case arr @ ArrayElem(ident, exprs) =>
         var typ = ident.typ.get
-        typ = exprs.foldLeft(typ) { case (t, _) => t match {
-          case ArrayType(t) => t
-          case _ => throw new IllegalArgumentException(s"Type $t was not an array")
-        } }
+        typ = exprs.foldLeft(typ) { case (t, _) =>
+          t match {
+            case ArrayType(t) => t
+            case _            => throw new IllegalArgumentException(s"Type $t was not an array")
+          }
+        }
         lb(
           genLVal(arr, symTable),
           genExpr(exprs.last, symTable),
@@ -254,8 +276,10 @@ object generator {
           id.typ.get match {
             case CharType => CallAsm(Label(s"_$read$charType"))
             case IntType  => CallAsm(Label(s"_$read$intType"))
-            case _        => throw new
-                IllegalArgumentException(s"Read called with unsupported type: ${id.typ.get}")
+            case _ =>
+              throw new IllegalArgumentException(
+                s"Read called with unsupported type: ${id.typ.get}"
+              )
           }
         case _ => ???
       }
@@ -273,7 +297,7 @@ object generator {
         case StringType | ArrayType(CharType)     => CallAsm(Label(s"_$print$stringType"))
         case BoolType                             => CallAsm(Label(s"_$print$boolType"))
         case ArrayType(_) | PairType(_, _) | Pair => CallAsm(Label(s"_$print$ptrType"))
-        case _                                    =>
+        case _ =>
           throw new IllegalArgumentException(s"Unsupported type: ${expr.typ.get}")
       }
     )
@@ -288,7 +312,6 @@ object generator {
       Mov(Immediate(0), Eax())
     )
 
-
   private def genLVal(lval: LVal, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
     lval match {
       case id: Ident               => lb(Push(symTable(id).get))
@@ -297,9 +320,9 @@ object generator {
     }
 
   private def genArrayElem(
-    ident: Ident,
-    exprs: List[Expr],
-    symTable: SymbolTable[Dest]
+      ident: Ident,
+      exprs: List[Expr],
+      symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] = {
     val dest = symTable(ident).get
     var typ: Type = ident.typ.get
@@ -307,7 +330,7 @@ object generator {
     for (expr <- exprs) {
       typ = typ match {
         case ArrayType(t) => t
-        case _ => throw new IllegalArgumentException(s"Type $typ was not an array")
+        case _            => throw new IllegalArgumentException(s"Type $typ was not an array")
       }
       val s = Allocator.getTypeWidth(typ)
       instructions ++= lb(
@@ -343,7 +366,8 @@ object generator {
 
     // If the expression is a bracketed expression, the result will already be pushed to the stack
     if (expr.isInstanceOf[BracketedExpr] || expr.isInstanceOf[ArrayElem])
-      lb() else Push(Eax(Size64))
+      lb()
+    else Push(Eax(Size64))
   )
 
   private def genBinaryApp(
