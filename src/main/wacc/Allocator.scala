@@ -15,7 +15,6 @@ case class Allocator(reservedSpace: Int) {
       val currentRelativeBP = relativeToBasePointer
       relativeToBasePointer += (size match {
         case Size8  => byteSize
-        case Size16 => 2
         case Size32 => intSize
         case Size64 => ptrSize
       })
