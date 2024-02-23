@@ -67,10 +67,14 @@ final case class SubAsm(op: Operand, dest: Dest) extends Instruction
 final case class Cmp(src: Operand, dest: Dest) extends Instruction
 
 final case class Jmp(label: Label) extends Instruction
-final case class Je(label: Label) extends Instruction
-final case class Jl(label: Label) extends Instruction
 final case class Jo(label: Label) extends Instruction
-final case class Jne(label: Label) extends Instruction
+
+final case class JmpComparison(label: Label, comparison: Comparison) extends Instruction
+
+// final case class Je(label: Label) extends Instruction
+// final case class Jl(label: Label) extends Instruction
+// final case class Jne(label: Label) extends Instruction
+
 final case class Idiv(op: Operand) extends Instruction
 final case class Imul(op1: Operand, dest: Dest) extends Instruction
 
@@ -119,11 +123,13 @@ object x86Formatter extends Formatter {
       case Cmp(src, dest) =>
         indent ++ s"cmp${instructionPostfix(dest)}  ${this(src)}, ${this(dest)}"
       case Jmp(label) => indent ++ s"jmp   ${label.name}"
-      case Je(label)  => indent ++ s"je    ${label.name}"
-      case Jl(label)  => indent ++ s"jl    ${label.name}"
       case Jo(label)  => indent ++ s"jo    ${label.name}"
-      case Jne(label) => indent ++ s"jne   ${label.name}"
-      case Idiv(op1)  => indent ++ s"idiv${instructionPostfix(op1)} ${this(op1)}"
+      // case Je(label)  => indent ++ s"je    ${label.name}"
+      // case Jl(label)  => indent ++ s"jl    ${label.name}"
+      // case Jne(label) => indent ++ s"jne   ${label.name}"
+      case JmpComparison(label, comparison) =>
+        indent ++ s"j${instructionPostfix(comparison)} ${label.name}"
+      case Idiv(op1) => indent ++ s"idiv${instructionPostfix(op1)} ${this(op1)}"
       case Imul(op1, dest) =>
         indent ++ s"imul${instructionPostfix(dest)} ${this(op1)}, ${this(dest)}"
       case CMovl(dest, src) =>

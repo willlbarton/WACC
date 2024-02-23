@@ -43,7 +43,7 @@ object generator {
     val mainSymTable: SymbolTable[Dest] = SymbolTable(None)
     val allocator = Allocator(program.vars)
     val mainBody = lb(
-      program.body.flatMap(stmt => genStmt(stmt, mainSymTable, allocator)),
+      genStmts(program.body, mainSymTable, allocator),
       Mov(Immediate(0), Eax(Size64))
     )
 
@@ -59,6 +59,26 @@ object generator {
       symTable: SymbolTable[Dest],
       allocator: Allocator
   ): ListBuffer[Instruction] = ??? // TODO
+
+  private def genStmts(
+      stmts: ListBuffer[Stmt],
+      symTable: SymbolTable[Dest],
+      allocator: Allocator
+  ): ListBuffer[Instruction] =
+    lb(
+      stmts.flatMap(x => genStmt(x, symTable, allocator))
+    )
+
+  private def genStmts(
+      stmts: List[Stmt],
+      symTable: SymbolTable[Dest],
+      allocator: Allocator
+  ): ListBuffer[Instruction] =
+    genStmts(
+      ListBuffer() ++= stmts,
+      symTable,
+      allocator
+    )
 
   private def genStmt(
       stmt: Stmt,
@@ -84,8 +104,41 @@ object generator {
         genDeclStmt(value, dest, symTable)
       case Asgn(lval, value) => genAsgnStmt(lval, value, symTable)
       case Free(expr)        => genFreeStmt(expr, symTable)
-      case _                 => ???
+      case ifStmt: IfStmt =>
+        genIfStmt(ifStmt, symTable, allocator) // handle IfStmt case
+      case ScopedStmt(_) => ??? // handle ScopedStmt case
+      case While(_, _)   => ??? // handle While case
     }
+
+  private def genIfStmt(
+      ifStmt: IfStmt,
+      symTable: SymbolTable[Dest],
+      allocator: Allocator
+  ): ListBuffer[Instruction] = {
+    val IfStmt(expr: Expr, body1: List[Stmt], body2: List[Stmt]) = ifStmt
+
+    lb(
+      genExpr(expr, symTable), {
+        val labelTrue = Allocator.allocateLabel
+        val labelContinue = Allocator.allocateLabel
+
+        val childSymTable = symTable.makeChild
+
+        println(expr)
+        lb(
+          Pop(Eax(Size64)),
+          Cmp(Immediate(1), Eax(Size64)),
+          JmpComparison(labelTrue, Eq),
+          genNewScope(genStmts(body2, childSymTable, allocator), ifStmt.branch2Vars),
+          Jmp(labelContinue),
+          labelTrue,
+          genNewScope(genStmts(body1, childSymTable, allocator), ifStmt.branch1Vars),
+          labelContinue
+        )
+      }
+    )
+
+  }
 
   private def genDeclStmt(
       value: RVal,
@@ -133,14 +186,14 @@ object generator {
 
   private def genRval(value: RVal, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
     value match {
-      case e: Expr => genExpr(e, symTable)
+      case e: Expr       => genExpr(e, symTable)
       case a: ArrayLiter => genArray(value.typ.get, a, symTable)
     }
 
   private def genArray(
-   t: Type,
-   a: ArrayLiter,
-   symTable: SymbolTable[Dest]
+      t: Type,
+      a: ArrayLiter,
+      symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] = {
     val ArrayType(typ) = t
     val elemSize = Allocator.getTypeWidth(typ)
@@ -152,13 +205,13 @@ object generator {
       Mov(Eax(Size64), R11(Size64)),
       Mov(Immediate(a.elems.length), Address(R11(Size64))),
       AddAsm(Immediate(intSize), R11(Size64)),
-      a.elems.flatMap {
-        x => position += elemSize
-          lb(
-            genExpr(x, symTable),
-            Pop(Eax(Size64)),
-            Mov(Eax(Size64), Address(R11(Size64), Immediate(position))),
-          )
+      a.elems.flatMap { x =>
+        position += elemSize
+        lb(
+          genExpr(x, symTable),
+          Pop(Eax(Size64)),
+          Mov(Eax(Size64), Address(R11(Size64), Immediate(position)))
+        )
       },
       Push(R11(Size64))
     )
@@ -290,7 +343,7 @@ object generator {
       case Mod | Div =>
         lb(
           Cmp(Immediate(0), Ebx(Size32)),
-          Je(Label(s"_$errDivZero")),
+          JmpComparison(Label("_errDivZero"), Eq),
           // As Cltd will write into edx?? This isn't in reference compiler I just did it.
           Push(Edx(Size64)),
           Cltd,
@@ -304,7 +357,7 @@ object generator {
         val label = Allocator.allocateLabel
         lb(
           Cmp(Immediate(1), Eax(Size64)),
-          if (op == Or) Je(label) else Jne(label),
+          if (op == Or) JmpComparison(label, Eq) else JmpComparison(label, NotEq),
           Cmp(Immediate(1), Ebx(Size64)),
           label,
           SetAsm(Eax(Size8), Eq),
@@ -324,7 +377,7 @@ object generator {
         lb(
           Testq(Immediate(-128), Eax(Size64)),
           Cmovne(Eax(Size64), Esi(Size64)),
-          Jne(Label(s"_$errBadChar"))
+          JmpComparison(Label("_errBadChar"), NotEq)
         )
       case Len => ???
       case Neg =>

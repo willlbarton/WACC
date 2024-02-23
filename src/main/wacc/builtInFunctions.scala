@@ -63,9 +63,9 @@ object builtInFunctions {
   )
 
   def genNewScope(
-    body: ListBuffer[Instruction],
-    toSave: List[Reg],
-    toAllocate: List[SymbolTableObj]
+      body: ListBuffer[Instruction],
+      toSave: List[Reg],
+      toAllocate: List[SymbolTableObj]
   ): ListBuffer[Instruction] = {
     val size = toAllocate.map(x => Allocator.getTypeWidth(x.typ.get)).sum
     lb(
@@ -84,9 +84,9 @@ object builtInFunctions {
     genNewScope(body, List.empty, List.empty)
   }
   def genNewScope(
-                           body: ListBuffer[Instruction],
-                           vars: List[SymbolTableObj]
-                         ): ListBuffer[Instruction] = {
+      body: ListBuffer[Instruction],
+      vars: List[SymbolTableObj]
+  ): ListBuffer[Instruction] = {
     val toSave = Allocator.NON_PARAM_REGS.take(vars.size)
     val toAllocate = vars.drop(Allocator.NON_PARAM_REGS.size)
     genNewScope(body, toSave, toAllocate)
@@ -108,10 +108,12 @@ object builtInFunctions {
 
   private def genCall(name: String, func: Label): ListBuffer[Instruction] = lb(
     Label(s"_$name"),
-    genNewScope(lb(
-      maskRsp,
-      CallAsm(func)
-    )),
+    genNewScope(
+      lb(
+        maskRsp,
+        CallAsm(func)
+      )
+    ),
     Ret
   )
 
@@ -154,7 +156,7 @@ object builtInFunctions {
     )
     val printBody: ListBuffer[Instruction] = lb(
       Cmp(Immediate(1), Edi(Size8)),
-      Je(Label(".printb_true")),
+      JmpComparison(Label(".printb_true"), Eq),
       Lea(Address(Rip, Label(".printb_false_lit")), Edi(Size64)),
       Jmp(Label(".printb_end")),
       Label(".printb_true"),
@@ -192,7 +194,7 @@ object builtInFunctions {
       Lea(Address(Rip, Label(s".$name")), Edi(Size64)),
       CallAsm(Label("_prints")),
       Mov(Immediate(-1), Eax(Size64)),
-      CallAsm(provided.exit),
+      CallAsm(provided.exit)
     )
   }
 
@@ -208,7 +210,7 @@ object builtInFunctions {
       Mov(Immediate(0), Edi(Size64)),
       CallAsm(provided.fflush),
       Mov(Immediate(-1), Edi(Size8)),
-      CallAsm(provided.exit),
+      CallAsm(provided.exit)
     )
   }
 
