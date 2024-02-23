@@ -80,7 +80,7 @@ final case class Imul(op1: Operand, dest: Dest) extends Instruction
 final case class Testq(op1: Operand, op2: Operand) extends Instruction
 final case class CMovl(op: Operand, dest: Dest) extends Instruction
 final case class CMovge(dest: Dest, src: Operand) extends Instruction
-final case class Cmovne(dest: Dest, src: Operand) extends Instruction
+final case class CMovne(dest: Dest, src: Operand) extends Instruction
 
 trait Formatter {
   def apply(instruction: Instruction): String
@@ -135,7 +135,7 @@ object x86Formatter extends Formatter {
         indent ++ s"cmovl ${this(src)}, ${this(dest)}"
       case CMovge(dest, src) =>
         indent ++ s"cmovge ${this(src)}, ${this(dest)}"
-      case Cmovne(dest, src) =>
+      case CMovne(dest, src) =>
         indent ++ s"cmovne ${this(src)}, ${this(dest)}"
       case Testq(op1, op2) => indent ++ s"test  ${this(op1)}, ${this(op2)}"
     }

@@ -256,7 +256,7 @@ object analyser {
     case Bool(_)       => ("", Some(BoolType))
     case Character(_)  => ("", Some(CharType))
     case StringAtom(s) =>
-      generator.stringLiters += (s -> generator.stringLiters.size)
+      if (!generator.stringLiters.contains(s)) generator.stringLiters += (s -> generator.stringLiters.size)
       ("", Some(StringType))
     case Null          => ("", Some(Pair))
     case id: Ident =>

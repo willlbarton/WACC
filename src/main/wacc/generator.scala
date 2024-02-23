@@ -30,7 +30,7 @@ object generator {
 
   def generate(program: Program, formatter: Formatter): String = genProgram(program)
     .map(formatter(_))
-    .mkString("\n")
+    .mkString("\n") + "\n"
 
   private def genProgram(program: Program): ListBuffer[Instruction] = {
     val instructions = lb(
@@ -289,18 +289,18 @@ object generator {
         throw new IllegalArgumentException(s"Read called with unsupported type: ${lval.typ.get}")
     }
     lval match {
-      case id: Ident =>
-        lb(
-          call,
-          Mov(Eax(Size64), symTable(id).get)
-        )
-      case _ =>
-        lb(
-          genLVal(lval, symTable),
-          call,
-          Pop(Ebx(Size64)),
-          Mov(Eax(Size64), Address(Ebx(Size64)))
-        )
+      case id: Ident => lb(
+        call,
+        Cmp(Immediate(-1), Eax(Size64)),
+        CMovne(Eax(Size64), symTable(id).get)
+      )
+      case _         => lb(
+        genLVal(lval, symTable),
+        call,
+        Pop(Ebx(Size64)),
+        Cmp(Immediate(-1), Eax(Size64)),
+        CMovne(Eax(Size64), Address(Ebx(Size64)))
+      )
     }
   }
 
@@ -449,29 +449,27 @@ object generator {
   ): ListBuffer[Instruction] = lb(
     genExpr(expr, symTable),
     op match {
-      case Chr =>
-        lb(
-          Testq(Immediate(-128), Eax(Size64)),
-          Cmovne(Eax(Size64), Esi(Size64)),
-          JmpComparison(Label(s"_$errBadChar"), NotEq)
-        )
-      case Len => ???
-      case Neg =>
-        // slightly different to how reference compiler does it, as we assume the answer of exp is stored in Eax
-        lb(
-          Mov(Immediate(0), Edx(Size64)),
-          SubAsm(Eax(Size32), Edx(Size32)),
-          Jo(Label(s"_$errOverflow")),
-          Movs(Edx(Size32), Eax(Size64))
-        )
-      case Not =>
-        lb(
-          Cmp(Immediate(1), Eax(Size64)),
-          SetAsm(Eax(Size8), NotEq),
-          Movs(Eax(Size8), Eax(Size64))
-        )
-      // Do nothing as char already being stored as a Long in eax
-      case Ord => lb()
+      case Chr => lb(
+        Testq(Immediate(-128), Eax(Size64)),
+        CMovne(Eax(Size64), Esi(Size64)),
+        JmpComparison(Label(s"_$errBadChar"), NotEq)
+      )
+      case Len => lb(
+        Pop(Eax(Size64)), // Array address returned on stack
+        Mov(Address(Eax(Size64), Immediate(-intSize)), Eax())
+      )
+      case Neg => lb(
+        Mov(Immediate(0), Edx(Size64)),
+        SubAsm(Eax(Size32), Edx(Size32)),
+        Jo(Label(s"_$errOverflow")),
+        Movs(Edx(Size32), Eax(Size64))
+      )
+      case Not => lb(
+        Cmp(Immediate(1), Eax(Size64)),
+        SetAsm(Eax(Size8), NotEq),
+        Movs(Eax(Size8), Eax(Size64))
+      )
+      case Ord => lb() // Do nothing as char already being stored as a Long in eax
     }
   )
 }
