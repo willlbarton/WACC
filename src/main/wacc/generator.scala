@@ -47,15 +47,16 @@ object generator {
       Mov(Immediate(0), Eax(Size64))
     )
 
-    symTableEnterScope(mainSymTable, allocator)
+    val savedRegs = Allocator.NON_PARAM_REGS.take(program.vars.size)
+    symTableEnterScope(mainSymTable, allocator, savedRegs)
     instructions ++= lb(
-      genNewScopeEnter(program.vars, allocator.reservedSpace, mainSymTable, allocator),
+      genNewScopeEnter(program.vars),
       mainBody,
-      genNewScopeExit(program.vars, allocator.reservedSpace, mainSymTable),
+      genNewScopeExit(program.vars),
       Ret,
       genFunctions
     )
-    symTableExitScope(mainSymTable, allocator)
+    symTableExitScope(mainSymTable, allocator, savedRegs)
     instructions
   }
 
@@ -72,7 +73,6 @@ object generator {
   ): ListBuffer[Instruction] =
     lb(
       stmts.flatMap(x => {
-        println(symTable.table)
         genStmt(x, symTable, allocator)
       })
     )
@@ -130,27 +130,28 @@ object generator {
         val labelContinue = Allocator.allocateLabel
 
         val childSymTable = symTable.makeChild
-        symTableEnterScope(symTable, allocator)
+
+        val savedRegs = Allocator.NON_PARAM_REGS.take(ifStmt.branch1Vars.size)
+        symTableEnterScope(symTable, allocator, savedRegs)
 
         val instructions = lb(
           Pop(Eax(Size64)),
           Cmp(Immediate(1), Eax(Size64)),
-          JmpComparison(labelTrue, Eq),
-          genNewScopeEnter(ifStmt.branch2Vars, allocator.reservedSpace, symTable, allocator),
-          // genNewScope(genStmts(body2, childSymTable, allocator), ifStmt.branch2Vars, symTable),
-          genStmts(body2, childSymTable, allocator),
-          genNewScopeExit(ifStmt.branch2Vars, allocator.reservedSpace, symTable),
-          Jmp(labelContinue),
-          labelTrue,
-          genNewScopeEnter(ifStmt.branch1Vars, allocator.reservedSpace, symTable, allocator),
-          genStmts(body1, childSymTable, allocator),
 
-          // genNewScope(genStmts(body1, childSymTable, allocator), ifStmt.branch1Vars, symTable),
-          genNewScopeExit(ifStmt.branch1Vars, allocator.reservedSpace, symTable),
+          JmpComparison(labelTrue, Eq),
+          genNewScopeEnter(ifStmt.branch2Vars),
+          genStmts(body2, childSymTable, allocator),
+          genNewScopeExit(ifStmt.branch2Vars),
+          Jmp(labelContinue),
+
+          labelTrue,
+          genNewScopeEnter(ifStmt.branch1Vars),
+          genStmts(body1, childSymTable, allocator),
+          genNewScopeExit(ifStmt.branch1Vars),
           labelContinue
         )
 
-        symTableExitScope(symTable, allocator)
+        symTableExitScope(symTable, allocator, savedRegs)
 
         instructions
       }
@@ -334,7 +335,7 @@ object generator {
           Pop(Edx(Size64)) // Pop back
         )
 
-      case Or | And => {
+      case Or | And =>
         val label = Allocator.allocateLabel
         lb(
           Cmp(Immediate(1), Eax(Size64)),
@@ -344,7 +345,6 @@ object generator {
           SetAsm(Eax(Size8), Eq),
           Movs(Eax(Size8), Eax(Size64))
         )
-      }
     }
   )
 

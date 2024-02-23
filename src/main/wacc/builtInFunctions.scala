@@ -4,6 +4,8 @@ import scala.collection.mutable.ListBuffer
 import src.main.wacc.generator.lb
 import src.main.wacc.constants._
 
+import scala.annotation.tailrec
+
 object builtInFunctions {
 
   private val maskRsp = AndAsm(Immediate(-16), Rsp)
@@ -30,12 +32,7 @@ object builtInFunctions {
     genErr1Arg("errOutOfBounds", "fatal error: array index %d out of bounds")
   )
 
-  def symTableEnterScope(symTable: SymbolTable[Dest], allocator: Allocator): Unit = {
-    allocator.usedRegs.zipWithIndex.foreach {
-      case (r, i) =>
-        val ident = symTable.reverseLookup(r).get
-        symTable.put(ident, Address(Rbp, Immediate(i.toLong * 8))) // might be (i + 1)
-    }
+  def symTableEnterScope(symTable: SymbolTable[Dest], allocator: Allocator, toSave: List[Reg]): Unit = {
 
     var st = Option(symTable)
     while (st.isDefined) {
@@ -45,21 +42,27 @@ object builtInFunctions {
           ident,
           table(ident) match {
             case Address(Rbp, Immediate(offset), _, _) =>
-              Address(Rbp, Immediate(offset - allocator.usedRegs.size * 8))
-            case _ => ???
+              Address(Rbp, Immediate(offset + allocator.reservedSpace + ptrSize + toSave.size * 8))
+            case r: Reg => r
           }
         )
       )
       st = st.get.parent
     }
+
+    toSave.reverse.zipWithIndex.foreach {
+      case (r, i) =>
+        val ident = symTable.reverseLookup(r).get
+        symTable.put(ident, Address(Rbp, Immediate(i.toLong * 8))) // might be (i + 1)
+    }
   }
 
-  def symTableExitScope(symTable: SymbolTable[Dest], allocator: Allocator): Unit = {
+  def symTableExitScope(symTable: SymbolTable[Dest], allocator: Allocator, toSave: List[Reg]): Unit = {
 
-    allocator.usedRegs.zipWithIndex.foreach {
+    toSave.zipWithIndex.foreach {
       case (r, i) =>
         val ident =
-          symTable.reverseLookup(Address(Rbp, Immediate(-(i + 1).toLong * 8))).get // might be (i + 1)
+          symTable.reverseLookup(Address(Rbp, Immediate(i.toLong * 8))).get // might be (i + 1)
         symTable.put(ident, r)
     }
 
@@ -71,7 +74,7 @@ object builtInFunctions {
           ident,
           table(ident) match {
             case Address(Rbp, Immediate(offset), _, _) =>
-              Address(Rbp, Immediate(offset + allocator.usedRegs.size * 8))
+              Address(Rbp, Immediate(offset - allocator.reservedSpace - (toSave.size + 1) * ptrSize))
             case r: Reg => r
           }
         )
@@ -83,40 +86,30 @@ object builtInFunctions {
 
   def genNewScopeEnter(
       toSave: List[Reg],
-      toAllocate: List[SymbolTableObj],
-      prevSize: Int,
-      symTable: SymbolTable[Dest],
-      allocator : Allocator,
+      toAllocate: List[SymbolTableObj]
   ): ListBuffer[Instruction] = {
     val size = toAllocate.map(x => Allocator.getTypeWidth(x.typ.get)).sum
     lb(
       Push(Rbp),
-      allocator.usedRegs.map(r => Push(r)),
+      toSave.map(r => Push(r)),
       Mov(Rsp, Rbp),
       SubAsm(Immediate(size.toLong), Rsp)
     )
   }
-
   def genNewScopeEnter(): ListBuffer[Instruction] = {
-    genNewScopeEnter(List.empty, List.empty, 0, SymbolTable(None), Allocator(0))
+    genNewScopeEnter(List.empty, List.empty)
   }
-
   def genNewScopeEnter(
-      vars: List[SymbolTableObj],
-      prevSize: Int,
-      symTable: SymbolTable[Dest],
-      allocator: Allocator
+      vars: List[SymbolTableObj]
   ): ListBuffer[Instruction] = {
     val toSave = Allocator.NON_PARAM_REGS.take(vars.size)
     val toAllocate = vars.drop(Allocator.NON_PARAM_REGS.size)
-    genNewScopeEnter(toSave, toAllocate, prevSize, symTable, allocator)
+    genNewScopeEnter(toSave, toAllocate)
   }
 
   def genNewScopeExit(
       toSave: List[Reg],
-      toAllocate: List[SymbolTableObj],
-      prevSize: Int,
-      symTable: SymbolTable[Dest]
+      toAllocate: List[SymbolTableObj]
   ): ListBuffer[Instruction] = {
     val size = toAllocate.map(x => Allocator.getTypeWidth(x.typ.get)).sum
 
@@ -127,18 +120,14 @@ object builtInFunctions {
       Pop(Rbp)
     )
   }
-
   def genNewScopeExit(): ListBuffer[Instruction] = {
-    genNewScopeExit(List.empty, List.empty, 0, SymbolTable(None))
+    genNewScopeExit(List.empty, List.empty)
   }
-
   def genNewScopeExit(
-      toAllocate: List[SymbolTableObj],
-      prevSize: Int,
-      symTable: SymbolTable[Dest]
+      toAllocate: List[SymbolTableObj]
   ): ListBuffer[Instruction] = {
     val toSave = Allocator.NON_PARAM_REGS.take(toAllocate.size)
-    genNewScopeExit(toSave, toAllocate, prevSize, symTable)
+    genNewScopeExit(toSave, toAllocate)
   }
 
   def genDataSection(data: (String, String)*): ListBuffer[Instruction] = lb(
@@ -277,13 +266,11 @@ object builtInFunctions {
   private val genMalloc: ListBuffer[Instruction] = lb(
     Label("_malloc"),
     genNewScopeEnter(),
-    (
-      lb(
-        maskRsp,
-        CallAsm(provided.malloc),
-        Cmp(Immediate(0), Eax(Size64)),
-        JmpComparison(Label("_errOutOfMemory"), Eq)
-      )
+    lb(
+      maskRsp,
+      CallAsm(provided.malloc),
+      Cmp(Immediate(0), Eax(Size64)),
+      JmpComparison(Label("_errOutOfMemory"), Eq)
     ),
     genNewScopeExit(),
     Ret
