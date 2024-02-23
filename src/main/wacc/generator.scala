@@ -30,6 +30,7 @@ object generator {
 
   def generate(program: Program, formatter: Formatter): String = genProgram(program)
     .map(formatter(_))
+    .addOne("\n")
     .mkString("\n")
 
   private def genProgram(program: Program): ListBuffer[Instruction] = {
