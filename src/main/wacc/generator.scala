@@ -246,20 +246,24 @@ object generator {
   }
 
   private def genReadStmt(symTable: SymbolTable[Dest], lval: LVal): ListBuffer[Instruction] = {
-    lb(
-      genLVal(lval, symTable),
-      Mov(Eax(Size64), Edi(Size64)),
-      lval match {
-        case id: Ident =>
-          id.typ.get match {
-            case CharType => CallAsm(Label(s"_$read$charType"))
-            case IntType  => CallAsm(Label(s"_$read$intType"))
-            case _        => throw new
-                IllegalArgumentException(s"Read called with unsupported type: ${id.typ.get}")
-          }
-        case _ => ???
-      }
-    )
+    val call = lval.typ match {
+      case Some(CharType) => CallAsm(Label(s"_$read$charType"))
+      case Some(IntType)  => CallAsm(Label(s"_$read$intType"))
+      case _              => throw new
+          IllegalArgumentException(s"Read called with unsupported type: ${lval.typ.get}")
+    }
+    lval match {
+      case id: Ident => lb(
+        call,
+        Mov(Eax(Size64), symTable(id).get)
+      )
+      case _         => lb(
+        genLVal(lval, symTable),
+        call,
+        Pop(Ebx(Size64)),
+        Mov(Address(Eax(Size64)), Address(Ebx(Size64)))
+      )
+    }
   }
 
   private def genPrintStmt(symTable: SymbolTable[Dest], expr: Expr): ListBuffer[Instruction] = {
