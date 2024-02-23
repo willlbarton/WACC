@@ -267,7 +267,10 @@ object analyser {
       checkArrayElem(symTable, ident, exprs) match {
         case Left(err)  => (err, None)
         case Right(typ) =>
-          ident.typ = Some(ArrayType(typ))
+          ident.typ = symTable(ident) match {
+            case Some(t) => t.typ
+            case _       => None
+          }
           ("", Some(typ))
       }
     case BracketedExpr(expr) => checkExpr(symTable, expr)
@@ -514,8 +517,9 @@ object analyser {
     case id: Ident               => checkIdent(symTable, id)
     case ArrayElem(ident, exprs) =>
       val res = checkArrayElem(symTable, ident, exprs)
-      if (res.isRight) {
-        ident.typ = Some(ArrayType(res.toOption.get))
+      ident.typ = symTable(ident) match {
+        case Some(t) => t.typ
+        case _       => None
       }
       res
     case Fst(value) =>
