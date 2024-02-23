@@ -62,7 +62,11 @@ object builtInFunctions {
     genErr1Arg(errOutOfBounds, "fatal error: array index %d out of bounds")
   )
 
-  def symTableEnterScope(symTable: SymbolTable[Dest], allocator: Allocator, toSave: List[Reg]): Unit = {
+  def symTableEnterScope(
+      symTable: SymbolTable[Dest],
+      allocator: Allocator,
+      toSave: List[Reg]
+  ): Unit = {
 
     var st = Option(symTable)
     while (st.isDefined) {
@@ -82,20 +86,22 @@ object builtInFunctions {
       st = st.get.parent
     }
 
-    toSave.reverse.zipWithIndex.foreach {
-      case (r, i) =>
-        val ident = symTable.reverseLookup(r).get
-        symTable.put(ident, Address(Rbp, Immediate(i* 8))) // might be (i + 1)
+    toSave.reverse.zipWithIndex.foreach { case (r, i) =>
+      val ident = symTable.reverseLookup(r).get
+      symTable.put(ident, Address(Rbp, Immediate(i * 8))) // might be (i + 1)
     }
   }
 
-  def symTableExitScope(symTable: SymbolTable[Dest], allocator: Allocator, toSave: List[Reg]): Unit = {
+  def symTableExitScope(
+      symTable: SymbolTable[Dest],
+      allocator: Allocator,
+      toSave: List[Reg]
+  ): Unit = {
 
-    toSave.zipWithIndex.foreach {
-      case (r, i) =>
-        val ident =
-          symTable.reverseLookup(Address(Rbp, Immediate(i * 8))).get // might be (i + 1)
-        symTable.put(ident, r)
+    toSave.zipWithIndex.foreach { case (r, i) =>
+      val ident =
+        symTable.reverseLookup(Address(Rbp, Immediate(i * 8))).get // might be (i + 1)
+      symTable.put(ident, r)
     }
 
     var st = Option(symTable)
@@ -106,7 +112,10 @@ object builtInFunctions {
           ident,
           table(ident) match {
             case Address(Rbp, Immediate(offset), _, _) =>
-              Address(Rbp, Immediate(offset - allocator.reservedSpace - (toSave.size + 1) * ptrSize))
+              Address(
+                Rbp,
+                Immediate(offset - allocator.reservedSpace - (toSave.size + 1) * ptrSize)
+              )
             case r: Reg => r
             case _ =>
               throw new IllegalArgumentException("Variable addresses must be relative to Rbp")
