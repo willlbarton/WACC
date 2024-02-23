@@ -215,6 +215,7 @@ object analyser {
       case Right(typ) => typ1 = Some(typ)
     }
     val (err, typ2) = checkRVal(symTable, value)
+    value.typ = typ1
     error ++= err withContext s"$left = $value"
     // Check that the types are compatible
     if (typ1.isDefined && typ2.isDefined && !isWeakerType(typ1.get, typ2.get))
@@ -267,7 +268,10 @@ object analyser {
       checkArrayElem(symTable, ident, exprs) match {
         case Left(err)  => (err, None)
         case Right(typ) =>
-          ident.typ = Some(ArrayType(typ))
+          ident.typ = symTable(ident) match {
+            case Some(t) => t.typ
+            case _       => None
+          }
           ("", Some(typ))
       }
     case BracketedExpr(expr) => checkExpr(symTable, expr)
@@ -514,8 +518,9 @@ object analyser {
     case id: Ident               => checkIdent(symTable, id)
     case ArrayElem(ident, exprs) =>
       val res = checkArrayElem(symTable, ident, exprs)
-      if (res.isRight) {
-        ident.typ = Some(ArrayType(res.toOption.get))
+      ident.typ = symTable(ident) match {
+        case Some(t) => t.typ
+        case _       => None
       }
       res
     case Fst(value) =>

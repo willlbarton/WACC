@@ -219,7 +219,11 @@ object generator {
       a: ArrayLiter,
       symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] = {
-    val ArrayType(typ) = t
+    val typ = t match {
+      case ArrayType(t) => t
+      case StringType   => CharType
+      case _            => throw new IllegalArgumentException(s"Type $t was not an array")
+    }
     val elemSize = Allocator.getTypeWidth(typ)
     val size = intSize + a.elems.length * elemSize
     var position = -elemSize
