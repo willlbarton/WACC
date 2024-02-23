@@ -261,7 +261,7 @@ object generator {
         genLVal(lval, symTable),
         call,
         Pop(Ebx(Size64)),
-        Mov(Address(Eax(Size64)), Address(Ebx(Size64)))
+        Mov(Eax(Size64), Address(Ebx(Size64)))
       )
     }
   }
