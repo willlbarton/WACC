@@ -30,7 +30,7 @@ object generator {
 
   def generate(program: Program, formatter: Formatter): String = genProgram(program)
     .map(formatter(_))
-    .mkString("\n")
+    .mkString("\n") + "\n"
 
   private def genProgram(program: Program): ListBuffer[Instruction] = {
     val instructions = lb(
@@ -255,13 +255,15 @@ object generator {
     lval match {
       case id: Ident => lb(
         call,
-        Mov(Eax(Size64), symTable(id).get)
+        Cmp(Immediate(-1), Eax(Size64)),
+        CMovne(Eax(Size64), symTable(id).get)
       )
       case _         => lb(
         genLVal(lval, symTable),
         call,
         Pop(Ebx(Size64)),
-        Mov(Eax(Size64), Address(Ebx(Size64)))
+        Cmp(Immediate(-1), Eax(Size64)),
+        CMovne(Eax(Size64), Address(Ebx(Size64)))
       )
     }
   }
@@ -414,7 +416,7 @@ object generator {
       case Chr =>
         lb(
           Testq(Immediate(-128), Eax(Size64)),
-          Cmovne(Eax(Size64), Esi(Size64)),
+          CMovne(Eax(Size64), Esi(Size64)),
           JmpComparison(Label(s"_$errBadChar"), NotEq)
         )
       case Len => ???
