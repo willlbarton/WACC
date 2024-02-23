@@ -202,7 +202,8 @@ object builtInFunctions {
   // Special calling convention:
   // R9: array address
   // R10: index
-  // Return: R9 = array[index]
+  // Rax: value to store (only or store)
+  // Return: R9 = value (only for load)
   private def genArrAccess(size: Size, direction: Boolean): ListBuffer[Instruction] = {
     val s = size match {
       case Size8  => byteSize
@@ -220,7 +221,7 @@ object builtInFunctions {
         CMovge(R10(Size64), Esi(Size64)),
         Je(Label("_errOutOfBounds")),
         if (direction)
-          Mov(R9(Size64), Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)))
+          Mov(Eax(Size64), Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)))
         else
           Mov(Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)), R9(Size64))
       )),

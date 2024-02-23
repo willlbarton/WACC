@@ -45,7 +45,7 @@ object generator {
     val mainSymTable: SymbolTable[Dest] = SymbolTable(None)
     val allocator = Allocator(program.vars)
     val mainBody = lb(
-      program.body.flatMap(x => genStmt(x, mainSymTable, allocator)),
+      program.body.flatMap(stmt => genStmt(stmt, mainSymTable, allocator)),
       Mov(Immediate(0), Eax(Size64))
     )
 
@@ -110,13 +110,18 @@ object generator {
         Pop(Eax(Size64)),
         Mov(Eax(Size64), symTable(id).get)
       )
-      case ArrayElem(ident, exprs) =>lb(
-        genLVal(ArrayElem(ident, exprs), symTable),
-        genRval(value, symTable),
-        Pop(Eax(Size64)),
-        Pop(Ebx(Size64)),
-        Mov(Eax(Size64), Address(Ebx(Size64)))
-      )
+      case arr@ArrayElem(ident, exprs) =>
+        var typ = ident.typ.get
+        typ = exprs.foldLeft(typ) { case (t, _) => t match { case ArrayType(t) => t } }
+        lb(
+          genLVal(arr, symTable),
+          genExpr(exprs.last, symTable),
+          genRval(value, symTable),
+          Pop(Eax(Size64)),
+          Pop(R10(Size64)),
+          Pop(R9(Size64)),
+          CallAsm(Label(s"_arrStore${Allocator.getTypeWidth(typ)}"))
+        )
     }
   }
 
@@ -205,7 +210,7 @@ object generator {
   private def genLVal(lval: LVal, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
     lval match {
       case id: Ident => lb(Push(symTable(id).get))
-      case ArrayElem(ident, exprs) => genArrayElem(ident, exprs, symTable)
+      case ArrayElem(ident, exprs) => genArrayElem(ident, exprs.init, symTable)
     }
 
   private def genArrayElem(
@@ -251,7 +256,8 @@ object generator {
     },
 
     // If the expression is a bracketed expression, the result will already be pushed to the stack
-    if (expr.isInstanceOf[BracketedExpr]) lb() else Push(Eax(Size64))
+    if (expr.isInstanceOf[BracketedExpr] || expr.isInstanceOf[ArrayElem])
+      lb() else Push(Eax(Size64))
   )
 
   private def genBinaryApp(
