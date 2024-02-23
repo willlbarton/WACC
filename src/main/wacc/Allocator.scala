@@ -3,7 +3,7 @@ package src.main.wacc
 import scala.collection.mutable.ListBuffer
 import src.main.wacc.constants._
 
-class Allocator(reservedSpace: Int) {
+case class Allocator(reservedSpace: Int) {
 
   private var relativeToBasePointer: Int = -reservedSpace
   private val freeRegs: ListBuffer[Reg] = ListBuffer.from(Allocator.NON_PARAM_REGS)
@@ -14,7 +14,7 @@ class Allocator(reservedSpace: Int) {
     } else {
       val currentRelativeBP = relativeToBasePointer
       relativeToBasePointer += (size match {
-        case Size8 => byteSize
+        case Size8  => byteSize
         case Size16 => 2
         case Size32 => intSize
         case Size64 => ptrSize
@@ -27,6 +27,9 @@ class Allocator(reservedSpace: Int) {
     case IntType                                    => allocateSpace(Size32)
     case StringType | ArrayType(_) | PairType(_, _) => allocateSpace(Size64)
   }
+
+  def usedRegs: List[Reg] =
+    Allocator.NON_PARAM_REGS.take(Allocator.NON_PARAM_REGS.length - freeRegs.length)
 }
 
 /*
@@ -36,6 +39,7 @@ Rax, rdi, rsi, rdx, rcx, r8, r9, r10, and r11 are caller-saved registers.
 Functions like printf@plt overwrite r10 and r11
  */
 object Allocator {
+
   private val PARAM_REGS: List[Reg] =
     List(Edi(Size64), Esi(Size64), Edx(Size64), Ecx(Size64), R8(Size64), R9(Size64))
   val NON_PARAM_REGS: List[Reg] =
@@ -46,12 +50,13 @@ object Allocator {
   def apply(vars: List[SymbolTableObj]): Allocator = {
     val stackVars = vars.drop(NON_PARAM_REGS.length)
     val reservedSpace = stackVars.map(x => getTypeWidth(x.typ.get)).sum
+
     new Allocator(reservedSpace)
   }
 
   def getTypeWidth(t: Type): Int = t match {
-    case CharType | BoolType => byteSize
-    case IntType => intSize
+    case CharType | BoolType                        => byteSize
+    case IntType                                    => intSize
     case StringType | ArrayType(_) | PairType(_, _) => ptrSize
   }
 

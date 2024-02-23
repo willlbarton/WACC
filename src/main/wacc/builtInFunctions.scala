@@ -62,8 +62,59 @@ object builtInFunctions {
     genErr1Arg(errOutOfBounds, "fatal error: array index %d out of bounds")
   )
 
-  def genNewScope(
-      body: ListBuffer[Instruction],
+  def symTableEnterScope(symTable: SymbolTable[Dest], allocator: Allocator, toSave: List[Reg]): Unit = {
+
+    var st = Option(symTable)
+    while (st.isDefined) {
+      val table = st.get.table
+      table.keySet.foreach(ident =>
+        table.put(
+          ident,
+          table(ident) match {
+            case Address(Rbp, Immediate(offset), _, _) =>
+              Address(Rbp, Immediate(offset + allocator.reservedSpace + ptrSize + toSave.size * 8))
+            case r: Reg => r
+          }
+        )
+      )
+      st = st.get.parent
+    }
+
+    toSave.reverse.zipWithIndex.foreach {
+      case (r, i) =>
+        val ident = symTable.reverseLookup(r).get
+        symTable.put(ident, Address(Rbp, Immediate(i.toLong * 8))) // might be (i + 1)
+    }
+  }
+
+  def symTableExitScope(symTable: SymbolTable[Dest], allocator: Allocator, toSave: List[Reg]): Unit = {
+
+    toSave.zipWithIndex.foreach {
+      case (r, i) =>
+        val ident =
+          symTable.reverseLookup(Address(Rbp, Immediate(i.toLong * 8))).get // might be (i + 1)
+        symTable.put(ident, r)
+    }
+
+    var st = Option(symTable)
+    while (st.isDefined) {
+      val table = st.get.table
+      table.keySet.foreach(ident =>
+        table.put(
+          ident,
+          table(ident) match {
+            case Address(Rbp, Immediate(offset), _, _) =>
+              Address(Rbp, Immediate(offset - allocator.reservedSpace - (toSave.size + 1) * ptrSize))
+            case r: Reg => r
+          }
+        )
+      )
+      st = st.get.parent
+    }
+
+  }
+
+  def genNewScopeEnter(
       toSave: List[Reg],
       toAllocate: List[SymbolTableObj]
   ): ListBuffer[Instruction] = {
@@ -72,24 +123,41 @@ object builtInFunctions {
       Push(Rbp),
       toSave.map(r => Push(r)),
       Mov(Rsp, Rbp),
-      SubAsm(Immediate(size.toLong), Rsp),
-      body,
-      AddAsm(Immediate(size.toLong), Rsp),
-      Mov(Rbp, Rsp),
-      toSave.map(r => Pop(r)),
-      Pop(Rbp)
+      SubAsm(Immediate(size.toLong), Rsp)
     )
   }
-  def genNewScope(body: ListBuffer[Instruction]): ListBuffer[Instruction] = {
-    genNewScope(body, List.empty, List.empty)
+  def genNewScopeEnter(): ListBuffer[Instruction] = {
+    genNewScopeEnter(List.empty, List.empty)
   }
-  def genNewScope(
-      body: ListBuffer[Instruction],
+  def genNewScopeEnter(
       vars: List[SymbolTableObj]
   ): ListBuffer[Instruction] = {
     val toSave = Allocator.NON_PARAM_REGS.take(vars.size)
     val toAllocate = vars.drop(Allocator.NON_PARAM_REGS.size)
-    genNewScope(body, toSave, toAllocate)
+    genNewScopeEnter(toSave, toAllocate)
+  }
+
+  def genNewScopeExit(
+      toSave: List[Reg],
+      toAllocate: List[SymbolTableObj]
+  ): ListBuffer[Instruction] = {
+    val size = toAllocate.map(x => Allocator.getTypeWidth(x.typ.get)).sum
+
+    lb(
+      AddAsm(Immediate(size.toLong), Rsp),
+      Mov(Rbp, Rsp),
+      toSave.map(r => { Pop(r) }),
+      Pop(Rbp)
+    )
+  }
+  def genNewScopeExit(): ListBuffer[Instruction] = {
+    genNewScopeExit(List.empty, List.empty)
+  }
+  def genNewScopeExit(
+      toAllocate: List[SymbolTableObj]
+  ): ListBuffer[Instruction] = {
+    val toSave = Allocator.NON_PARAM_REGS.take(toAllocate.size)
+    genNewScopeExit(toSave, toAllocate)
   }
 
   def genDataSection(data: (String, String)*): ListBuffer[Instruction] = lb(
@@ -108,12 +176,12 @@ object builtInFunctions {
 
   private def genCall(name: String, func: Label): ListBuffer[Instruction] = lb(
     Label(s"_$name"),
-    genNewScope(
-      lb(
-        maskRsp,
-        CallAsm(func)
-      )
+    genNewScopeEnter(),
+    lb(
+      maskRsp,
+      CallAsm(func)
     ),
+    genNewScopeExit(),
     Ret
   )
 
@@ -146,7 +214,7 @@ object builtInFunctions {
 
     printBody += Mov(Immediate(0), Edi(Size64))
     printBody += CallAsm(provided.fflush)
-    graph ++= lb(genNewScope(printBody), Ret)
+    graph ++= lb(genNewScopeEnter(), printBody, genNewScopeExit(), Ret)
   }
 
   private val genPrintBool: ListBuffer[Instruction] = {
@@ -164,7 +232,7 @@ object builtInFunctions {
       Label(".printb_end"),
       CallAsm(Label("_prints"))
     )
-    graph ++= lb(genNewScope(printBody), Ret)
+    graph ++= lb(genNewScopeEnter(), printBody, genNewScopeExit(), Ret)
   }
 
   private def genRead(typ: Char, format: String): ListBuffer[Instruction] = {
@@ -183,7 +251,7 @@ object builtInFunctions {
       CallAsm(provided.scanf),
       Mov(Address(Rsp), Eax(size))
     )
-    instructions ++= lb(genNewScope(readBody), Ret)
+    instructions ++= lb(genNewScopeEnter(), readBody, genNewScopeExit(), Ret)
   }
 
   private def genErr(name: String, msg: String): ListBuffer[Instruction] = {
@@ -214,14 +282,16 @@ object builtInFunctions {
     )
   }
 
-  private val genMalloc: ListBuffer[Instruction] = lb (
+  private val genMalloc: ListBuffer[Instruction] = lb(
     Label(s"_$malloc"),
-    genNewScope(lb(
+    genNewScopeEnter(),
+    lb(
       maskRsp,
       CallAsm(provided.malloc),
       Cmp(Immediate(0), Eax(Size64)),
-      JmpComparison(Label(s"_$errOutOfMemory"), Eq),
-    )),
+      JmpComparison(Label(s"_$errOutOfMemory"), Eq)
+    ),
+    genNewScopeExit(),
     Ret
   )
 
@@ -238,7 +308,8 @@ object builtInFunctions {
     }
     lb(
       Label(s"_arr${if (direction) "Store" else "Load"}$s"),
-      genNewScope(lb(
+      genNewScopeEnter(),
+      lb(
         Cmp(Immediate(0), R10()),
         CMovl(R10(Size64), Esi(Size64)),
         JmpComparison(Label(s"_$errOutOfBounds"), Lt),
@@ -250,7 +321,8 @@ object builtInFunctions {
           Mov(Eax(Size64), Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)))
         else
           Mov(Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)), R9(Size64))
-      )),
+      ),
+      genNewScopeExit(),
       Ret
     )
   }
