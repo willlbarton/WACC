@@ -413,29 +413,27 @@ object generator {
   ): ListBuffer[Instruction] = lb(
     genExpr(expr, symTable),
     op match {
-      case Chr =>
-        lb(
-          Testq(Immediate(-128), Eax(Size64)),
-          CMovne(Eax(Size64), Esi(Size64)),
-          JmpComparison(Label(s"_$errBadChar"), NotEq)
-        )
-      case Len => ???
-      case Neg =>
-        // slightly different to how reference compiler does it, as we assume the answer of exp is stored in Eax
-        lb(
-          Mov(Immediate(0), Edx(Size64)),
-          SubAsm(Eax(Size32), Edx(Size32)),
-          Jo(Label(s"_$errOverflow")),
-          Movs(Edx(Size32), Eax(Size64))
-        )
-      case Not =>
-        lb(
-          Cmp(Immediate(1), Eax(Size64)),
-          SetAsm(Eax(Size8), NotEq),
-          Movs(Eax(Size8), Eax(Size64))
-        )
-      // Do nothing as char already being stored as a Long in eax
-      case Ord => lb()
+      case Chr => lb(
+        Testq(Immediate(-128), Eax(Size64)),
+        CMovne(Eax(Size64), Esi(Size64)),
+        JmpComparison(Label(s"_$errBadChar"), NotEq)
+      )
+      case Len => lb(
+        Pop(Eax(Size64)), // Array address returned on stack
+        Mov(Address(Eax(Size64), Immediate(-intSize)), Eax())
+      )
+      case Neg => lb(
+        Mov(Immediate(0), Edx(Size64)),
+        SubAsm(Eax(Size32), Edx(Size32)),
+        Jo(Label(s"_$errOverflow")),
+        Movs(Edx(Size32), Eax(Size64))
+      )
+      case Not => lb(
+        Cmp(Immediate(1), Eax(Size64)),
+        SetAsm(Eax(Size8), NotEq),
+        Movs(Eax(Size8), Eax(Size64))
+      )
+      case Ord => lb() // Do nothing as char already being stored as a Long in eax
     }
   )
 }
