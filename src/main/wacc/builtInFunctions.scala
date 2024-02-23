@@ -74,6 +74,8 @@ object builtInFunctions {
             case Address(Rbp, Immediate(offset), _, _) =>
               Address(Rbp, Immediate(offset + allocator.reservedSpace + ptrSize + toSave.size * 8))
             case r: Reg => r
+            case _ =>
+              throw new IllegalArgumentException("Variable addresses must be relative to Rbp")
           }
         )
       )
@@ -83,7 +85,7 @@ object builtInFunctions {
     toSave.reverse.zipWithIndex.foreach {
       case (r, i) =>
         val ident = symTable.reverseLookup(r).get
-        symTable.put(ident, Address(Rbp, Immediate(i.toLong * 8))) // might be (i + 1)
+        symTable.put(ident, Address(Rbp, Immediate(i* 8))) // might be (i + 1)
     }
   }
 
@@ -92,7 +94,7 @@ object builtInFunctions {
     toSave.zipWithIndex.foreach {
       case (r, i) =>
         val ident =
-          symTable.reverseLookup(Address(Rbp, Immediate(i.toLong * 8))).get // might be (i + 1)
+          symTable.reverseLookup(Address(Rbp, Immediate(i * 8))).get // might be (i + 1)
         symTable.put(ident, r)
     }
 
@@ -106,6 +108,8 @@ object builtInFunctions {
             case Address(Rbp, Immediate(offset), _, _) =>
               Address(Rbp, Immediate(offset - allocator.reservedSpace - (toSave.size + 1) * ptrSize))
             case r: Reg => r
+            case _ =>
+              throw new IllegalArgumentException("Variable addresses must be relative to Rbp")
           }
         )
       )
@@ -123,7 +127,7 @@ object builtInFunctions {
       Push(Rbp),
       toSave.map(r => Push(r)),
       Mov(Rsp, Rbp),
-      SubAsm(Immediate(size.toLong), Rsp)
+      SubAsm(Immediate(size), Rsp)
     )
   }
   def genNewScopeEnter(): ListBuffer[Instruction] = {
@@ -144,7 +148,7 @@ object builtInFunctions {
     val size = toAllocate.map(x => Allocator.getTypeWidth(x.typ.get)).sum
 
     lb(
-      AddAsm(Immediate(size.toLong), Rsp),
+      AddAsm(Immediate(size), Rsp),
       Mov(Rbp, Rsp),
       toSave.map(r => { Pop(r) }),
       Pop(Rbp)

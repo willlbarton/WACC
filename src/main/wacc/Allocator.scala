@@ -18,13 +18,14 @@ case class Allocator(reservedSpace: Int) {
         case Size32 => intSize
         case Size64 => ptrSize
       })
-      Address(Rbp, Immediate(currentRelativeBP.toLong))
+      Address(Rbp, Immediate(currentRelativeBP))
     }
   }
   def allocateSpace(t: Type): Dest = t match {
-    case CharType | BoolType                        => allocateSpace(Size8)
-    case IntType                                    => allocateSpace(Size32)
-    case StringType | ArrayType(_) | PairType(_, _) => allocateSpace(Size64)
+    case CharType | BoolType                               => allocateSpace(Size8)
+    case IntType                                           => allocateSpace(Size32)
+    case StringType | ArrayType(_) | PairType(_, _) | Pair => allocateSpace(Size64)
+    case NullType => throw new IllegalArgumentException("NullType should not be allocated")
   }
 
   def usedRegs: List[Reg] =
@@ -54,13 +55,14 @@ object Allocator {
   }
 
   def getTypeWidth(t: Type): Int = t match {
-    case CharType | BoolType                        => byteSize
-    case IntType                                    => intSize
-    case StringType | ArrayType(_) | PairType(_, _) => ptrSize
+    case CharType | BoolType                               => byteSize
+    case IntType                                           => intSize
+    case StringType | ArrayType(_) | PairType(_, _) | Pair => ptrSize
+    case NullType => throw new IllegalArgumentException("NullType should not be allocated")
   }
 
   def allocateLabel: Label = {
-    val oldLabel = label;
+    val oldLabel = label
     label += 1
     Label(s".L$oldLabel")
   }

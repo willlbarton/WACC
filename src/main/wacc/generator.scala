@@ -182,7 +182,10 @@ object generator {
       )
       case arr@ArrayElem(ident, exprs) =>
         var typ = ident.typ.get
-        typ = exprs.foldLeft(typ) { case (t, _) => t match { case ArrayType(t) => t } }
+        typ = exprs.foldLeft(typ) { case (t, _) => t match {
+          case ArrayType(t) => t
+          case _ => throw new IllegalArgumentException(s"Type $t was not an array")
+        } }
         lb(
           genLVal(arr, symTable),
           genExpr(exprs.last, symTable),
@@ -192,6 +195,7 @@ object generator {
           Pop(R9(Size64)),
           CallAsm(Label(s"_$arrStore${Allocator.getTypeWidth(typ)}"))
         )
+      case _ => ???
     }
   }
 
@@ -207,6 +211,7 @@ object generator {
     value match {
       case e: Expr       => genExpr(e, symTable)
       case a: ArrayLiter => genArray(value.typ.get, a, symTable)
+      case _             => ???
     }
 
   private def genArray(
@@ -245,6 +250,8 @@ object generator {
           id.typ.get match {
             case CharType => CallAsm(Label(s"_$read$charType"))
             case IntType  => CallAsm(Label(s"_$read$intType"))
+            case _        => throw new
+                IllegalArgumentException(s"Read called with unsupported type: ${id.typ.get}")
           }
         case _ => ???
       }
@@ -280,8 +287,9 @@ object generator {
 
   private def genLVal(lval: LVal, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
     lval match {
-      case id: Ident => lb(Push(symTable(id).get))
+      case id: Ident               => lb(Push(symTable(id).get))
       case ArrayElem(ident, exprs) => genArrayElem(ident, exprs.init, symTable)
+      case _                       => ???
     }
 
   private def genArrayElem(
@@ -293,7 +301,10 @@ object generator {
     var typ: Type = ident.typ.get
     val instructions = lb(Mov(dest, R9(Size64)))
     for (expr <- exprs) {
-      typ = typ match { case ArrayType(t) => t }
+      typ = typ match {
+        case ArrayType(t) => t
+        case _ => throw new IllegalArgumentException(s"Type $typ was not an array")
+      }
       val s = Allocator.getTypeWidth(typ)
       instructions ++= lb(
         genExpr(expr, symTable),
@@ -306,10 +317,10 @@ object generator {
 
   private def genExpr(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
     expr match {
-      case Integer(i)    => Mov(Immediate(i.toLong), Eax())
+      case Integer(i)    => Mov(Immediate(i), Eax())
       case StringAtom(s) => Lea(Address(Rip, Label(s".L.str${stringLiters(s)}")), Eax(Size64))
       case Bool(value)   => Mov(Immediate(if (value) 1 else 0), Eax(Size64))
-      case Character(c)  => Mov(Immediate(c.toLong), Eax(Size64))
+      case Character(c)  => Mov(Immediate(c.toInt), Eax(Size64))
 
       case ArrayElem(ident, exprs) => genArrayElem(ident, exprs, symTable)
       case Ident(name) =>

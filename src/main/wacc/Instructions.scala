@@ -44,7 +44,7 @@ final case class Address(
     index: MemOp = Immediate(0),
     scale: MemOp = Immediate(1)
 ) extends Dest
-final case class Immediate(value: Long) extends Operand with MemOp
+final case class Immediate(value: Int) extends Operand with MemOp
 
 case object Ret extends Instruction
 case object Cltd extends Instruction

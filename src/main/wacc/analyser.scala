@@ -515,7 +515,7 @@ object analyser {
     case ArrayElem(ident, exprs) =>
       val res = checkArrayElem(symTable, ident, exprs)
       if (res.isRight) {
-        ident.typ = Some(ArrayType(res.right.get))
+        ident.typ = Some(ArrayType(res.toOption.get))
       }
       res
     case Fst(value) =>
