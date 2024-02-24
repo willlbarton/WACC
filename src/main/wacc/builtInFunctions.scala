@@ -62,6 +62,17 @@ object builtInFunctions {
     genErr1Arg(errOutOfBounds, "fatal error: array index %d out of bounds")
   )
 
+  /**
+   * Updates the symbol table to reflect entry to a new child scope
+   *
+   * @param symTable The symbol table to be updated
+   * @param allocator The allocator of the parent scope
+   * @param toSave List of registers that need to be saved. It is always safe to use
+   *               Allocator.NON_PARAM_REGS, but not all of them are always needed.
+   *               The list should be in the same order as the variables are declared.
+   *               In general, Allocator.NON_PARAM_REGS.take(n) should be used, where n is the
+   *               number of variables declared in the scope.
+   */
   def symTableEnterScope(
       symTable: SymbolTable[Dest],
       allocator: Allocator,
@@ -92,6 +103,17 @@ object builtInFunctions {
     }
   }
 
+  /**
+   * Updates the symbol table to reflect exit from a child scope
+   *
+   * @param symTable The symbol table to be updated
+   * @param allocator The allocator of the parent scope
+   * @param toSave List of registers that need to be saved. It is always safe to use
+   *               Allocator.NON_PARAM_REGS, but not all of them are always needed.
+   *               The list should be in the same order as the variables are declared.
+   *               In general, Allocator.NON_PARAM_REGS.take(n) should be used, where n is the
+   *               number of variables declared in the scope.
+   */
   def symTableExitScope(
       symTable: SymbolTable[Dest],
       allocator: Allocator,
