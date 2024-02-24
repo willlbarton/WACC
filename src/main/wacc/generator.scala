@@ -163,6 +163,7 @@ object generator {
     )
   }
 
+  // TODO: Refactor this to use genScopedStmt instead
   private def genIfStmt(
       ifStmt: IfStmt,
       symTable: SymbolTable[Dest],
@@ -174,27 +175,16 @@ object generator {
         val labelTrue = Allocator.allocateLabel
         val labelContinue = Allocator.allocateLabel
 
-        val childSymTable = symTable.makeChild
-
-        val savedRegs = Allocator.NON_PARAM_REGS.take(ifStmt.branch1Vars.size)
-        symTableEnterScope(symTable, allocator, savedRegs)
-
         val instructions = lb(
           Pop(Eax(Size64)),
           Cmp(Immediate(1), Eax(Size64)),
           JmpComparison(labelTrue, Eq),
-          genNewScopeEnter(ifStmt.branch2Vars),
-          genStmts(body2, childSymTable, allocator),
-          genNewScopeExit(ifStmt.branch2Vars),
+          genScopedStmt(body2, ifStmt.branch2Vars, symTable, allocator),
           Jmp(labelContinue),
           labelTrue,
-          genNewScopeEnter(ifStmt.branch1Vars),
-          genStmts(body1, childSymTable, allocator),
-          genNewScopeExit(ifStmt.branch1Vars),
+          genScopedStmt(body1, ifStmt.branch1Vars, symTable, allocator),
           labelContinue
         )
-
-        symTableExitScope(symTable, allocator, savedRegs)
 
         instructions
       }
