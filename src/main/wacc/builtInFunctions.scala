@@ -62,17 +62,18 @@ object builtInFunctions {
     genErr1Arg(errOutOfBounds, "fatal error: array index %d out of bounds")
   )
 
-  /**
-   * Updates the symbol table to reflect entry to a new child scope
-   *
-   * @param symTable The symbol table to be updated
-   * @param allocator The allocator of the parent scope
-   * @param toSave List of registers that need to be saved. It is always safe to use
-   *               Allocator.NON_PARAM_REGS, but not all of them are always needed.
-   *               The list should be in the same order as the variables are declared.
-   *               In general, Allocator.NON_PARAM_REGS.take(n) should be used, where n is the
-   *               number of variables declared in the scope.
-   */
+  /** Updates the symbol table to reflect entry to a new child scope
+    *
+    * @param symTable
+    *   The symbol table to be updated
+    * @param allocator
+    *   The allocator of the parent scope
+    * @param toSave
+    *   List of registers that need to be saved. It is always safe to use Allocator.NON_PARAM_REGS,
+    *   but not all of them are always needed. The list should be in the same order as the variables
+    *   are declared. In general, Allocator.NON_PARAM_REGS.take(n) should be used, where n is the
+    *   number of variables declared in the scope.
+    */
   def symTableEnterScope(
       symTable: SymbolTable[Dest],
       allocator: Allocator,
@@ -103,24 +104,25 @@ object builtInFunctions {
     }
   }
 
-  /**
-   * Updates the symbol table to reflect exit from a child scope
-   *
-   * @param symTable The symbol table to be updated
-   * @param allocator The allocator of the parent scope
-   * @param toSave List of registers that need to be saved. It is always safe to use
-   *               Allocator.NON_PARAM_REGS, but not all of them are always needed.
-   *               The list should be in the same order as the variables are declared.
-   *               In general, Allocator.NON_PARAM_REGS.take(n) should be used, where n is the
-   *               number of variables declared in the scope.
-   */
+  /** Updates the symbol table to reflect exit from a child scope
+    *
+    * @param symTable
+    *   The symbol table to be updated
+    * @param allocator
+    *   The allocator of the parent scope
+    * @param toSave
+    *   List of registers that need to be saved. It is always safe to use Allocator.NON_PARAM_REGS,
+    *   but not all of them are always needed. The list should be in the same order as the variables
+    *   are declared. In general, Allocator.NON_PARAM_REGS.take(n) should be used, where n is the
+    *   number of variables declared in the scope.
+    */
   def symTableExitScope(
       symTable: SymbolTable[Dest],
       allocator: Allocator,
       toSave: List[Reg]
   ): Unit = {
 
-    toSave.zipWithIndex.foreach { case (r, i) =>
+    toSave.reverse.zipWithIndex.foreach { case (r, i) =>
       val ident =
         symTable.reverseLookup(Address(Rbp, Immediate(i * 8))).get // might be (i + 1)
       symTable.put(ident, r)
@@ -181,7 +183,7 @@ object builtInFunctions {
     lb(
       AddAsm(Immediate(size), Rsp),
       Mov(Rbp, Rsp),
-      toSave.map(r => { Pop(r) }),
+      toSave.reverse.map(r => { Pop(r) }),
       Pop(Rbp)
     )
   }

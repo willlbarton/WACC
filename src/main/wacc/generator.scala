@@ -149,12 +149,14 @@ object generator {
     val labelExpr = Allocator.allocateLabel
     val labelStmts = Allocator.allocateLabel
 
+    val generatedExpr = genExpr(expr, symTable)
+
     lb(
       Jmp(labelExpr),
       labelStmts,
       genScopedStmt(stmts, vars, symTable, allocator),
       labelExpr,
-      genExpr(expr, symTable),
+      generatedExpr,
       Pop(Eax(Size64)),
       Cmp(Immediate(1), Eax(Size64)),
       JmpComparison(labelStmts, Eq)
