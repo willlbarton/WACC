@@ -114,8 +114,8 @@ object generator {
       case Free(expr)        => genFreeStmt(expr, symTable)
       case ifStmt: IfStmt =>
         genIfStmt(ifStmt, symTable, allocator) // handle IfStmt case
-      case s @ ScopedStmt(stmts) => genScopedStmt(stmts, s.vars, symTable, allocator)
-      case While(expr, stmts)    => genWhile(expr, stmts, symTable, allocator)
+      case s @ ScopedStmt(stmts)  => genScopedStmt(stmts, s.vars, symTable, allocator)
+      case w @ While(expr, stmts) => genWhile(expr, stmts, w.vars, symTable, allocator)
     }
 
   private def genScopedStmt(
@@ -142,6 +142,7 @@ object generator {
   private def genWhile(
       expr: Expr,
       stmts: List[Stmt],
+      vars: List[SymbolTableObj],
       symTable: SymbolTable[Dest],
       allocator: Allocator
   ): ListBuffer[Instruction] = {
@@ -151,7 +152,7 @@ object generator {
     lb(
       Jmp(labelExpr),
       labelStmts,
-      genStmts(stmts, symTable, allocator),
+      genScopedStmt(stmts, vars, symTable, allocator),
       labelExpr,
       genExpr(expr, symTable),
       Pop(Eax(Size64)),
