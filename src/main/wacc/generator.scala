@@ -175,7 +175,7 @@ object generator {
         val labelTrue = Allocator.allocateLabel
         val labelContinue = Allocator.allocateLabel
 
-        val instructions = lb(
+        lb(
           Pop(Eax(Size64)),
           Cmp(Immediate(1), Eax(Size64)),
           JmpComparison(labelTrue, Eq),
@@ -186,7 +186,6 @@ object generator {
           labelContinue
         )
 
-        instructions
       }
     )
 
