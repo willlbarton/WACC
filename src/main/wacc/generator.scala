@@ -36,7 +36,6 @@ object generator {
     val instructions = lb(
       dirGlobl,
       genDataSection(stringLiters.view.mapValues(i => s".L.str$i").toSeq: _*),
-      program.functions.flatMap(x => genFunc(x, SymbolTable(None))),
       mainLabel
     )
 
@@ -54,6 +53,7 @@ object generator {
       mainBody,
       genNewScopeExit(program.vars),
       Ret,
+      program.functions.flatMap(x => genFunc(x)),
       genFunctions
     )
     symTableExitScope(mainSymTable, allocator, savedRegs)
@@ -61,8 +61,7 @@ object generator {
   }
 
   private def genFunc(
-      func: Func,
-      symTable: SymbolTable[Dest]
+      func: Func
   ): ListBuffer[Instruction] = {
     val allocator = Allocator(
       func.params.drop(Allocator.PARAM_REGS.length).map(x => Allocator.getTypeWidth(x.t)).sum,
@@ -75,10 +74,26 @@ object generator {
       paramTable.put(param.ident, dest)
     }
 
-    lb(
+    val usedParamRegs = Allocator.PARAM_REGS.take(func.params.length)
+
+    symTableEnterScope(paramTable, allocator, usedParamRegs)
+
+    val instructions = lb(
       Label(s"wacc_${func.ident.name}"),
-      genStmts(func.body, paramTable, Allocator(func.vars))
+      genNewScopeEnter(usedParamRegs, func.vars), {
+        val instrs =
+          genStmts(func.body, paramTable.makeChild, Allocator(func.vars, NonParamMode))
+        lb(
+          instrs.init,
+          genNewScopeExit(usedParamRegs, func.vars),
+          instrs.last
+        )
+      }
     )
+
+    symTableExitScope(paramTable, allocator, usedParamRegs)
+
+    instructions
   }
 
   private def genStmts(
@@ -114,6 +129,7 @@ object generator {
       case Return(expr) =>
         lb(
           genExpr(expr, symTable),
+          Pop(Eax(Size64)),
           Ret
         )
       case Print(expr)   => genPrintStmt(symTable, expr)
