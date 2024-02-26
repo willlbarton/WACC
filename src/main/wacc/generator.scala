@@ -365,7 +365,8 @@ object generator {
   private def genExpr(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
     expr match {
       case Integer(i)    => Mov(Immediate(i), Eax())
-      case StringAtom(s) => Lea(Address(Rip, Label(s".L.str${stringLiters(s)}")), Eax(Size64))
+      case StringAtom(s) => Lea(Address(Rip,
+        Label(s".L.str${stringLiters(s.replace("\"", "\\\""))}")), Eax(Size64))
       case Bool(value)   => Mov(Immediate(if (value) 1 else 0), Eax(Size64))
       case Character(c)  => Mov(Immediate(c.toInt), Eax(Size64))
 
