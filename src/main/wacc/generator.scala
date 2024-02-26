@@ -344,6 +344,8 @@ object generator {
     )
   }
 
+  private val eof = -1
+  private var d = 0
   private def genReadStmt(symTable: SymbolTable[Dest], lval: LVal): ListBuffer[Instruction] = {
     val call = lval.typ match {
       case Some(CharType) => CallAsm(Label(s"_$read$charType"))
@@ -351,20 +353,26 @@ object generator {
       case _ =>
         throw new IllegalArgumentException(s"Read called with unsupported type: ${lval.typ.get}")
     }
+    d += 1
+    val label = Label(s".read_skip$d")
     lval match {
       case id: Ident =>
         lb(
           call,
-          Cmp(Immediate(-1), Eax(Size64)),
-          CMovne(Eax(Size64), symTable(id).get)
+          Cmp(Immediate(eof), Eax(Size32)),
+          JmpComparison(label, Eq),
+          Mov(Eax(Size64), symTable(id).get),
+          label
         )
       case _ =>
         lb(
           genLVal(lval, symTable),
           call,
           Pop(Ebx(Size64)),
-          Cmp(Immediate(-1), Eax(Size64)),
-          CMovne(Eax(Size64), Address(Ebx(Size64)))
+          Cmp(Immediate(eof), Eax(Size32)),
+          JmpComparison(label, Eq),
+          Mov(Eax(Size64), Address(Ebx(Size64))),
+          label
         )
     }
   }
@@ -417,8 +425,10 @@ object generator {
       }
       val s = Allocator.getTypeWidth(typ)
       instructions ++= lb(
+        Push(R9(Size64)),
         genExpr(expr, symTable),
         Pop(R10(Size64)),
+        Pop(R9(Size64)),
         CallAsm(Label(s"_$arrLoad$s"))
       )
     }
@@ -428,7 +438,8 @@ object generator {
   private def genExpr(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
     expr match {
       case Integer(i)    => Mov(Immediate(i), Eax())
-      case StringAtom(s) => Lea(Address(Rip, Label(s".L.str${stringLiters(s)}")), Eax(Size64))
+      case StringAtom(s) => Lea(Address(Rip,
+        Label(s".L.str${stringLiters(s.replace("\"", "\\\""))}")), Eax(Size64))
       case Bool(value)   => Mov(Immediate(if (value) 1 else 0), Eax(Size64))
       case Character(c)  => Mov(Immediate(c.toInt), Eax(Size64))
 

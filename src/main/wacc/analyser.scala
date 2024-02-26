@@ -253,37 +253,36 @@ object analyser {
 
   // Checks the validity of an expression and finds it type if possible
   @tailrec
-  private def checkExpr(symTable: SymbolTable[SymbolTableObj], expr: Expr): (String, Option[Type]) =
-    expr match {
-      case Integer(_)   => ("", Some(IntType))
-      case Bool(_)      => ("", Some(BoolType))
-      case Character(_) => ("", Some(CharType))
-      case StringAtom(s) =>
-        if (!generator.stringLiters.contains(s))
-          generator.stringLiters += (s -> generator.stringLiters.size)
-        ("", Some(StringType))
-      case Null => ("", Some(Pair))
-      case id: Ident =>
-        checkIdent(symTable, id) match {
-          case Left(err)  => (err withContext expr, None)
-          case Right(typ) => ("", Some(typ))
-        }
-      // Array indexing
-      case ArrayElem(ident, exprs) =>
-        checkArrayElem(symTable, ident, exprs) match {
-          case Left(err) => (err, None)
-          case Right(typ) =>
-            ident.typ = symTable(ident) match {
-              case Some(t) => t.typ
-              case _       => None
-            }
-            ("", Some(typ))
-        }
-      case BracketedExpr(expr) => checkExpr(symTable, expr)
-      // Unary and binary operators mutually recursive with this function
-      case UnaryApp(op, expr)         => checkUnaryApp(symTable, op, expr)
-      case BinaryApp(op, left, right) => checkBinaryApp(symTable, op, left, right)
-    }
+  private def checkExpr(symTable: SymbolTable[SymbolTableObj], expr: Expr): (String, Option[Type]) = expr match {
+    case Integer(_)    => ("", Some(IntType))
+    case Bool(_)       => ("", Some(BoolType))
+    case Character(_)  => ("", Some(CharType))
+    case StringAtom(s) =>
+      if (!generator.stringLiters.contains(s))
+        generator.stringLiters += (s.replace("\"", "\\\"") -> generator.stringLiters.size)
+      ("", Some(StringType))
+    case Null          => ("", Some(Pair))
+    case id: Ident =>
+      checkIdent(symTable, id) match {
+        case Left(err)  => (err withContext expr, None)
+        case Right(typ) => ("", Some(typ))
+      }
+    // Array indexing
+    case ArrayElem(ident, exprs) =>
+      checkArrayElem(symTable, ident, exprs) match {
+        case Left(err)  => (err, None)
+        case Right(typ) =>
+          ident.typ = symTable(ident) match {
+            case Some(t) => t.typ
+            case _       => None
+          }
+          ("", Some(typ))
+      }
+    case BracketedExpr(expr) => checkExpr(symTable, expr)
+    // Unary and binary operators mutually recursive with this function
+    case UnaryApp(op, expr)         => checkUnaryApp(symTable, op, expr)
+    case BinaryApp(op, left, right) => checkBinaryApp(symTable, op, left, right)
+  }
 
   // Checks that an identifier is defined and returns its type if possible
   private def checkIdent(

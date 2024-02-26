@@ -358,9 +358,10 @@ object builtInFunctions {
         CMovge(R10(Size64), Esi(Size64)),
         JmpComparison(Label(s"_$errOutOfBounds"), GtEq),
         if (direction)
-          Mov(Eax(Size64), Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)))
+          Mov(Eax(size),
+            Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)), useOpSize = true)
         else
-          Mov(Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)), R9(Size64))
+          Mov(Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)), R9(size))
       ),
       genNewScopeExit(),
       Ret
