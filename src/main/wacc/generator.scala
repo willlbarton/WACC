@@ -361,8 +361,10 @@ object generator {
       }
       val s = Allocator.getTypeWidth(typ)
       instructions ++= lb(
+        Push(R9(Size64)),
         genExpr(expr, symTable),
         Pop(R10(Size64)),
+        Pop(R9(Size64)),
         CallAsm(Label(s"_$arrLoad$s"))
       )
     }
