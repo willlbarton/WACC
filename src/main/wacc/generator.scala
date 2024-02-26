@@ -70,13 +70,12 @@ object generator {
     val paramTable = SymbolTable[Dest](None)
 
     func.params.foreach { param =>
-      val dest = allocator.allocateSpace(param.t)
-      paramTable.put(param.ident, dest)
+      paramTable.put(param.ident, allocator.allocateSpace(param.t))
     }
 
     val usedParamRegs = Allocator.PARAM_REGS.take(func.params.length)
 
-    symTableEnterScope(paramTable, allocator, usedParamRegs)
+    symTableEnterScope(paramTable, allocator, usedParamRegs, ParamMode)
 
     val instructions = lb(
       Label(s"wacc_${func.ident.name}"),
@@ -91,7 +90,7 @@ object generator {
       }
     )
 
-    symTableExitScope(paramTable, allocator, usedParamRegs)
+    symTableExitScope(paramTable, allocator, usedParamRegs, ParamMode)
 
     instructions
   }
@@ -149,7 +148,6 @@ object generator {
       case w @ While(expr, stmts) => genWhile(expr, stmts, w.vars, symTable, allocator)
     }
 
-  // todo: fix vars.dropped(used.size)
   private def genScopedStmt(
       stmts: List[Stmt],
       vars: List[SymbolTableObj],
@@ -163,11 +161,15 @@ object generator {
 
     symTableEnterScope(symTable, allocator, used)
 
+    val toAllocate = vars.drop(
+      (if (mode == ParamMode) Allocator.PARAM_REGS else Allocator.NON_PARAM_REGS).size
+    )
+
     val instructions = lb(
-      genNewScopeEnter(used, vars),
+      genNewScopeEnter(used, toAllocate),
       genStmts(stmts, symTable.makeChild, Allocator(vars, mode)),
       extraInstructions,
-      genNewScopeExit(used, vars)
+      genNewScopeExit(used, toAllocate)
     )
 
     symTableExitScope(symTable, allocator, used)
@@ -198,7 +200,6 @@ object generator {
     )
   }
 
-  // TODO: Refactor this to use genScopedStmt instead
   private def genIfStmt(
       ifStmt: IfStmt,
       symTable: SymbolTable[Dest],
@@ -309,7 +310,7 @@ object generator {
       allocator,
       ParamMode,
       lb(CallAsm(Label(s"wacc_${c.ident.name}")))
-    )
+    ) += Push(Eax(Size64))
   }
 
   private def genArray(

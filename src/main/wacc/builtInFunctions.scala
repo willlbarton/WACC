@@ -77,8 +77,11 @@ object builtInFunctions {
   def symTableEnterScope(
       symTable: SymbolTable[Dest],
       allocator: Allocator,
-      toSave: List[Reg]
+      toSave: List[Reg],
+      mode: Mode = NonParamMode
   ): Unit = {
+    val offset = allocator.reservedSpace +
+      (toSave.size + (if (mode == NonParamMode) 1 else 2)) * ptrSize
 
     var st = Option(symTable)
     while (st.isDefined) {
@@ -87,8 +90,8 @@ object builtInFunctions {
         table.put(
           ident,
           table(ident) match {
-            case Address(Rbp, Immediate(offset), _, _) =>
-              Address(Rbp, Immediate(offset + allocator.reservedSpace + ptrSize + toSave.size * 8))
+            case Address(Rbp, Immediate(pos), _, _) =>
+              Address(Rbp, Immediate(pos + offset))
             case r: Reg => r
             case _ =>
               throw new IllegalArgumentException("Variable addresses must be relative to Rbp")
@@ -119,12 +122,15 @@ object builtInFunctions {
   def symTableExitScope(
       symTable: SymbolTable[Dest],
       allocator: Allocator,
-      toSave: List[Reg]
+      toSave: List[Reg],
+      mode: Mode = NonParamMode
   ): Unit = {
+    val offset = allocator.reservedSpace +
+      (toSave.size + (if (mode == NonParamMode) 1 else 2)) * ptrSize
 
     toSave.reverse.zipWithIndex.foreach { case (r, i) =>
       val ident =
-        symTable.reverseLookup(Address(Rbp, Immediate(i * 8))).get // might be (i + 1)
+        symTable.reverseLookup(Address(Rbp, Immediate(i * ptrSize))).get // might be (i + 1)
       symTable.put(ident, r)
     }
 
@@ -135,11 +141,8 @@ object builtInFunctions {
         table.put(
           ident,
           table(ident) match {
-            case Address(Rbp, Immediate(offset), _, _) =>
-              Address(
-                Rbp,
-                Immediate(offset - allocator.reservedSpace - (toSave.size + 1) * ptrSize)
-              )
+            case Address(Rbp, Immediate(pos), _, _) =>
+              Address(Rbp, Immediate(pos - offset))
             case r: Reg => r
             case _ =>
               throw new IllegalArgumentException("Variable addresses must be relative to Rbp")
