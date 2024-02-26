@@ -33,7 +33,9 @@ object analyser {
           symTable.put(p.ident, p)
         }
       )
-      error ++= checkFuncStmts(symTable.makeChild, f.body, f.t) withContext s"function $f"
+      val funcBodyTable = symTable.makeChild
+      error ++= checkFuncStmts(funcBodyTable, f.body, f.t) withContext s"function $f"
+      f.vars = funcBodyTable.vars
     }
 
     // Check the main program body
@@ -106,7 +108,7 @@ object analyser {
   // Main program body
   private def checkMainStmt(st: SymbolTable[SymbolTableObj], stmt: Stmt): String = stmt match {
     case Return(_) => s"Return not allowed in main\n" withContext stmt
-    case f@IfStmt(cond, body1, body2) =>
+    case f @ IfStmt(cond, body1, body2) =>
       val childTable1 = st.makeChild
       val childTable2 = st.makeChild
       val err = checkCond(st, cond, isIf = true) ++
@@ -516,31 +518,34 @@ object analyser {
 
   // Checks that the left hand side of an assignment or declaration is valid
   // and returns its type if valid
-  private def checkLVal(symTable: SymbolTable[SymbolTableObj], lval: LVal): Either[String, Type] = lval match {
-    case id: Ident               => checkIdent(symTable, id)
-    case ArrayElem(ident, exprs) =>
-      val res = checkArrayElem(symTable, ident, exprs)
-      ident.typ = symTable(ident) match {
-        case Some(t) => t.typ
-        case _       => None
-      }
-      res
-    case Fst(value) =>
-      checkLVal(symTable, value) match {
-        // The type of fst is the type of the first element of the pair
-        case Left(err)               => Left(err)
-        case Right(PairType(typ, _)) => Right(typ)
-        case Right(Pair) => Right(NullType) // We don't know the type of the pair, but it is valid
-        case Right(typ) => Left(typeErrorMsg("pair element access", s"fst $value", "pair", s"$typ"))
-      }
-    case Snd(value) =>
-      checkLVal(symTable, value) match {
-        case Left(err)               => Left(err)
-        case Right(PairType(_, typ)) => Right(typ)
-        case Right(Pair) => Right(NullType) // We don't know the type of the pair, but it is valid
-        case Right(typ) => Left(typeErrorMsg("pair element access", s"snd $value", "pair", s"$typ"))
-      }
-  }
+  private def checkLVal(symTable: SymbolTable[SymbolTableObj], lval: LVal): Either[String, Type] =
+    lval match {
+      case id: Ident => checkIdent(symTable, id)
+      case ArrayElem(ident, exprs) =>
+        val res = checkArrayElem(symTable, ident, exprs)
+        ident.typ = symTable(ident) match {
+          case Some(t) => t.typ
+          case _       => None
+        }
+        res
+      case Fst(value) =>
+        checkLVal(symTable, value) match {
+          // The type of fst is the type of the first element of the pair
+          case Left(err)               => Left(err)
+          case Right(PairType(typ, _)) => Right(typ)
+          case Right(Pair) => Right(NullType) // We don't know the type of the pair, but it is valid
+          case Right(typ) =>
+            Left(typeErrorMsg("pair element access", s"fst $value", "pair", s"$typ"))
+        }
+      case Snd(value) =>
+        checkLVal(symTable, value) match {
+          case Left(err)               => Left(err)
+          case Right(PairType(_, typ)) => Right(typ)
+          case Right(Pair) => Right(NullType) // We don't know the type of the pair, but it is valid
+          case Right(typ) =>
+            Left(typeErrorMsg("pair element access", s"snd $value", "pair", s"$typ"))
+        }
+    }
 
   // Checks the validity of the right hand side of an assignment or declaration
   // and returns its type if valid
@@ -630,6 +635,7 @@ object analyser {
         // Check the type of the parameters
         for ((param, expr) <- params.zip(exprs)) {
           val (err, ptype) = checkExpr(symTable, expr)
+          expr.typ = Some(param.t)
           errors ++= err withContext s"call $ident(${exprs.mkString(", ")})"
           if (ptype.isDefined) {
             if (!isWeakerType(param.t, ptype.get))

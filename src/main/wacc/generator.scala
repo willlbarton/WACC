@@ -36,7 +36,6 @@ object generator {
     val instructions = lb(
       dirGlobl,
       genDataSection(stringLiters.view.mapValues(i => s".L.str$i").toSeq: _*),
-      program.functions.map(x => genFunc(x, SymbolTable(None), Allocator(x.vars))),
       mainLabel
     )
 
@@ -54,6 +53,7 @@ object generator {
       mainBody,
       genNewScopeExit(program.vars),
       Ret,
+      program.functions.flatMap(x => genFunc(x)),
       genFunctions
     )
     symTableExitScope(mainSymTable, allocator, savedRegs)
@@ -61,10 +61,39 @@ object generator {
   }
 
   private def genFunc(
-      func: Func,
-      symTable: SymbolTable[Dest],
-      allocator: Allocator
-  ): ListBuffer[Instruction] = ??? // TODO
+      func: Func
+  ): ListBuffer[Instruction] = {
+    val allocator = Allocator(
+      func.params.drop(Allocator.PARAM_REGS.length).map(x => Allocator.getTypeWidth(x.t)).sum,
+      ParamMode
+    )
+    val paramTable = SymbolTable[Dest](None)
+
+    func.params.foreach { param =>
+      paramTable.put(param.ident, allocator.allocateSpace(param.t))
+    }
+
+    val usedParamRegs = Allocator.PARAM_REGS.take(func.params.length)
+
+    symTableEnterScope(paramTable, allocator, usedParamRegs, ParamMode)
+
+    val instructions = lb(
+      Label(s"wacc_${func.ident.name}"),
+      genNewScopeEnter(usedParamRegs, func.vars), {
+        val instrs =
+          genStmts(func.body, paramTable.makeChild, Allocator(func.vars, NonParamMode))
+        lb(
+          instrs.init,
+          genNewScopeExit(usedParamRegs, func.vars),
+          instrs.last
+        )
+      }
+    )
+
+    symTableExitScope(paramTable, allocator, usedParamRegs, ParamMode)
+
+    instructions
+  }
 
   private def genStmts(
       stmts: ListBuffer[Stmt],
@@ -99,6 +128,7 @@ object generator {
       case Return(expr) =>
         lb(
           genExpr(expr, symTable),
+          Pop(Eax(Size64)),
           Ret
         )
       case Print(expr)   => genPrintStmt(symTable, expr)
@@ -109,8 +139,8 @@ object generator {
         // only use %eax and %ebx, which are protected
         val dest = allocator.allocateSpace(t)
         symTable.put(ident, dest)
-        genDeclStmt(value, dest, symTable)
-      case Asgn(lval, value) => genAsgnStmt(lval, value, symTable)
+        genDeclStmt(value, dest, symTable, allocator)
+      case Asgn(lval, value) => genAsgnStmt(lval, value, symTable, allocator)
       case Free(expr)        => genFreeStmt(expr, symTable)
       case ifStmt: IfStmt =>
         genIfStmt(ifStmt, symTable, allocator) // handle IfStmt case
@@ -122,17 +152,24 @@ object generator {
       stmts: List[Stmt],
       vars: List[SymbolTableObj],
       symTable: SymbolTable[Dest],
-      allocator: Allocator
+      allocator: Allocator,
+      mode: Mode = NonParamMode,
+      extraInstructions: ListBuffer[Instruction] = lb()
   ): ListBuffer[Instruction] = {
 
     val used = allocator.usedRegs
 
     symTableEnterScope(symTable, allocator, used)
 
+    val toAllocate = vars.drop(
+      (if (mode == ParamMode) Allocator.PARAM_REGS else Allocator.NON_PARAM_REGS).size
+    )
+
     val instructions = lb(
-      genNewScopeEnter(used, vars),
-      genStmts(stmts, symTable.makeChild, Allocator(vars)),
-      genNewScopeExit(used, vars)
+      genNewScopeEnter(used, toAllocate),
+      genStmts(stmts, symTable.makeChild, Allocator(vars, mode)),
+      extraInstructions,
+      genNewScopeExit(used, toAllocate)
     )
 
     symTableExitScope(symTable, allocator, used)
@@ -163,7 +200,6 @@ object generator {
     )
   }
 
-  // TODO: Refactor this to use genScopedStmt instead
   private def genIfStmt(
       ifStmt: IfStmt,
       symTable: SymbolTable[Dest],
@@ -194,9 +230,10 @@ object generator {
   private def genDeclStmt(
       value: RVal,
       dest: Dest,
-      symTable: SymbolTable[Dest]
+      symTable: SymbolTable[Dest],
+      allocator: Allocator
   ): ListBuffer[Instruction] = lb(
-    genRval(value, symTable),
+    genRval(value, symTable, allocator),
     Pop(Eax(Size64)),
     Mov(Eax(Size64), dest)
   )
@@ -204,12 +241,13 @@ object generator {
   private def genAsgnStmt(
       lval: LVal,
       value: RVal,
-      symTable: SymbolTable[Dest]
+      symTable: SymbolTable[Dest],
+      allocator: Allocator
   ): ListBuffer[Instruction] = {
     lval match {
       case id: Ident =>
         lb(
-          genRval(value, symTable),
+          genRval(value, symTable, allocator),
           Pop(Eax(Size64)),
           Mov(Eax(Size64), symTable(id).get)
         )
@@ -224,7 +262,7 @@ object generator {
         lb(
           genLVal(arr, symTable),
           genExpr(exprs.last, symTable),
-          genRval(value, symTable),
+          genRval(value, symTable, allocator),
           Pop(Eax(Size64)),
           Pop(R10(Size64)),
           Pop(R9(Size64)),
@@ -242,12 +280,38 @@ object generator {
     CallAsm(Label(s"_$free"))
   )
 
-  private def genRval(value: RVal, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
+  private def genRval(
+      value: RVal,
+      symTable: SymbolTable[Dest],
+      allocator: Allocator
+  ): ListBuffer[Instruction] =
     value match {
-      case e: Expr       => genExpr(e, symTable)
-      case a: ArrayLiter => genArray(value.typ.get, a, symTable)
-      case _             => ???
+      case e: Expr           => genExpr(e, symTable)
+      case a: ArrayLiter     => genArray(value.typ.get, a, symTable)
+      case c: Call           => genCall(c, symTable, allocator)
+      case f @ Fst(_)        => ???
+      case n @ NewPair(_, _) => ???
+      case s @ Snd(_)        => ???
     }
+
+  private def genCall(
+      c: Call,
+      symTable: SymbolTable[Dest],
+      allocator: Allocator
+  ): ListBuffer[Instruction] = {
+    val stmts: List[Stmt] = c.args.zipWithIndex.map { case (exp, i) =>
+      Decl(exp.typ.get, Ident(s"_arg$i"), exp)
+    }
+
+    genScopedStmt(
+      stmts,
+      c.args,
+      symTable,
+      allocator,
+      ParamMode,
+      lb(CallAsm(Label(s"wacc_${c.ident.name}")))
+    ) += Push(Eax(Size64))
+  }
 
   private def genArray(
       t: Type,
