@@ -280,6 +280,7 @@ object generator {
     )
   }
 
+  private val eof = -24
   private def genReadStmt(symTable: SymbolTable[Dest], lval: LVal): ListBuffer[Instruction] = {
     val call = lval.typ match {
       case Some(CharType) => CallAsm(Label(s"_$read$charType"))
@@ -291,7 +292,7 @@ object generator {
       case id: Ident =>
         lb(
           call,
-          Cmp(Immediate(-1), Eax(Size64)),
+          Cmp(Immediate(eof), Eax(Size32)),
           CMovne(Eax(Size64), symTable(id).get)
         )
       case _ =>
@@ -299,7 +300,7 @@ object generator {
           genLVal(lval, symTable),
           call,
           Pop(Ebx(Size64)),
-          Cmp(Immediate(-1), Eax(Size64)),
+          Cmp(Immediate(eof), Eax(Size32)),
           CMovne(Eax(Size64), Address(Ebx(Size64)))
         )
     }

@@ -79,8 +79,8 @@ final case class Imul(op1: Operand, dest: Dest) extends Instruction
 
 final case class Testq(op1: Operand, op2: Operand) extends Instruction
 final case class CMovl(op: Operand, dest: Dest) extends Instruction
-final case class CMovge(dest: Dest, src: Operand) extends Instruction
-final case class CMovne(dest: Dest, src: Operand) extends Instruction
+final case class CMovge(op: Operand, dest: Dest) extends Instruction
+final case class CMovne(op: Operand, dest: Dest) extends Instruction
 
 trait Formatter {
   def apply(instruction: Instruction): String
@@ -131,11 +131,11 @@ object x86Formatter extends Formatter {
       case Idiv(op1) => indent ++ s"idiv${instructionPostfix(op1)} ${this(op1)}"
       case Imul(op1, dest) =>
         indent ++ s"imul${instructionPostfix(dest)} ${this(op1)}, ${this(dest)}"
-      case CMovl(dest, src) =>
+      case CMovl(src, dest) =>
         indent ++ s"cmovl ${this(src)}, ${this(dest)}"
-      case CMovge(dest, src) =>
+      case CMovge(src, dest) =>
         indent ++ s"cmovge ${this(src)}, ${this(dest)}"
-      case CMovne(dest, src) =>
+      case CMovne(src, dest) =>
         indent ++ s"cmovne ${this(src)}, ${this(dest)}"
       case Testq(op1, op2) => indent ++ s"test  ${this(op1)}, ${this(op2)}"
     }
