@@ -280,7 +280,7 @@ object generator {
     )
   }
 
-  private val eof = -24
+  private val eof = -1
   private var d = 0
   private def genReadStmt(symTable: SymbolTable[Dest], lval: LVal): ListBuffer[Instruction] = {
     val call = lval.typ match {

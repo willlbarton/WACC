@@ -51,7 +51,7 @@ case object Cltd extends Instruction
 
 final case class Directive(name: String) extends Instruction
 final case class Label(name: String) extends Instruction with MemOp
-final case class Mov(op: Operand, dest: Dest) extends Instruction
+final case class Mov(op: Operand, dest: Dest, useOpSize: Boolean = false) extends Instruction
 final case class Movs(op: Operand, dest: Dest) extends Instruction
 final case class Pop(dest: Dest) extends Instruction
 final case class Push(op: Operand) extends Instruction
@@ -69,10 +69,6 @@ final case class Jmp(label: Label) extends Instruction
 final case class Jo(label: Label) extends Instruction
 
 final case class JmpComparison(label: Label, comparison: Comparison) extends Instruction
-
-// final case class Je(label: Label) extends Instruction
-// final case class Jl(label: Label) extends Instruction
-// final case class Jne(label: Label) extends Instruction
 
 final case class Idiv(op: Operand) extends Instruction
 final case class Imul(op1: Operand, dest: Dest) extends Instruction
@@ -102,8 +98,8 @@ object x86Formatter extends Formatter {
       case Label(name) => s"$name:"
       case Ret         => indent ++ "ret\n"
       case Cltd        => indent ++ "cltd"
-      case Mov(op1, dest) =>
-        indent ++ s"mov${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
+      case Mov(op1, dest, useOpSize) =>
+        indent ++ s"mov${instructionPostfix(if (useOpSize) op1 else dest)}  ${this(op1)}, ${this(dest)}"
       case Movs(op, dest) =>
         indent ++ s"movs${instructionPostfix(op, dest)} ${this(op)}, ${this(dest)}"
       case Pop(dest)      => indent ++ s"pop${instructionPostfix(dest)}  ${this(dest)}"
@@ -123,9 +119,6 @@ object x86Formatter extends Formatter {
         indent ++ s"cmp${instructionPostfix(dest)}  ${this(src)}, ${this(dest)}"
       case Jmp(label) => indent ++ s"jmp   ${label.name}"
       case Jo(label)  => indent ++ s"jo    ${label.name}"
-      // case Je(label)  => indent ++ s"je    ${label.name}"
-      // case Jl(label)  => indent ++ s"jl    ${label.name}"
-      // case Jne(label) => indent ++ s"jne   ${label.name}"
       case JmpComparison(label, comparison) =>
         indent ++ s"j${instructionPostfix(comparison)} ${label.name}"
       case Idiv(op1) => indent ++ s"idiv${instructionPostfix(op1)} ${this(op1)}"
