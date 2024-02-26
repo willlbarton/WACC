@@ -33,7 +33,9 @@ object analyser {
           symTable.put(p.ident, p)
         }
       )
-      error ++= checkFuncStmts(symTable.makeChild, f.body, f.t) withContext s"function $f"
+      val funcBodyTable = symTable.makeChild
+      error ++= checkFuncStmts(funcBodyTable, f.body, f.t) withContext s"function $f"
+      f.vars = funcBodyTable.vars
     }
 
     // Check the main program body
