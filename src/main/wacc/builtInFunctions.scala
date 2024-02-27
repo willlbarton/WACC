@@ -301,7 +301,7 @@ object builtInFunctions {
       AddAsm(Immediate(-16), Rsp),
       Lea(Address(Rip, Label(s".$name")), Edi(Size64)),
       CallAsm(Label("_prints")),
-      Mov(Immediate(-1), Eax(Size64)),
+      Mov(Immediate(-1), Edi(Size8)),
       CallAsm(provided.exit)
     )
   }
