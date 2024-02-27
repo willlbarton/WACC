@@ -173,11 +173,11 @@ object generator {
       (if (mode == ParamMode) Allocator.PARAM_REGS else Allocator.NON_PARAM_REGS).size
     )
 
-    val exitScope2 = genNewScopeExit(used, toAllocate) ++ exitScope
+    val exitScope2 = genNewScopeExit(used, toAllocate)
 
     val instructions = lb(
       genNewScopeEnter(used, toAllocate),
-      genStmts(stmts, symTable.makeChild, Allocator(vars, mode), exitScope2),
+      genStmts(stmts, symTable.makeChild, Allocator(vars, mode), exitScope2 ++ exitScope),
       extraInstructions,
       exitScope2
     )
