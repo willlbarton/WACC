@@ -77,15 +77,16 @@ object generator {
 
     symTableEnterScope(paramTable, allocator, usedParamRegs, ParamMode)
 
+    val exitScope = genNewScopeExit(usedParamRegs, func.vars)
+    println(exitScope)
+
     val instructions = lb(
       Label(s"wacc_${func.ident.name}"),
       genNewScopeEnter(usedParamRegs, func.vars), {
         val instrs =
-          genStmts(func.body, paramTable.makeChild, Allocator(func.vars, NonParamMode))
+          genStmts(func.body, paramTable.makeChild, Allocator(func.vars, NonParamMode), exitScope)
         lb(
-          instrs.init,
-          genNewScopeExit(usedParamRegs, func.vars),
-          instrs.last
+          instrs
         )
       }
     )
@@ -98,29 +99,33 @@ object generator {
   private def genStmts(
       stmts: ListBuffer[Stmt],
       symTable: SymbolTable[Dest],
-      allocator: Allocator
+      allocator: Allocator,
+      exitScope: ListBuffer[Instruction]
   ): ListBuffer[Instruction] =
     lb(
       stmts.flatMap(x => {
-        genStmt(x, symTable, allocator)
+        genStmt(x, symTable, allocator, exitScope)
       })
     )
 
   private def genStmts(
       stmts: List[Stmt],
       symTable: SymbolTable[Dest],
-      allocator: Allocator
+      allocator: Allocator,
+      exitScope: ListBuffer[Instruction] = lb()
   ): ListBuffer[Instruction] =
     genStmts(
       ListBuffer() ++= stmts,
       symTable,
-      allocator
+      allocator,
+      exitScope
     )
 
   private def genStmt(
       stmt: Stmt,
       symTable: SymbolTable[Dest],
-      allocator: Allocator
+      allocator: Allocator,
+      exitScope: ListBuffer[Instruction] = lb()
   ): ListBuffer[Instruction] =
     stmt match {
       case Skip       => lb()
@@ -129,6 +134,7 @@ object generator {
         lb(
           genExpr(expr, symTable),
           Pop(Eax(Size64)),
+          exitScope,
           Ret
         )
       case Print(expr)   => genPrintStmt(symTable, expr)
@@ -143,9 +149,10 @@ object generator {
       case Asgn(lval, value) => genAsgnStmt(lval, value, symTable, allocator)
       case Free(expr)        => genFreeStmt(expr, symTable)
       case ifStmt: IfStmt =>
-        genIfStmt(ifStmt, symTable, allocator) // handle IfStmt case
-      case s @ ScopedStmt(stmts)  => genScopedStmt(stmts, s.vars, symTable, allocator)
-      case w @ While(expr, stmts) => genWhile(expr, stmts, w.vars, symTable, allocator)
+        genIfStmt(ifStmt, symTable, allocator, exitScope) // handle IfStmt case
+      case s @ ScopedStmt(stmts) =>
+        genScopedStmt(stmts, s.vars, symTable, allocator, NonParamMode, lb(), exitScope)
+      case w @ While(expr, stmts) => genWhile(expr, stmts, w.vars, symTable, allocator, exitScope)
     }
 
   private def genScopedStmt(
@@ -154,7 +161,8 @@ object generator {
       symTable: SymbolTable[Dest],
       allocator: Allocator,
       mode: Mode = NonParamMode,
-      extraInstructions: ListBuffer[Instruction] = lb()
+      extraInstructions: ListBuffer[Instruction] = lb(),
+      exitScope: ListBuffer[Instruction] = lb()
   ): ListBuffer[Instruction] = {
 
     val used = allocator.usedRegs
@@ -165,11 +173,13 @@ object generator {
       (if (mode == ParamMode) Allocator.PARAM_REGS else Allocator.NON_PARAM_REGS).size
     )
 
+    val exitScope2 = genNewScopeExit(used, toAllocate)
+
     val instructions = lb(
       genNewScopeEnter(used, toAllocate),
-      genStmts(stmts, symTable.makeChild, Allocator(vars, mode)),
+      genStmts(stmts, symTable.makeChild, Allocator(vars, mode), exitScope2 ++ exitScope),
       extraInstructions,
-      genNewScopeExit(used, toAllocate)
+      exitScope2
     )
 
     symTableExitScope(symTable, allocator, used)
@@ -181,7 +191,8 @@ object generator {
       stmts: List[Stmt],
       vars: List[SymbolTableObj],
       symTable: SymbolTable[Dest],
-      allocator: Allocator
+      allocator: Allocator,
+      exitScope: ListBuffer[Instruction]
   ): ListBuffer[Instruction] = {
     val labelExpr = Allocator.allocateLabel
     val labelStmts = Allocator.allocateLabel
@@ -191,7 +202,7 @@ object generator {
     lb(
       Jmp(labelExpr),
       labelStmts,
-      genScopedStmt(stmts, vars, symTable, allocator),
+      genScopedStmt(stmts, vars, symTable, allocator, NonParamMode, lb(), exitScope),
       labelExpr,
       generatedExpr,
       Pop(Eax(Size64)),
@@ -203,7 +214,8 @@ object generator {
   private def genIfStmt(
       ifStmt: IfStmt,
       symTable: SymbolTable[Dest],
-      allocator: Allocator
+      allocator: Allocator,
+      exitScope: ListBuffer[Instruction] = lb()
   ): ListBuffer[Instruction] = {
     val IfStmt(expr, body1, body2) = ifStmt
     lb(
@@ -215,10 +227,26 @@ object generator {
           Pop(Eax(Size64)),
           Cmp(Immediate(1), Eax(Size64)),
           JmpComparison(labelTrue, Eq),
-          genScopedStmt(body2, ifStmt.branch2Vars, symTable, allocator),
+          genScopedStmt(
+            body2,
+            ifStmt.branch2Vars,
+            symTable,
+            allocator,
+            NonParamMode,
+            lb(),
+            exitScope
+          ),
           Jmp(labelContinue),
           labelTrue,
-          genScopedStmt(body1, ifStmt.branch1Vars, symTable, allocator),
+          genScopedStmt(
+            body1,
+            ifStmt.branch1Vars,
+            symTable,
+            allocator,
+            NonParamMode,
+            lb(),
+            exitScope
+          ),
           labelContinue
         )
 
@@ -344,8 +372,6 @@ object generator {
     )
   }
 
-  private val eof = -1
-  private var d = 0
   private def genReadStmt(symTable: SymbolTable[Dest], lval: LVal): ListBuffer[Instruction] = {
     val call = lval.typ match {
       case Some(CharType) => CallAsm(Label(s"_$read$charType"))
@@ -353,26 +379,22 @@ object generator {
       case _ =>
         throw new IllegalArgumentException(s"Read called with unsupported type: ${lval.typ.get}")
     }
-    d += 1
-    val label = Label(s".read_skip$d")
     lval match {
       case id: Ident =>
         lb(
+          Mov(symTable(id).get, Edi(Size64)),
           call,
-          Cmp(Immediate(eof), Eax(Size32)),
-          JmpComparison(label, Eq),
-          Mov(Eax(Size64), symTable(id).get),
-          label
+          Mov(Eax(Size64), symTable(id).get)
         )
       case _ =>
         lb(
           genLVal(lval, symTable),
+          Pop(Ebx(Size64)),
+          Mov(Address(Ebx(Size64)), Edi(Size64)),
+          Push(Ebx(Size64)),
           call,
           Pop(Ebx(Size64)),
-          Cmp(Immediate(eof), Eax(Size32)),
-          JmpComparison(label, Eq),
-          Mov(Eax(Size64), Address(Ebx(Size64))),
-          label
+          Mov(Eax(Size64), Address(Ebx(Size64)))
         )
     }
   }
@@ -437,11 +459,11 @@ object generator {
 
   private def genExpr(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
     expr match {
-      case Integer(i)    => Mov(Immediate(i), Eax())
-      case StringAtom(s) => Lea(Address(Rip,
-        Label(s".L.str${stringLiters(s.replace("\"", "\\\""))}")), Eax(Size64))
-      case Bool(value)   => Mov(Immediate(if (value) 1 else 0), Eax(Size64))
-      case Character(c)  => Mov(Immediate(c.toInt), Eax(Size64))
+      case Integer(i) => Mov(Immediate(i), Eax())
+      case StringAtom(s) =>
+        Lea(Address(Rip, Label(s".L.str${stringLiters(s.replace("\"", "\\\""))}")), Eax(Size64))
+      case Bool(value)  => Mov(Immediate(if (value) 1 else 0), Eax(Size64))
+      case Character(c) => Mov(Immediate(c.toInt), Eax(Size64))
 
       case ArrayElem(ident, exprs) => genArrayElem(ident, exprs, symTable)
       case Ident(name) =>
@@ -459,7 +481,10 @@ object generator {
     },
 
     // If the expression is a bracketed expression, the result will already be pushed to the stack
-    if (expr.isInstanceOf[BracketedExpr] || expr.isInstanceOf[ArrayElem])
+    if (
+      expr.isInstanceOf[BracketedExpr] || expr.isInstanceOf[ArrayElem] || expr
+        .isInstanceOf[BinaryApp] && expr.asInstanceOf[BinaryApp].op == Ord
+    )
       lb()
     else Push(Eax(Size64))
   )

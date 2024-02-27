@@ -284,12 +284,12 @@ object builtInFunctions {
     val readBody: ListBuffer[Instruction] = lb(
       maskRsp,
       SubAsm(Immediate(16), Rsp),
-      Mov(Address(Rsp), Edi(size)),
+      Mov(Edi(size), Address(Rsp), useOpSize = true),
       Lea(Address(Rsp), Esi(Size64)),
       Lea(Address(Rip, Label(s".read${typ}_format")), Edi(Size64)),
       Mov(Immediate(0), Eax(Size8)),
       CallAsm(provided.scanf),
-      Mov(Address(Rsp), Eax(size))
+      Mov(Address(Rsp), Eax(Size64))
     )
     instructions ++= lb(genNewScopeEnter(), readBody, genNewScopeExit(), Ret)
   }
