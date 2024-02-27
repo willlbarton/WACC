@@ -481,7 +481,10 @@ object generator {
     },
 
     // If the expression is a bracketed expression, the result will already be pushed to the stack
-    if (expr.isInstanceOf[BracketedExpr] || expr.isInstanceOf[ArrayElem])
+    if (
+      expr.isInstanceOf[BracketedExpr] || expr.isInstanceOf[ArrayElem] || expr
+        .isInstanceOf[BinaryApp] && expr.asInstanceOf[BinaryApp].op == Ord
+    )
       lb()
     else Push(Eax(Size64))
   )
