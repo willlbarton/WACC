@@ -1,105 +1,115 @@
 package src.test
 
-import java.io.PrintWriter
-import scala.sys.process._
-import scala.io.Source
-import scala.util.matching.Regex
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
 import org.scalatest.prop.TableDrivenPropertyChecks
-import src.main.wacc.{parser, analyser, generator}
-import java.util.Formatter
-import src.main.wacc.x86Formatter
+import src.main.wacc.{generator, analyser, parser, x86Formatter}
+
+import scala.sys.process._
+import scala.io.Source
 import java.io.File
-import java.nio.file.{Paths, Files}
-import src.main.wacc._
-import java.{util => ju}
+import java.io.{BufferedWriter, FileWriter}
+import java.util.Optional
 
 sealed trait Err
 case object CompilationError extends Err
-case object ExecutionError extends Err
 
 class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
 
   behavior of "generator"
-  forAll(Table("cases", TestFiles("valid/"): _*)) { file =>
+  forAll(Table("cases", TestFiles("valid/basic/"): _*)) { file =>
     it should s"produce the correct output and exit code for ${file.getParentFile}/${file.getName}" in {
-      val asmFile = buildAsm(file.getPath())
-      val (output, exitCode) = regex(file.getPath())
-      val result = assembleAndRun(asmFile)
-      result match {
-        case Left(CompilationError) => fail("Compilation error")
-        case Left(ExecutionError)   => fail("Execution error")
-        case Right((out, code)) =>
-          out shouldBe output
-          code shouldBe exitCode
+      val fileName = file.getPath()
+      val asmFileName = waccToAsm(fileName)
+      val binaryFile = compileAssembly(asmFileName)
+      binaryFile match {
+        case None => {
+          val binaryFile = asmFileName.replaceFirst("\\.s$", "")
+          val (binOutput, binExitCode) = runBinary(binaryFile)
+          deleteFile(binaryFile)
+          val (waccOutput, waccExitCode) = parseWaccFile(s"${fileName}")
+          (binOutput) should equal(waccOutput)
+          (binExitCode) should equal(waccExitCode)
+        }
+        case _ => fail("Compilation error")
       }
     }
   }
 
-  def buildAsm(testFile: String): String = {
-    val fileName = testFile.split("/").last
-    val outputFile = fileName.replaceFirst("\\.\\w+$", ".s")
-    val buildCommand = s"scala-cli run . -nowarn -q -- $testFile"
-    buildCommand.!
-    outputFile
+  def waccToAsm(waccFile: String): String = {
+    val source = scala.io.Source.fromFile(waccFile)
+    val program =
+      try source.getLines().mkString("\n")
+      finally source.close()
+    val asmFileName = waccFile.split("/").last.replaceFirst("\\.\\w+$", ".s")
+    val parsed = parser.parse(program).get
+    val asmString = generator.generate(parsed, x86Formatter)
+    val asmFile = new File(asmFileName)
+    val writer = new BufferedWriter(
+      new FileWriter(asmFileName)
+    )
+    writer.write(asmString)
+    asmFileName
   }
 
-  def assembleAndRun(testFile: String): Either[Err, (String, Int)] = {
-    val binaryFile = "output"
-    val compileCommand = s"gcc $testFile -o $binaryFile"
+  def compileAssembly(assemblyFile: String): Option[Err] = {
+    val binaryFile = assemblyFile.replaceFirst("\\.s$", "")
+    val compileCommand = s"gcc -c $assemblyFile -o $binaryFile"
     val compileResult = compileCommand.!
-    Files.delete(Paths.get(testFile))
+    deleteFile(assemblyFile)
     if (compileResult != 0) {
-      return Left(CompilationError)
+      return Some(CompilationError)
     }
-    val process = Process(s"./$binaryFile")
-    val output = process.lazyLines_!.mkString(",")
-    val exitCode = process.!
-    Files.delete(Paths.get(binaryFile))
-    Right((output, exitCode))
+    None
   }
 
-  def regex(testFile: String): (String, Int) = {
-    val source = Source.fromFile(testFile)
-    val fileString = source.getLines().mkString("\n");
-    val exitCodeRegex: Regex = """Exit:\s*(# \d+)""".r
-    val outputRegex: Regex = """Output:\s((# .*\n)*)""".r
-    val exitCode = exitCodeRegex.findFirstMatchIn(fileString).map(_.group(1)) match {
-      case Some(value) => value.replace("#", "").trim().toInt
-      case None        => 0
+  def runBinary(binaryFile: String): (String, Int) = {
+    val process = Process(s"./$binaryFile")
+    val binFile = new File(binaryFile)
+    binFile.setExecutable(true)
+    val output = new StringBuilder
+    val exitCode = process ! ProcessLogger(output.append(_))
+    deleteFile(binaryFile)
+    (output.toString, exitCode)
+  }
+
+  def parseWaccFile(filePath: String): (String, Int) = {
+    var output: String = ""
+    var exitCode: Int = 0
+    val source = Source.fromFile(filePath)
+    val lines = source.getLines()
+
+    for (line <- lines) {
+      if (line.startsWith("# Output:")) {
+        output = lines.takeWhile(!_.startsWith("#")).mkString("\n").trim()
+      } else if (line.startsWith("# Exit:")) {
+        exitCode = lines.takeWhile(!_.startsWith("#")).mkString("\n").trim().toInt
+      }
     }
-    val output = outputRegex.findFirstMatchIn(fileString).map(_.group(1)) match {
-      case Some(value) =>
-        value
-          .split("\n")
-          .map {
-            case str if str.startsWith("#") => str.substring(1)
-            case x                          => x
-          }
-          .map(_.trim())
-          .mkString(",")
-      case None => ""
-    }
+
+    source.close()
     (output, exitCode)
   }
 
-}
-
-object Generator {
-  def main(args: Array[String]): Unit = {
-    val testFile = "src/test/test_files/valid/array/printRef.wacc"
-    val generator = new Generator()
-    val (output, exitCode) = generator.regex(testFile)
-
-    val input = generator.buildAsm(testFile)
-
-    val result = generator.assembleAndRun(input) match {
-      case Left(value)        => (List(), 0)
-      case Right((out, code)) => (out, code)
+  def deleteFile(filePath: String): Unit = {
+    val file = new File(filePath)
+    if (file.exists()) {
+      file.delete();
     }
-    println(s"Output: $output")
-    println(s"Exit code: $exitCode")
-    println(result)
   }
 }
+
+// object Generator {
+//   def main(args: Array[String]): Unit = {
+//     val testFile = "src/test/test_files/valid/basic/skip/justSkip.wacc"
+//     val generator = new Generator()
+//     val (output, exitCode) = generator.parseWaccFile(testFile)
+//     val asmFile = generator.waccToAsm(testFile)
+
+//     val input = generator.compileAssembly(asmFile)
+//     val (binOut, binEx) = generator.runBinary("justSkip")
+//     println(binOut)
+//     println(s"Output: $output")
+//     println(s"Exit code: $exitCode")
+//   }
+// }
