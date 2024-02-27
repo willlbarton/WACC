@@ -263,7 +263,11 @@ object generator {
   ): ListBuffer[Instruction] = lb(
     genRval(value, symTable, allocator),
     Pop(Eax(Size64)),
-    Mov(Eax(Allocator.getTypeSize(value.typ.get)), dest, useOpSize = true)
+    Mov(
+      Eax(if (dest.isInstanceOf[Reg]) Size64 else Allocator.getTypeSize(value.typ.get)),
+      dest,
+      useOpSize = true
+    )
   )
 
   private def genAsgnStmt(
@@ -277,7 +281,14 @@ object generator {
         lb(
           genRval(value, symTable, allocator),
           Pop(Eax(Size64)),
-          Mov(Eax(Allocator.getTypeSize(value.typ.get)), symTable(id).get, useOpSize = true)
+          Mov(
+            Eax(
+              if (symTable(id).get.isInstanceOf[Reg]) Size64
+              else Allocator.getTypeSize(value.typ.get)
+            ),
+            symTable(id).get,
+            useOpSize = true
+          )
         )
       case arr @ ArrayElem(ident, exprs) =>
         var typ = ident.typ.get

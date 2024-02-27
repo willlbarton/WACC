@@ -15,19 +15,7 @@ case class Allocator(reservedSpace: Int, mode: Mode) {
 
   def allocateSpace(size: Size): Dest = {
     if (freeRegs.nonEmpty) {
-      freeRegs.remove(0) match {
-        case R12(_) => R12(size)
-        case R13(_) => R13(size)
-        case R14(_) => R14(size)
-        case R15(_) => R15(size)
-        case Edi(_) => Edi(size)
-        case Esi(_) => Esi(size)
-        case Edx(_) => Edx(size)
-        case Ecx(_) => Ecx(size)
-        case R8(_)  => R8(size)
-        case R9(_)  => R9(size)
-        case _ => throw new IllegalArgumentException("Bad register returned from freeRegs list.")
-      }
+      freeRegs.remove(0)
     } else {
       val currentRelativeBP = relativeToBasePointer
       relativeToBasePointer += (size match {
