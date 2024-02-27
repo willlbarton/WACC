@@ -4,6 +4,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import src.main.wacc.constants._
 import src.main.wacc.builtInFunctions._
+import scala.sys.process._
 
 object generator {
 
@@ -290,7 +291,7 @@ object generator {
       case a: ArrayLiter     => genArray(value.typ.get, a, symTable)
       case c: Call           => genCall(c, symTable, allocator)
       case f @ Fst(_)        => ???
-      case n @ NewPair(_, _) => ???
+      case n @ NewPair(a, b) => genPair(a, b, symTable)
       case s @ Snd(_)        => ???
     }
 
@@ -340,6 +341,23 @@ object generator {
           Mov(Eax(Size64), Address(R11(Size64), Immediate(position)))
         )
       },
+      Push(R11(Size64))
+    )
+  }
+
+  private def genPair(
+      a: Expr,
+      b: Expr,
+      symTable: SymbolTable[Dest]
+  ): ListBuffer[Instruction] = {
+    lb(
+      Mov(Immediate(16), Edi()),
+      CallAsm(Label(s"_$malloc")),
+      Mov(Eax(Size64), R11(Size64)),
+      genExpr(a, symTable),
+      Mov(Eax(Size64), Address(R11(Size64), Immediate(0))),
+      genExpr(b, symTable),
+      Mov(Eax(Size64), Address(R11(Size64), Immediate(8))),
       Push(R11(Size64))
     )
   }
@@ -437,11 +455,11 @@ object generator {
 
   private def genExpr(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
     expr match {
-      case Integer(i)    => Mov(Immediate(i), Eax())
-      case StringAtom(s) => Lea(Address(Rip,
-        Label(s".L.str${stringLiters(s.replace("\"", "\\\""))}")), Eax(Size64))
-      case Bool(value)   => Mov(Immediate(if (value) 1 else 0), Eax(Size64))
-      case Character(c)  => Mov(Immediate(c.toInt), Eax(Size64))
+      case Integer(i) => Mov(Immediate(i), Eax())
+      case StringAtom(s) =>
+        Lea(Address(Rip, Label(s".L.str${stringLiters(s.replace("\"", "\\\""))}")), Eax(Size64))
+      case Bool(value)  => Mov(Immediate(if (value) 1 else 0), Eax(Size64))
+      case Character(c) => Mov(Immediate(c.toInt), Eax(Size64))
 
       case ArrayElem(ident, exprs) => genArrayElem(ident, exprs, symTable)
       case Ident(name) =>
@@ -552,4 +570,11 @@ object generator {
       case Ord => lb() // Do nothing as char already being stored as a Long in eax
     }
   )
+
+  // def main(args: Array[String]): Unit = {
+  //   val process = Process("./createPair")
+  //   val output = new StringBuilder
+  //   val exitCode = process ! ProcessLogger(output.append(_))
+  //   println(output)
+  // }
 }
