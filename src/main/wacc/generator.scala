@@ -344,8 +344,6 @@ object generator {
     )
   }
 
-  private val eof = -1
-  private var d = 0
   private def genReadStmt(symTable: SymbolTable[Dest], lval: LVal): ListBuffer[Instruction] = {
     val call = lval.typ match {
       case Some(CharType) => CallAsm(Label(s"_$read$charType"))
@@ -353,26 +351,22 @@ object generator {
       case _ =>
         throw new IllegalArgumentException(s"Read called with unsupported type: ${lval.typ.get}")
     }
-    d += 1
-    val label = Label(s".read_skip$d")
     lval match {
       case id: Ident =>
         lb(
+          Mov(symTable(id).get, Edi(Size64)),
           call,
-          Cmp(Immediate(eof), Eax(Size32)),
-          JmpComparison(label, Eq),
-          Mov(Eax(Size64), symTable(id).get),
-          label
+          Mov(Eax(Size64), symTable(id).get)
         )
       case _ =>
         lb(
           genLVal(lval, symTable),
+          Pop(Ebx(Size64)),
+          Mov(Address(Ebx(Size64)), Edi(Size64)),
+          Push(Ebx(Size64)),
           call,
           Pop(Ebx(Size64)),
-          Cmp(Immediate(eof), Eax(Size32)),
-          JmpComparison(label, Eq),
-          Mov(Eax(Size64), Address(Ebx(Size64))),
-          label
+          Mov(Eax(Size64), Address(Ebx(Size64)))
         )
     }
   }
