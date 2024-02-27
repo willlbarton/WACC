@@ -77,15 +77,16 @@ object generator {
 
     symTableEnterScope(paramTable, allocator, usedParamRegs, ParamMode)
 
+    val exitScope = genNewScopeExit(usedParamRegs, func.vars)
+    println(exitScope)
+
     val instructions = lb(
       Label(s"wacc_${func.ident.name}"),
       genNewScopeEnter(usedParamRegs, func.vars), {
         val instrs =
-          genStmts(func.body, paramTable.makeChild, Allocator(func.vars, NonParamMode))
+          genStmts(func.body, paramTable.makeChild, Allocator(func.vars, NonParamMode), exitScope)
         lb(
-          instrs.init,
-          genNewScopeExit(usedParamRegs, func.vars),
-          instrs.last
+          instrs
         )
       }
     )
@@ -98,29 +99,33 @@ object generator {
   private def genStmts(
       stmts: ListBuffer[Stmt],
       symTable: SymbolTable[Dest],
-      allocator: Allocator
+      allocator: Allocator,
+      exitScope: ListBuffer[Instruction]
   ): ListBuffer[Instruction] =
     lb(
       stmts.flatMap(x => {
-        genStmt(x, symTable, allocator)
+        genStmt(x, symTable, allocator, exitScope)
       })
     )
 
   private def genStmts(
       stmts: List[Stmt],
       symTable: SymbolTable[Dest],
-      allocator: Allocator
+      allocator: Allocator,
+      exitScope: ListBuffer[Instruction] = lb()
   ): ListBuffer[Instruction] =
     genStmts(
       ListBuffer() ++= stmts,
       symTable,
-      allocator
+      allocator,
+      exitScope
     )
 
   private def genStmt(
       stmt: Stmt,
       symTable: SymbolTable[Dest],
-      allocator: Allocator
+      allocator: Allocator,
+      exitScope: ListBuffer[Instruction] = lb()
   ): ListBuffer[Instruction] =
     stmt match {
       case Skip       => lb()
@@ -129,6 +134,7 @@ object generator {
         lb(
           genExpr(expr, symTable),
           Pop(Eax(Size64)),
+          exitScope,
           Ret
         )
       case Print(expr)   => genPrintStmt(symTable, expr)
@@ -143,9 +149,10 @@ object generator {
       case Asgn(lval, value) => genAsgnStmt(lval, value, symTable, allocator)
       case Free(expr)        => genFreeStmt(expr, symTable)
       case ifStmt: IfStmt =>
-        genIfStmt(ifStmt, symTable, allocator) // handle IfStmt case
-      case s @ ScopedStmt(stmts)  => genScopedStmt(stmts, s.vars, symTable, allocator)
-      case w @ While(expr, stmts) => genWhile(expr, stmts, w.vars, symTable, allocator)
+        genIfStmt(ifStmt, symTable, allocator, exitScope) // handle IfStmt case
+      case s @ ScopedStmt(stmts) =>
+        genScopedStmt(stmts, s.vars, symTable, allocator, NonParamMode, lb(), exitScope)
+      case w @ While(expr, stmts) => genWhile(expr, stmts, w.vars, symTable, allocator, exitScope)
     }
 
   private def genScopedStmt(
@@ -154,7 +161,8 @@ object generator {
       symTable: SymbolTable[Dest],
       allocator: Allocator,
       mode: Mode = NonParamMode,
-      extraInstructions: ListBuffer[Instruction] = lb()
+      extraInstructions: ListBuffer[Instruction] = lb(),
+      exitScope: ListBuffer[Instruction] = lb()
   ): ListBuffer[Instruction] = {
 
     val used = allocator.usedRegs
@@ -165,11 +173,13 @@ object generator {
       (if (mode == ParamMode) Allocator.PARAM_REGS else Allocator.NON_PARAM_REGS).size
     )
 
+    val exitScope2 = genNewScopeExit(used, toAllocate) ++ exitScope
+
     val instructions = lb(
       genNewScopeEnter(used, toAllocate),
-      genStmts(stmts, symTable.makeChild, Allocator(vars, mode)),
+      genStmts(stmts, symTable.makeChild, Allocator(vars, mode), exitScope2),
       extraInstructions,
-      genNewScopeExit(used, toAllocate)
+      exitScope2
     )
 
     symTableExitScope(symTable, allocator, used)
@@ -181,7 +191,8 @@ object generator {
       stmts: List[Stmt],
       vars: List[SymbolTableObj],
       symTable: SymbolTable[Dest],
-      allocator: Allocator
+      allocator: Allocator,
+      exitScope: ListBuffer[Instruction]
   ): ListBuffer[Instruction] = {
     val labelExpr = Allocator.allocateLabel
     val labelStmts = Allocator.allocateLabel
@@ -191,7 +202,7 @@ object generator {
     lb(
       Jmp(labelExpr),
       labelStmts,
-      genScopedStmt(stmts, vars, symTable, allocator),
+      genScopedStmt(stmts, vars, symTable, allocator, NonParamMode, lb(), exitScope),
       labelExpr,
       generatedExpr,
       Pop(Eax(Size64)),
@@ -203,7 +214,8 @@ object generator {
   private def genIfStmt(
       ifStmt: IfStmt,
       symTable: SymbolTable[Dest],
-      allocator: Allocator
+      allocator: Allocator,
+      exitScope: ListBuffer[Instruction] = lb()
   ): ListBuffer[Instruction] = {
     val IfStmt(expr, body1, body2) = ifStmt
     lb(
@@ -215,10 +227,26 @@ object generator {
           Pop(Eax(Size64)),
           Cmp(Immediate(1), Eax(Size64)),
           JmpComparison(labelTrue, Eq),
-          genScopedStmt(body2, ifStmt.branch2Vars, symTable, allocator),
+          genScopedStmt(
+            body2,
+            ifStmt.branch2Vars,
+            symTable,
+            allocator,
+            NonParamMode,
+            lb(),
+            exitScope
+          ),
           Jmp(labelContinue),
           labelTrue,
-          genScopedStmt(body1, ifStmt.branch1Vars, symTable, allocator),
+          genScopedStmt(
+            body1,
+            ifStmt.branch1Vars,
+            symTable,
+            allocator,
+            NonParamMode,
+            lb(),
+            exitScope
+          ),
           labelContinue
         )
 
@@ -437,11 +465,11 @@ object generator {
 
   private def genExpr(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
     expr match {
-      case Integer(i)    => Mov(Immediate(i), Eax())
-      case StringAtom(s) => Lea(Address(Rip,
-        Label(s".L.str${stringLiters(s.replace("\"", "\\\""))}")), Eax(Size64))
-      case Bool(value)   => Mov(Immediate(if (value) 1 else 0), Eax(Size64))
-      case Character(c)  => Mov(Immediate(c.toInt), Eax(Size64))
+      case Integer(i) => Mov(Immediate(i), Eax())
+      case StringAtom(s) =>
+        Lea(Address(Rip, Label(s".L.str${stringLiters(s.replace("\"", "\\\""))}")), Eax(Size64))
+      case Bool(value)  => Mov(Immediate(if (value) 1 else 0), Eax(Size64))
+      case Character(c) => Mov(Immediate(c.toInt), Eax(Size64))
 
       case ArrayElem(ident, exprs) => genArrayElem(ident, exprs, symTable)
       case Ident(name) =>
