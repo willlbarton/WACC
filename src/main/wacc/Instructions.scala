@@ -3,11 +3,11 @@ package src.main.wacc
 sealed trait Instruction
 
 sealed trait Location
-sealed trait Dest extends Location
 sealed trait Operand extends Location
+sealed trait Dest extends Location with Operand
 sealed trait MemOp extends Location
 
-sealed trait Reg extends Dest with Operand with MemOp {
+sealed trait Reg extends Dest with MemOp {
   val size: Size
 }
 
@@ -40,12 +40,11 @@ case object Rsp extends Reg { override val size: Size = Size64 }
 case object Rip extends Reg { override val size: Size = Size64 }
 
 final case class Address(
-    offset: MemOp = Immediate(0),
     base: MemOp,
+    offset: MemOp = Immediate(0),
     index: MemOp = Immediate(0),
     scale: MemOp = Immediate(1)
 ) extends Dest
-    with Operand
 final case class Immediate(value: Long) extends Operand with MemOp
 
 case object Ret extends Instruction
@@ -54,23 +53,35 @@ case object Cltd extends Instruction
 final case class Directive(name: String) extends Instruction
 final case class Label(name: String) extends Instruction with MemOp
 final case class Mov(op: Operand, dest: Dest) extends Instruction
+final case class Movs(op: Operand, dest: Dest) extends Instruction
 final case class Pop(dest: Dest) extends Instruction
 final case class Push(op: Operand) extends Instruction
 final case class CallAsm(label: Label) extends Instruction
 final case class AndAsm(op: Operand, dest: Dest) extends Instruction
-final case class Setne(dest: Dest) extends Instruction
 final case class Lea(op: Address, dest: Dest) extends Instruction
+
+final case class SetAsm(dest: Dest, comparison: Comparison) extends Instruction
 
 final case class AddAsm(op: Operand, dest: Dest) extends Instruction
 final case class SubAsm(op: Operand, dest: Dest) extends Instruction
-final case class Cmp(op1: Operand, op2: Operand) extends Instruction
+final case class Cmp(src: Operand, dest: Dest) extends Instruction
 
 final case class Jmp(label: Label) extends Instruction
-final case class Je(label: Label) extends Instruction
-final case class Jl(label: Label) extends Instruction
 final case class Jo(label: Label) extends Instruction
-final case class Jne(label: Label) extends Instruction
+
+final case class JmpComparison(label: Label, comparison: Comparison) extends Instruction
+
+// final case class Je(label: Label) extends Instruction
+// final case class Jl(label: Label) extends Instruction
+// final case class Jne(label: Label) extends Instruction
+
 final case class Idiv(op: Operand) extends Instruction
+final case class Imul(op1: Operand, dest: Dest) extends Instruction
+
+final case class Testq(op1: Operand, op2: Operand) extends Instruction
+final case class CMovl(op: Operand, dest: Dest) extends Instruction
+final case class CMovge(dest: Dest, src: Operand) extends Instruction
+final case class Cmovne(dest: Dest, src: Operand) extends Instruction
 
 trait Formatter {
   def apply(instruction: Instruction): String
@@ -94,29 +105,45 @@ object x86Formatter extends Formatter {
       case Cltd        => indent ++ "cltd"
       case Mov(op1, dest) =>
         indent ++ s"mov${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
-      case Pop(dest)         => indent ++ s"pop${instructionPostfix(dest)}  ${this(dest)}"
-      case Push(op1)         => indent ++ s"push${instructionPostfix(op1)} ${this(op1)}"
-      case CallAsm(label)    => indent ++ s"call  ${label.name}"
-      case AndAsm(op1, dest) => indent ++ s"and   ${this(op1)}, ${this(dest)}"
-      case Setne(dest)       => indent ++ s"setne ${this(dest)}"
+      case Movs(op, dest) =>
+        indent ++ s"movs${instructionPostfix(op, dest)} ${this(op)}, ${this(dest)}"
+      case Pop(dest)      => indent ++ s"pop${instructionPostfix(dest)}  ${this(dest)}"
+      case Push(op1)      => indent ++ s"push${instructionPostfix(op1)} ${this(op1)}"
+      case CallAsm(label) => indent ++ s"call  ${label.name}"
+      case AndAsm(op1, dest) =>
+        indent ++ s"and${instructionPostfix(dest)}   ${this(op1)}, ${this(dest)}"
+      case SetAsm(dest, comparison) =>
+        indent ++ s"set${instructionPostfix(comparison)} ${this(dest)}"
       case Lea(op1, dest) =>
         indent ++ s"lea${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
       case AddAsm(op1, dest) =>
         indent ++ s"add${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
       case SubAsm(op1, dest) =>
         indent ++ s"sub${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
-      case Cmp(op1, op2) => indent ++ s"cmp${instructionPostfix(op1)}  ${this(op1)}, ${this(op2)}"
-      case Jmp(label)    => indent ++ s"jmp   ${label.name}"
-      case Je(label)     => indent ++ s"je    ${label.name}"
-      case Jl(label)     => indent ++ s"jl    ${label.name}"
-      case Jo(label)     => indent ++ s"jo    ${label.name}"
-      case Jne(label)    => indent ++ s"jne   ${label.name}"
-      case Idiv(op1)     => indent ++ s"idiv${instructionPostfix(op1)} ${this(op1)}"
+      case Cmp(src, dest) =>
+        indent ++ s"cmp${instructionPostfix(dest)}  ${this(src)}, ${this(dest)}"
+      case Jmp(label) => indent ++ s"jmp   ${label.name}"
+      case Jo(label)  => indent ++ s"jo    ${label.name}"
+      // case Je(label)  => indent ++ s"je    ${label.name}"
+      // case Jl(label)  => indent ++ s"jl    ${label.name}"
+      // case Jne(label) => indent ++ s"jne   ${label.name}"
+      case JmpComparison(label, comparison) =>
+        indent ++ s"j${instructionPostfix(comparison)} ${label.name}"
+      case Idiv(op1) => indent ++ s"idiv${instructionPostfix(op1)} ${this(op1)}"
+      case Imul(op1, dest) =>
+        indent ++ s"imul${instructionPostfix(dest)} ${this(op1)}, ${this(dest)}"
+      case CMovl(dest, src) =>
+        indent ++ s"cmovl ${this(src)}, ${this(dest)}"
+      case CMovge(dest, src) =>
+        indent ++ s"cmovge ${this(src)}, ${this(dest)}"
+      case Cmovne(dest, src) =>
+        indent ++ s"cmovne ${this(src)}, ${this(dest)}"
+      case Testq(op1, op2) => indent ++ s"test  ${this(op1)}, ${this(op2)}"
     }
   }
 
   override def apply(location: Location): String = location match {
-    case Address(offset, base, index, scale) =>
+    case Address(base, offset, index, scale) =>
       val scl = if (scale == Immediate(1)) "" else s", ${memFormat(scale)}"
       val optional = if (index == Immediate(0)) "" else s", ${memFormat(index)}$scl"
       (if (offset == Immediate(0)) "" else s"${memFormat(offset)}") ++
@@ -248,4 +275,22 @@ object x86Formatter extends Formatter {
     case _          => ???
   }
 
+  private def instructionPostfix(op: Operand, dest: Dest): String =
+    instructionPostfix(op) + instructionPostfix(dest)
+
+  private def instructionPostfix(comparison: Comparison) = comparison match {
+    case Eq    => "e"
+    case Lt    => "l"
+    case Gt    => "g"
+    case LtEq  => "le"
+    case GtEq  => "ge"
+    case NotEq => "ne"
+  }
+
+}
+
+object constants {
+  val byteSize: Int = 1
+  val intSize: Int = 4
+  val ptrSize: Int = 8
 }

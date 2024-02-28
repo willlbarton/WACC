@@ -37,12 +37,18 @@ object analyser {
     }
 
     // Check the main program body
-    error ++= checkMainStmts(rootSymbolTable.makeChild, program.body)
+    val mainSymTable = rootSymbolTable.makeChild
+    error ++= checkMainStmts(mainSymTable, program.body)
+    program.vars = mainSymTable.vars
 
     error.toString
   }
 
-  private def checkFuncStmts(st: SymbolTable[SymbolTableObj], stmts: List[Stmt], typ: Type): String = {
+  private def checkFuncStmts(
+      st: SymbolTable[SymbolTableObj],
+      stmts: List[Stmt],
+      typ: Type
+  ): String = {
     val error = new StringBuilder()
     for (stmt <- stmts) {
       error ++= checkFuncStmt(st, stmt, typ) withContext stmt
@@ -51,35 +57,43 @@ object analyser {
   }
 
   // Distinguish between function and main statements since return is not allowed in main
-  private def checkFuncStmt(st: SymbolTable[SymbolTableObj], stmt: Stmt, typ: Type): String = stmt match {
-    case Return(expr) =>
-      val (err, expType) = checkExpr(st, expr)
-      // Check that the return expression is valid and matches the function return type
-      (err withContext stmt) ++
-        (if (expType.isDefined && !isWeakerType(typ, expType.get)) {
-           typeErrorMsg("function return", s"return $expr", s"$typ", s"${expType.get}") withContext
-             stmt
-         } else "")
-    // If and while statements have a condition that must be a boolean
-    case f@IfStmt(cond, body1, body2) =>
-      val childTable1 = st.makeChild
-      val childTable2 = st.makeChild
-      val err = checkCond(st, cond, isIf = true) ++
-        checkFuncStmts(childTable1, body1, typ) ++ checkFuncStmts(childTable2, body2, typ)
-      f.vars = childTable1.vars ++ childTable2.vars
-      err
-    case w@While(cond, body) =>
-      val childTable = st.makeChild
-      val err = checkCond(st, cond, isIf = false) ++ checkFuncStmts(childTable, body, typ)
-      w.vars = childTable.vars
-      err
-    case s@ScopedStmt(stmt)      =>
-      val childTable = st.makeChild
-      val err = checkFuncStmts(childTable, stmt, typ)
-      s.vars = childTable.vars
-      err
-    case _                     => checkLeafStatement(st, stmt)
-  }
+  private def checkFuncStmt(st: SymbolTable[SymbolTableObj], stmt: Stmt, typ: Type): String =
+    stmt match {
+      case Return(expr) =>
+        val (err, expType) = checkExpr(st, expr)
+        // Check that the return expression is valid and matches the function return type
+        (err withContext stmt) ++
+          (if (expType.isDefined && !isWeakerType(typ, expType.get)) {
+             typeErrorMsg(
+               "function return",
+               s"return $expr",
+               s"$typ",
+               s"${expType.get}"
+             ) withContext
+               stmt
+           } else "")
+      // If and while statements have a condition that must be a boolean
+      case f @ IfStmt(cond, body1, body2) =>
+        val childTable1 = st.makeChild
+        val childTable2 = st.makeChild
+        val err = checkCond(st, cond, isIf = true) ++
+          checkFuncStmts(childTable1, body1, typ) ++ checkFuncStmts(childTable2, body2, typ)
+        // f.vars = childTable1.vars ++ childTable2.vars
+        f.branch1Vars = childTable1.vars
+        f.branch2Vars = childTable2.vars
+        err
+      case w @ While(cond, body) =>
+        val childTable = st.makeChild
+        val err = checkCond(st, cond, isIf = false) ++ checkFuncStmts(childTable, body, typ)
+        w.vars = childTable.vars
+        err
+      case s @ ScopedStmt(stmt) =>
+        val childTable = st.makeChild
+        val err = checkFuncStmts(childTable, stmt, typ)
+        s.vars = childTable.vars
+        err
+      case _ => checkLeafStatement(st, stmt)
+    }
 
   private def checkMainStmts(st: SymbolTable[SymbolTableObj], stmts: List[Stmt]): String = {
     val error = new StringBuilder()
@@ -95,9 +109,10 @@ object analyser {
     case IfStmt(cond, body1, body2) =>
       checkCond(st, cond, isIf = true) ++
         checkMainStmts(st.makeChild, body1) ++ checkMainStmts(st.makeChild, body2)
-    case While(cond, body) => checkCond(st, cond, isIf = false) ++ checkMainStmts(st.makeChild, body)
-    case ScopedStmt(stmt)  => checkMainStmts(st.makeChild, stmt)
-    case _                     => checkLeafStatement(st, stmt)
+    case While(cond, body) =>
+      checkCond(st, cond, isIf = false) ++ checkMainStmts(st.makeChild, body)
+    case ScopedStmt(stmt) => checkMainStmts(st.makeChild, stmt)
+    case _                => checkLeafStatement(st, stmt)
   }
 
   // Used in if and while statements to check that the condition is a boolean
@@ -127,8 +142,14 @@ object analyser {
             typeErrorMsg("exit statement", s"exit $expr", "int", s"$t")
         case (err, _) => err
       }
-    case Print(expr)   => checkExpr(st, expr)._1
-    case PrintLn(expr) => checkExpr(st, expr)._1
+    case Print(expr) =>
+      val (err, typ) = checkExpr(st, expr)
+      expr.typ = typ
+      err
+    case PrintLn(expr) =>
+      val (err, typ) = checkExpr(st, expr)
+      expr.typ = typ
+      err
     // Should never happen - if it does, it's a bug
     case _ => throw new IllegalArgumentException("Non-leaf statement in checkLeafStatement\n")
   }
@@ -177,7 +198,11 @@ object analyser {
   }
 
   // Checks that an assignment is valid
-  private def checkAssignment(symTable: SymbolTable[SymbolTableObj], left: LVal, value: RVal): String = {
+  private def checkAssignment(
+      symTable: SymbolTable[SymbolTableObj],
+      left: LVal,
+      value: RVal
+  ): String = {
     val error = new StringBuilder()
     var typ1: Option[Type] = None
     checkLVal(symTable, left) match { // Check that the left hand side is a valid lvalue
@@ -193,15 +218,16 @@ object analyser {
   }
 
   // Checks that a read statement is valid
-  private def checkRead(st: SymbolTable[SymbolTableObj], value: LVal): String = checkLVal(st, value) match {
-    case Left(err) => err
-    case Right(typ) =>
-      typ match {
-        case IntType | CharType => ""
-        case _ => // Only int and char are allowed
-          typeErrorMsg("read statement", s"read $value", "int' or 'char", s"$typ")
-      }
-  }
+  private def checkRead(st: SymbolTable[SymbolTableObj], value: LVal): String =
+    checkLVal(st, value) match {
+      case Left(err) => err
+      case Right(typ) =>
+        typ match {
+          case IntType | CharType => ""
+          case _ => // Only int and char are allowed
+            typeErrorMsg("read statement", s"read $value", "int' or 'char", s"$typ")
+        }
+    }
 
   // Checks that a free statement is valid
   private def checkFree(st: SymbolTable[SymbolTableObj], expr: Expr) = {
@@ -218,33 +244,37 @@ object analyser {
 
   // Checks the validity of an expression and finds it type if possible
   @tailrec
-  private def checkExpr(symTable: SymbolTable[SymbolTableObj], expr: Expr): (String, Option[Type]) = expr match {
-    case Integer(_)    => ("", Some(IntType))
-    case Bool(_)       => ("", Some(BoolType))
-    case Character(_)  => ("", Some(CharType))
-    case StringAtom(s) =>
-      generator.stringLiters += (s -> generator.stringLiters.size)
-      ("", Some(StringType))
-    case Null          => ("", Some(Pair))
-    case id: Ident =>
-      checkIdent(symTable, id) match {
-        case Left(err)  => (err withContext expr, None)
-        case Right(typ) => ("", Some(typ))
-      }
-    // Array indexing
-    case ArrayElem(ident, exprs) =>
-      checkArrayElem(symTable, ident, exprs) match {
-        case Left(err)  => (err, None)
-        case Right(typ) => ("", Some(typ))
-      }
-    case BracketedExpr(expr) => checkExpr(symTable, expr)
-    // Unary and binary operators mutually recursive with this function
-    case UnaryApp(op, expr)         => checkUnaryApp(symTable, op, expr)
-    case BinaryApp(op, left, right) => checkBinaryApp(symTable, op, left, right)
-  }
+  private def checkExpr(symTable: SymbolTable[SymbolTableObj], expr: Expr): (String, Option[Type]) =
+    expr match {
+      case Integer(_)   => ("", Some(IntType))
+      case Bool(_)      => ("", Some(BoolType))
+      case Character(_) => ("", Some(CharType))
+      case StringAtom(s) =>
+        generator.stringLiters += (s -> generator.stringLiters.size)
+        ("", Some(StringType))
+      case Null => ("", Some(Pair))
+      case id: Ident =>
+        checkIdent(symTable, id) match {
+          case Left(err)  => (err withContext expr, None)
+          case Right(typ) => ("", Some(typ))
+        }
+      // Array indexing
+      case ArrayElem(ident, exprs) =>
+        checkArrayElem(symTable, ident, exprs) match {
+          case Left(err)  => (err, None)
+          case Right(typ) => ("", Some(typ))
+        }
+      case BracketedExpr(expr) => checkExpr(symTable, expr)
+      // Unary and binary operators mutually recursive with this function
+      case UnaryApp(op, expr)         => checkUnaryApp(symTable, op, expr)
+      case BinaryApp(op, left, right) => checkBinaryApp(symTable, op, left, right)
+    }
 
   // Checks that an identifier is defined and returns its type if possible
-  private def checkIdent(symTable: SymbolTable[SymbolTableObj], ident: Ident): Either[String, Type] =
+  private def checkIdent(
+      symTable: SymbolTable[SymbolTableObj],
+      ident: Ident
+  ): Either[String, Type] =
     symTable(ident) match {
       case None                   => Left(s"Variable '$ident' used before declaration!\n")
       case Some(Func(_, _, _, _)) => Left(s"Function '$ident' used as variable!\n")
@@ -474,29 +504,35 @@ object analyser {
 
   // Checks that the left hand side of an assignment or declaration is valid
   // and returns its type if valid
-  private def checkLVal(symTable: SymbolTable[SymbolTableObj], lval: LVal): Either[String, Type] = lval match {
-    case id: Ident               => checkIdent(symTable, id)
-    case ArrayElem(ident, exprs) => checkArrayElem(symTable, ident, exprs)
-    case Fst(value) =>
-      checkLVal(symTable, value) match {
-        // The type of fst is the type of the first element of the pair
-        case Left(err)               => Left(err)
-        case Right(PairType(typ, _)) => Right(typ)
-        case Right(Pair) => Right(NullType) // We don't know the type of the pair, but it is valid
-        case Right(typ) => Left(typeErrorMsg("pair element access", s"fst $value", "pair", s"$typ"))
-      }
-    case Snd(value) =>
-      checkLVal(symTable, value) match {
-        case Left(err)               => Left(err)
-        case Right(PairType(_, typ)) => Right(typ)
-        case Right(Pair) => Right(NullType) // We don't know the type of the pair, but it is valid
-        case Right(typ) => Left(typeErrorMsg("pair element access", s"snd $value", "pair", s"$typ"))
-      }
-  }
+  private def checkLVal(symTable: SymbolTable[SymbolTableObj], lval: LVal): Either[String, Type] =
+    lval match {
+      case id: Ident               => checkIdent(symTable, id)
+      case ArrayElem(ident, exprs) => checkArrayElem(symTable, ident, exprs)
+      case Fst(value) =>
+        checkLVal(symTable, value) match {
+          // The type of fst is the type of the first element of the pair
+          case Left(err)               => Left(err)
+          case Right(PairType(typ, _)) => Right(typ)
+          case Right(Pair) => Right(NullType) // We don't know the type of the pair, but it is valid
+          case Right(typ) =>
+            Left(typeErrorMsg("pair element access", s"fst $value", "pair", s"$typ"))
+        }
+      case Snd(value) =>
+        checkLVal(symTable, value) match {
+          case Left(err)               => Left(err)
+          case Right(PairType(_, typ)) => Right(typ)
+          case Right(Pair) => Right(NullType) // We don't know the type of the pair, but it is valid
+          case Right(typ) =>
+            Left(typeErrorMsg("pair element access", s"snd $value", "pair", s"$typ"))
+        }
+    }
 
   // Checks the validity of the right hand side of an assignment or declaration
   // and returns its type if valid
-  private def checkRVal(symTable: SymbolTable[SymbolTableObj], value: RVal): (String, Option[Type]) = value match {
+  private def checkRVal(
+      symTable: SymbolTable[SymbolTableObj],
+      value: RVal
+  ): (String, Option[Type]) = value match {
     case ArrayLiter(exprs)     => checkArrayLiteral(symTable, exprs)
     case NewPair(expr1, expr2) => checkNewPair(symTable, expr1, expr2)
     case exp: Expr             => checkExpr(symTable, exp)

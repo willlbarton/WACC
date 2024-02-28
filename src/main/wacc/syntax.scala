@@ -11,14 +11,15 @@ sealed trait ScopedBody extends SymbolTableObj {
 }
 
 // Main program
-final case class Program(functions: List[Func], body: List[Stmt])
+final case class Program(functions: List[Func], body: List[Stmt]) extends ScopedBody
 
 // <func>
 final case class Func(t: Type, ident: Ident, params: List[Param], body: List[Stmt])
-  extends SymbolTableObj with ScopedBody {
+    extends SymbolTableObj
+    with ScopedBody {
   typ = Some(t)
   override def toString: String =
-    s"$ident(${(for (p <- params) yield {s"${p.t} ${p.ident}"}).mkString(", ")})"
+    s"$ident(${(for (p <- params) yield { s"${p.t} ${p.ident}" }).mkString(", ")})"
 }
 final case class Param(t: Type, ident: Ident) extends SymbolTableObj { typ = Some(t) }
 
@@ -57,10 +58,13 @@ final case class Free(expr: Expr) extends Stmt { override def toString: String =
 final case class Return(expr: Expr) extends Stmt { override def toString: String = s"return $expr" }
 final case class Exit(expr: Expr) extends Stmt { override def toString: String = s"exit $expr" }
 final case class Print(expr: Expr) extends Stmt { override def toString: String = s"print $expr" }
-final case class PrintLn(expr: Expr) extends Stmt { override def toString: String = s"println $expr" }
-final case class IfStmt(cond: Expr, body1: List[Stmt], body2: List[Stmt])
-  extends Stmt with ScopedBody {
+final case class PrintLn(expr: Expr) extends Stmt {
+  override def toString: String = s"println $expr"
+}
+final case class IfStmt(cond: Expr, body1: List[Stmt], body2: List[Stmt]) extends Stmt {
   override def toString: String = s"if $cond then $body1 else $body2 fi"
+  var branch1Vars: List[SymbolTableObj] = List.empty
+  var branch2Vars: List[SymbolTableObj] = List.empty
 }
 final case class While(cond: Expr, body: List[Stmt]) extends Stmt with ScopedBody {
   override def toString: String = s"while $cond do $body done"
@@ -83,8 +87,12 @@ final case class Call(ident: Ident, args: List[Expr]) extends RVal {
 
 // <lvalue> Left hand side of declaration or assignment
 sealed trait LVal
-final case class Fst(value: LVal) extends LVal with RVal { override def toString: String = s"fst $value" }
-final case class Snd(value: LVal) extends LVal with RVal { override def toString: String = s"snd $value" }
+final case class Fst(value: LVal) extends LVal with RVal {
+  override def toString: String = s"fst $value"
+}
+final case class Snd(value: LVal) extends LVal with RVal {
+  override def toString: String = s"snd $value"
+}
 
 sealed trait Expr extends RVal
 final case class UnaryApp(op: UnaryOp, expr: Expr) extends Expr {
@@ -112,7 +120,9 @@ final case class Ident(name: String) extends Expr with LVal { override def toStr
 final case class ArrayElem(ident: Ident, exprs: List[Expr]) extends Expr with LVal {
   override def toString: String = s"$ident[${exprs.mkString("][")}]"
 }
-final case class BracketedExpr(expr: Expr) extends Expr { override def toString: String = s"($expr)" }
+final case class BracketedExpr(expr: Expr) extends Expr {
+  override def toString: String = s"($expr)"
+}
 
 // <unary-oper> Unary operator types
 trait UnaryOp extends generic.ParserBridge1[Expr, UnaryApp] {
@@ -124,6 +134,8 @@ case object Len extends UnaryOp { override def toString = "len" }
 case object Ord extends UnaryOp { override def toString = "ord" }
 case object Chr extends UnaryOp { override def toString = "chr" }
 
+trait Comparison
+
 // <binary-oper> Binary operator types
 trait BinaryOp extends generic.ParserBridge2[Expr, Expr, BinaryApp] {
   override def apply(l: Expr, r: Expr): BinaryApp = BinaryApp(this, l, r)
@@ -133,18 +145,16 @@ case object Div extends BinaryOp { override def toString = "/" }
 case object Mod extends BinaryOp { override def toString = "%" }
 case object Add extends BinaryOp { override def toString = "+" }
 case object Sub extends BinaryOp { override def toString = "-" }
-case object Gt extends BinaryOp { override def toString = ">" }
-case object GtEq extends BinaryOp { override def toString = ">=" }
-case object Lt extends BinaryOp { override def toString = "<" }
-case object LtEq extends BinaryOp { override def toString = "<=" }
-case object Eq extends BinaryOp { override def toString = "==" }
-case object NotEq extends BinaryOp { override def toString = "!=" }
+case object Gt extends BinaryOp with Comparison { override def toString = ">" }
+case object GtEq extends BinaryOp with Comparison { override def toString = ">=" }
+case object Lt extends BinaryOp with Comparison { override def toString = "<" }
+case object LtEq extends BinaryOp with Comparison { override def toString = "<=" }
+case object Eq extends BinaryOp with Comparison { override def toString = "==" }
+case object NotEq extends BinaryOp with Comparison { override def toString = "!=" }
 case object And extends BinaryOp { override def toString = "&&" }
 case object Or extends BinaryOp { override def toString = "||" }
 
-
 // Parser bridges used in the parser
-
 
 object Program extends generic.ParserBridge2[List[Func], List[Stmt], Program]
 object Func extends generic.ParserBridge4[Type, Ident, List[Param], List[Stmt], Func]
