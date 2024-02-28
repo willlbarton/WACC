@@ -287,12 +287,12 @@ object generator {
       allocator: Allocator
   ): ListBuffer[Instruction] =
     value match {
-      case e: Expr           => genExpr(e, symTable)
-      case a: ArrayLiter     => genArray(value.typ.get, a, symTable)
-      case c: Call           => genCall(c, symTable, allocator)
-      case f @ Fst(_)        => ???
-      case n @ NewPair(a, b) => genPair(a, b, symTable)
-      case s @ Snd(_)        => ???
+      case e: Expr       => genExpr(e, symTable)
+      case a: ArrayLiter => genArray(value.typ.get, a, symTable)
+      case c: Call       => genCall(c, symTable, allocator)
+      case NewPair(a, b) => genPair(a, b, symTable)
+      case Fst(f)        => genPairElem(f, symTable, 0)
+      case Snd(s)        => genPairElem(s, symTable, 8)
     }
 
   private def genCall(
@@ -364,6 +364,13 @@ object generator {
     )
   }
 
+  private def genPairElem(
+      expr: LVal,
+      symTable: SymbolTable[Dest],
+      offset: Int
+  ): ListBuffer[Instruction] = lb(
+  )
+
   private val eof = -1
   private var d = 0
   private def genReadStmt(symTable: SymbolTable[Dest], lval: LVal): ListBuffer[Instruction] = {
@@ -427,7 +434,8 @@ object generator {
     lval match {
       case id: Ident               => lb(Push(symTable(id).get))
       case ArrayElem(ident, exprs) => genArrayElem(ident, exprs.init, symTable)
-      case _                       => ???
+      case Fst(f)                  => genPairElem(f, symTable, 0)
+      case Snd(s)                  => genPairElem(s, symTable, 8)
     }
 
   private def genArrayElem(
