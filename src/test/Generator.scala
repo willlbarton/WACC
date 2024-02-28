@@ -1,15 +1,15 @@
 package src.test
 
+import src.main.wacc._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
 import org.scalatest.prop.TableDrivenPropertyChecks
-import src.main.wacc._
-
 import scala.sys.process._
 import scala.io.Source
-import java.io.File
-import java.io.{BufferedWriter, FileWriter}
-import java.util.Optional
+import java.io.{File, FileOutputStream, PrintStream}
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{Await, Future}
+import scala.concurrent.duration.DurationInt
 
 sealed trait Err
 case object CompilationError extends Err
@@ -17,16 +17,25 @@ case object CompilationError extends Err
 class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
 
   behavior of "generator"
-  forAll(Table("cases", TestFiles("valid/basic/"): _*)) { file =>
+  forAll(Table("cases", TestFiles("valid/"): _*)) { file =>
     it should s"produce the correct output and exit code for ${file.getParentFile}/${file.getName}" in {
       val filePath = file.getPath
       val filename = file.getName.replaceFirst("\\.wacc$", "")
-      Main.main(Array(filePath))
+      val nullPrintStream = new PrintStream(new FileOutputStream("/dev/null"))
+      Console.withOut(nullPrintStream) {
+        Main.main(Array(filePath))
+      }
       compileAssembly(s"$filename.s") shouldEqual None
       val (expOut, expExit) = parseWaccFile(filePath)
-      val (out, exit) = runBinary(filename)
-      out shouldEqual expOut
-      exit shouldEqual expExit
+      try {
+        val (out, exit) = Await.result(Future(runBinary(filename)), 10.seconds)
+        out shouldEqual expOut
+        exit shouldEqual expExit
+      } catch {
+        case e: Exception =>
+          deleteFile(filename)
+          fail(s"Error running binary: ${e.getMessage}")
+      }
     }
   }
 
@@ -58,9 +67,9 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
 
     for (line <- lines) {
       if (line.startsWith("# Output:")) {
-        output = lines.takeWhile(!_.equals("#")).map(_.drop(2)).mkString("\n").trim()
+        output = lines.takeWhile(!_.isBlank).map(_.drop(2)).mkString("\n")
       } else if (line.startsWith("# Exit:")) {
-        exitCode = lines.takeWhile(!_.startsWith("#")).mkString("\n").trim().toInt
+        exitCode = lines.next().drop(2).toInt
       }
     }
 
@@ -78,13 +87,8 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
 
 object Generator {
  def main(args: Array[String]): Unit = {
-   val filePath = "../src/test/test_files/valid/IO/print/println.wacc"
-   val generator = new Generator()
-
-   Main.main(Array(filePath))
-   generator.compileAssembly(s"println.s") shouldEqual None
-   val (out, exit) = generator.runBinary("println")
-   println(s"Output: $out")
-   println(s"Exit code: $exit")
+   val (o,e)= new Generator().parseWaccFile("../src/test/test_files/valid/basic/exit/exit-1.wacc")
+    println(s"Output: $o")
+    println(s"Exit: $e")
  }
 }
