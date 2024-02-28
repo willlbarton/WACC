@@ -40,14 +40,17 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
   }
 
   def compileAssembly(assemblyFile: String): Option[Err] = {
-    val binaryFile = assemblyFile.replaceFirst("\\.s$", "")
-    val compileCommand = s"gcc $assemblyFile -o $binaryFile"
-    val compileResult = compileCommand.!
-    deleteFile(assemblyFile)
-    if (compileResult != 0) {
-      return Some(CompilationError)
+    try {
+      val binaryFile = assemblyFile.replaceFirst("\\.s$", "")
+      val compileCommand = s"gcc $assemblyFile -o $binaryFile"
+      val compileResult = compileCommand.!
+      if (compileResult != 0) {
+        return Some(CompilationError)
+      }
+      None
+    } finally {
+      deleteFile(assemblyFile)
     }
-    None
   }
 
   def runBinary(binaryFile: String): (String, Int) = {
@@ -83,12 +86,4 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
       file.delete()
     }
   }
-}
-
-object Generator {
- def main(args: Array[String]): Unit = {
-   val (o,e)= new Generator().parseWaccFile("../src/test/test_files/valid/basic/exit/exit-1.wacc")
-    println(s"Output: $o")
-    println(s"Exit: $e")
- }
 }
