@@ -3,7 +3,7 @@ package src.test
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
 import org.scalatest.prop.TableDrivenPropertyChecks
-import src.main.wacc.{generator, analyser, parser, x86Formatter}
+import src.main.wacc._
 
 import scala.sys.process._
 import scala.io.Source
@@ -19,18 +19,17 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
   behavior of "generator"
   forAll(Table("cases", TestFiles("valid/basic/"): _*)) { file =>
     it should s"produce the correct output and exit code for ${file.getParentFile}/${file.getName}" in {
-      val fileName = file.getPath()
+      val fileName = file.getPath
       val asmFileName = waccToAsm(fileName)
       val binaryFile = compileAssembly(asmFileName)
       binaryFile match {
-        case None => {
+        case None =>
           val binaryFile = asmFileName.replaceFirst("\\.s$", "")
           val (binOutput, binExitCode) = runBinary(binaryFile)
           deleteFile(binaryFile)
-          val (waccOutput, waccExitCode) = parseWaccFile(s"${fileName}")
-          (binOutput) should equal(waccOutput)
-          (binExitCode) should equal(waccExitCode)
-        }
+          val (waccOutput, waccExitCode) = parseWaccFile(s"$fileName")
+          binOutput should equal(waccOutput)
+          binExitCode should equal(waccExitCode)
         case _ => fail("Compilation error")
       }
     }
@@ -81,7 +80,7 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
 
     for (line <- lines) {
       if (line.startsWith("# Output:")) {
-        output = lines.takeWhile(!_.startsWith("#")).mkString("\n").trim()
+        output = lines.takeWhile(!_.equals("#")).map(_.drop(2)).mkString("\n").trim()
       } else if (line.startsWith("# Exit:")) {
         exitCode = lines.takeWhile(!_.startsWith("#")).mkString("\n").trim().toInt
       }
@@ -94,22 +93,22 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
   def deleteFile(filePath: String): Unit = {
     val file = new File(filePath)
     if (file.exists()) {
-      file.delete();
+      file.delete()
     }
   }
 }
 
-// object Generator {
-//   def main(args: Array[String]): Unit = {
-//     val testFile = "src/test/test_files/valid/basic/skip/justSkip.wacc"
-//     val generator = new Generator()
-//     val (output, exitCode) = generator.parseWaccFile(testFile)
-//     val asmFile = generator.waccToAsm(testFile)
+object Generator {
+ def main(args: Array[String]): Unit = {
+   val testFile = "../src/test/test_files/valid/IO/print/println.wacc"
+   val generator = new Generator()
+   val (output, exitCode) = generator.parseWaccFile(testFile)
+   val asmFile = generator.waccToAsm(testFile)
 
-//     val input = generator.compileAssembly(asmFile)
-//     val (binOut, binEx) = generator.runBinary("justSkip")
-//     println(binOut)
-//     println(s"Output: $output")
-//     println(s"Exit code: $exitCode")
-//   }
-// }
+   val input = generator.compileAssembly(asmFile)
+   val (binOut, binEx) = generator.runBinary("justSkip")
+   println(binOut)
+   println(s"Output: $output")
+   println(s"Exit code: $exitCode")
+ }
+}
