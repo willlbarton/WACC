@@ -505,54 +505,57 @@ object generator {
       left: Expr,
       right: Expr,
       symTable: SymbolTable[Dest]
-  ): ListBuffer[Instruction] = lb(
-    genExpr(right, symTable),
-    genExpr(left, symTable),
-    Pop(Eax(Size64)),
-    Pop(Ebx(Size64)),
-    op match {
-      case Add | Sub | Mul =>
-        lb(
-          op match {
-            case Add => AddAsm(Ebx(Size32), Eax(Size32))
-            case Sub => SubAsm(Ebx(Size32), Eax(Size32))
-            case Mul => Imul(Ebx(Size32), Eax(Size32))
-          },
-          Jo(Label(s"_$errOverflow")),
-          Movs(Eax(Size32), Eax(Size64), Size32, Size64)
-        )
+  ): ListBuffer[Instruction] = {
+    val size = Allocator.getTypeSize(left.typ.get)
+    lb(
+      genExpr(right, symTable),
+      genExpr(left, symTable),
+      Pop(Eax(Size64)),
+      Pop(Ebx(Size64)),
+      op match {
+        case Add | Sub | Mul =>
+          lb(
+            op match {
+              case Add => AddAsm(Ebx(Size32), Eax(Size32))
+              case Sub => SubAsm(Ebx(Size32), Eax(Size32))
+              case Mul => Imul(Ebx(Size32), Eax(Size32))
+            },
+            Jo(Label(s"_$errOverflow")),
+            Movs(Eax(Size32), Eax(Size64), Size32, Size64)
+          )
 
-      case Eq | NotEq | Gt | GtEq | Lt | LtEq =>
-        lb(
-          Cmp(Ebx(Size64), Eax(Size64)),
-          SetAsm(Eax(Size8), op.asInstanceOf[Comparison]),
-          Movs(Eax(Size8), Eax(Size64), Size8, Size64)
-        )
-      case Mod | Div =>
-        lb(
-          Cmp(Immediate(0), Ebx(Size32)),
-          JmpComparison(Label(s"_$errDivZero"), Eq),
-          // As Cltd will write into edx?? This isn't in reference compiler I just did it.
-          Push(Edx(Size64)),
-          Cltd,
-          Idiv(Ebx(Size32)),
-          if (op == Mod) Mov(Edx(Size32), Eax(Size32)) else lb(),
-          Movs(Eax(Size32), Eax(Size64), Size32, Size64),
-          Pop(Edx(Size64)) // Pop back
-        )
+        case Eq | NotEq | Gt | GtEq | Lt | LtEq =>
+          lb(
+            Cmp(Ebx(size), Eax(size)),
+            SetAsm(Eax(Size8), op.asInstanceOf[Comparison]),
+            Movs(Eax(Size8), Eax(Size64), Size8, Size64)
+          )
+        case Mod | Div =>
+          lb(
+            Cmp(Immediate(0), Ebx(Size32)),
+            JmpComparison(Label(s"_$errDivZero"), Eq),
+            // As Cltd will write into edx?? This isn't in reference compiler I just did it.
+            Push(Edx(Size64)),
+            Cltd,
+            Idiv(Ebx(Size32)),
+            if (op == Mod) Mov(Edx(Size32), Eax(Size32)) else lb(),
+            Movs(Eax(Size32), Eax(Size64), Size32, Size64),
+            Pop(Edx(Size64)) // Pop back
+          )
 
-      case Or | And =>
-        val label = Allocator.allocateLabel
-        lb(
-          Cmp(Immediate(1), Eax(Size64)),
-          if (op == Or) JmpComparison(label, Eq) else JmpComparison(label, NotEq),
-          Cmp(Immediate(1), Ebx(Size64)),
-          label,
-          SetAsm(Eax(Size8), Eq),
-          Movs(Eax(Size8), Eax(Size64), Size8, Size64)
-        )
-    }
-  )
+        case Or | And =>
+          val label = Allocator.allocateLabel
+          lb(
+            Cmp(Immediate(1), Eax(Size64)),
+            if (op == Or) JmpComparison(label, Eq) else JmpComparison(label, NotEq),
+            Cmp(Immediate(1), Ebx(Size64)),
+            label,
+            SetAsm(Eax(Size8), Eq),
+            Movs(Eax(Size8), Eax(Size64), Size8, Size64)
+          )
+      }
+    )
+  }
 
   private def genUnaryApp(
       op: UnaryOp,

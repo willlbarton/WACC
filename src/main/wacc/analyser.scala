@@ -259,9 +259,8 @@ object analyser {
   }
 
   // Checks the validity of an expression and finds it type if possible
-  @tailrec
-  private def checkExpr(symTable: SymbolTable[SymbolTableObj], expr: Expr): (String, Option[Type]) =
-    expr match {
+  private def checkExpr(symTable: SymbolTable[SymbolTableObj], expr: Expr): (String, Option[Type]) = {
+    val (err, typ) = expr match {
       case Integer(_)   => ("", Some(IntType))
       case Bool(_)      => ("", Some(BoolType))
       case Character(_) => ("", Some(CharType))
@@ -291,6 +290,9 @@ object analyser {
       case UnaryApp(op, expr)         => checkUnaryApp(symTable, op, expr)
       case BinaryApp(op, left, right) => checkBinaryApp(symTable, op, left, right)
     }
+  expr.typ = typ
+  (err, typ)
+  }
 
   // Checks that an identifier is defined and returns its type if possible
   private def checkIdent(
