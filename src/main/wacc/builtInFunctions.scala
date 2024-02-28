@@ -283,13 +283,14 @@ object builtInFunctions {
     val size = if (typ == intType) Size32 else Size8
     val readBody: ListBuffer[Instruction] = lb(
       maskRsp,
-      SubAsm(Immediate(16), Rsp),
+      SubAsm(Immediate(2 * ptrSize), Rsp),
       Mov(Edi(size), Address(Rsp), useOpSize = true),
       Lea(Address(Rsp), Esi(Size64)),
       Lea(Address(Rip, Label(s".read${typ}_format")), Edi(Size64)),
       Mov(Immediate(0), Eax(Size8)),
       CallAsm(provided.scanf),
-      Mov(Address(Rsp), Eax(Size64))
+      Movs(Address(Rsp), Eax(Size64), size, Size64),
+      AddAsm(Immediate(2 * ptrSize), Rsp)
     )
     instructions ++= lb(genNewScopeEnter(), readBody, genNewScopeExit(), Ret)
   }

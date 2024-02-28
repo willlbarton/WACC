@@ -519,14 +519,14 @@ object generator {
             case Mul => Imul(Ebx(Size32), Eax(Size32))
           },
           Jo(Label(s"_$errOverflow")),
-          Movs(Eax(Size32), Eax(Size64))
+          Movs(Eax(Size32), Eax(Size64), Size32, Size64)
         )
 
       case Eq | NotEq | Gt | GtEq | Lt | LtEq =>
         lb(
           Cmp(Ebx(Size64), Eax(Size64)),
           SetAsm(Eax(Size8), op.asInstanceOf[Comparison]),
-          Movs(Eax(Size8), Eax(Size64))
+          Movs(Eax(Size8), Eax(Size64), Size8, Size64)
         )
       case Mod | Div =>
         lb(
@@ -537,7 +537,7 @@ object generator {
           Cltd,
           Idiv(Ebx(Size32)),
           if (op == Mod) Mov(Edx(Size32), Eax(Size32)) else lb(),
-          Movs(Eax(Size32), Eax(Size64)),
+          Movs(Eax(Size32), Eax(Size64), Size32, Size64),
           Pop(Edx(Size64)) // Pop back
         )
 
@@ -549,7 +549,7 @@ object generator {
           Cmp(Immediate(1), Ebx(Size64)),
           label,
           SetAsm(Eax(Size8), Eq),
-          Movs(Eax(Size8), Eax(Size64))
+          Movs(Eax(Size8), Eax(Size64), Size8, Size64)
         )
     }
   )
@@ -577,13 +577,13 @@ object generator {
           Mov(Immediate(0), Edx(Size64)),
           SubAsm(Eax(Size32), Edx(Size32)),
           Jo(Label(s"_$errOverflow")),
-          Movs(Edx(Size32), Eax(Size64))
+          Movs(Edx(Size32), Eax(Size64), Size32, Size64)
         )
       case Not =>
         lb(
           Cmp(Immediate(1), Eax(Size64)),
           SetAsm(Eax(Size8), NotEq),
-          Movs(Eax(Size8), Eax(Size64))
+          Movs(Eax(Size8), Eax(Size64), Size8, Size64)
         )
       case Ord => lb() // Do nothing as char already being stored as a Long in eax
     }
