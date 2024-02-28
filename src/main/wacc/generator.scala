@@ -221,6 +221,7 @@ object generator {
 
         lb(
           Pop(Eax(Size64)),
+          Movs(Eax(Size8), Eax(Size64), Size8, Size64),
           Cmp(Immediate(1), Eax(Size64)),
           JmpComparison(labelTrue, Eq),
           genScopedStmt(
@@ -566,7 +567,6 @@ object generator {
         )
       case Len =>
         lb(
-          Pop(Eax(Size64)), // Array address returned on stack
           Mov(Address(Eax(Size64), Immediate(-intSize)), Eax())
         )
       case Neg =>
