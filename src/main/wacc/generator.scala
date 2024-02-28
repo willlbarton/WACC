@@ -355,8 +355,10 @@ object generator {
       CallAsm(Label(s"_$malloc")),
       Mov(Eax(Size64), R11(Size64)),
       genExpr(a, symTable),
+      Pop(Eax(Size64)),
       Mov(Eax(Size64), Address(R11(Size64), Immediate(0))),
       genExpr(b, symTable),
+      Pop(Eax(Size64)),
       Mov(Eax(Size64), Address(R11(Size64), Immediate(8))),
       Push(R11(Size64))
     )
