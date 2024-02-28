@@ -269,7 +269,8 @@ object generator {
           Pop(R9(Size64)),
           CallAsm(Label(s"_$arrStore${Allocator.getTypeWidth(typ)}"))
         )
-      case _ => ???
+      case Fst(f) => ???
+      case Snd(s) => ???
     }
   }
 
@@ -369,10 +370,30 @@ object generator {
       symTable: SymbolTable[Dest],
       offset: Int
   ): ListBuffer[Instruction] = lval match {
-    case a: Ident     => ???
-    case b: ArrayElem => ???
-    case Fst(value)   => genPairElem(value, symTable, 0)
-    case Snd(value)   => genPairElem(value, symTable, 8)
+    case id: Ident => {
+      val dest = symTable(id).get
+      val typ = id.typ.get
+      typ match {
+        case PairType(_, _) | Pair =>
+          lb(Mov(dest, Eax(Size64)), Mov(Address(Eax(Size64), Immediate(offset)), Eax(Size64)))
+        case _ => throw new IllegalArgumentException(s"Type $typ was not a pair")
+      }
+    }
+    case b: ArrayElem => {
+      val dest = symTable(b.ident).get
+      val typ = b.ident.typ.get
+      typ match {
+        case PairType(_, _) | Pair =>
+          lb(
+            genArrayElem(b.ident, b.exprs.init, symTable),
+            Mov(dest, Eax(Size64)),
+            Mov(Address(Eax(Size64), Immediate(offset)), Eax(Size64))
+          )
+        case _ => throw new IllegalArgumentException(s"Type $typ was not a pair")
+      }
+    }
+    case Fst(value) => genPairElem(value, symTable, 0)
+    case Snd(value) => genPairElem(value, symTable, 8)
   }
 
   private val eof = -1
