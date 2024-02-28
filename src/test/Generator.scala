@@ -19,41 +19,20 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
   behavior of "generator"
   forAll(Table("cases", TestFiles("valid/basic/"): _*)) { file =>
     it should s"produce the correct output and exit code for ${file.getParentFile}/${file.getName}" in {
-      val fileName = file.getPath
-      val asmFileName = waccToAsm(fileName)
-      val binaryFile = compileAssembly(asmFileName)
-      binaryFile match {
-        case None =>
-          val binaryFile = asmFileName.replaceFirst("\\.s$", "")
-          val (binOutput, binExitCode) = runBinary(binaryFile)
-          deleteFile(binaryFile)
-          val (waccOutput, waccExitCode) = parseWaccFile(s"$fileName")
-          binOutput should equal(waccOutput)
-          binExitCode should equal(waccExitCode)
-        case _ => fail("Compilation error")
-      }
+      val filePath = file.getPath
+      val filename = file.getName.replaceFirst("\\.wacc$", "")
+      Main.main(Array(filePath))
+      compileAssembly(s"$filename.s") shouldEqual None
+      val (expOut, expExit) = parseWaccFile(filePath)
+      val (out, exit) = runBinary(filename)
+      out shouldEqual expOut
+      exit shouldEqual expExit
     }
-  }
-
-  def waccToAsm(waccFile: String): String = {
-    val source = scala.io.Source.fromFile(waccFile)
-    val program =
-      try source.getLines().mkString("\n")
-      finally source.close()
-    val asmFileName = waccFile.split("/").last.replaceFirst("\\.\\w+$", ".s")
-    val parsed = parser.parse(program).get
-    val asmString = generator.generate(parsed, x86Formatter)
-    val asmFile = new File(asmFileName)
-    val writer = new BufferedWriter(
-      new FileWriter(asmFileName)
-    )
-    writer.write(asmString)
-    asmFileName
   }
 
   def compileAssembly(assemblyFile: String): Option[Err] = {
     val binaryFile = assemblyFile.replaceFirst("\\.s$", "")
-    val compileCommand = s"gcc -c $assemblyFile -o $binaryFile"
+    val compileCommand = s"gcc $assemblyFile -o $binaryFile"
     val compileResult = compileCommand.!
     deleteFile(assemblyFile)
     if (compileResult != 0) {
@@ -64,8 +43,7 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
 
   def runBinary(binaryFile: String): (String, Int) = {
     val process = Process(s"./$binaryFile")
-    val binFile = new File(binaryFile)
-    binFile.setExecutable(true)
+    new File(binaryFile).setExecutable(true)
     val output = new StringBuilder
     val exitCode = process ! ProcessLogger(output.append(_))
     deleteFile(binaryFile)
@@ -100,15 +78,13 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
 
 object Generator {
  def main(args: Array[String]): Unit = {
-   val testFile = "../src/test/test_files/valid/IO/print/println.wacc"
+   val filePath = "../src/test/test_files/valid/IO/print/println.wacc"
    val generator = new Generator()
-   val (output, exitCode) = generator.parseWaccFile(testFile)
-   val asmFile = generator.waccToAsm(testFile)
 
-   val input = generator.compileAssembly(asmFile)
-   val (binOut, binEx) = generator.runBinary("justSkip")
-   println(binOut)
-   println(s"Output: $output")
-   println(s"Exit code: $exitCode")
+   Main.main(Array(filePath))
+   generator.compileAssembly(s"println.s") shouldEqual None
+   val (out, exit) = generator.runBinary("println")
+   println(s"Output: $out")
+   println(s"Exit code: $exit")
  }
 }
