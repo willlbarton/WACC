@@ -69,10 +69,9 @@ object builtInFunctions {
     * @param allocator
     *   The allocator of the parent scope
     * @param toSave
-    *   List of registers that need to be saved. It is always safe to use Allocator.NON_PARAM_REGS,
-    *   but not all of them are always needed. The list should be in the same order as the variables
-    *   are declared. In general, Allocator.NON_PARAM_REGS.take(n) should be used, where n is the
-    *   number of variables declared in the scope.
+    *    List of registers that need to be saved. The list should be in the same order as the
+    *    variables are declared. In general, Allocator.(NON_)PARAM_REGS.take(n) should be used, where
+    *    n is the number of variables declared in the scope.
     */
   def symTableEnterScope(
       symTable: SymbolTable[Dest],
@@ -114,10 +113,9 @@ object builtInFunctions {
     * @param allocator
     *   The allocator of the parent scope
     * @param toSave
-    *   List of registers that need to be saved. It is always safe to use Allocator.NON_PARAM_REGS,
-    *   but not all of them are always needed. The list should be in the same order as the variables
-    *   are declared. In general, Allocator.NON_PARAM_REGS.take(n) should be used, where n is the
-    *   number of variables declared in the scope.
+    *   List of registers that need to be saved. The list should be in the same order as the
+    *   variables are declared. In general, Allocator.(NON_)PARAM_REGS.take(n) should be used, where
+    *   n is the number of variables declared in the scope.
     */
   def symTableExitScope(
       symTable: SymbolTable[Dest],

@@ -78,19 +78,13 @@ object generator {
     symTableEnterScope(paramTable, allocator, usedParamRegs, ParamMode)
 
     val exitScope = genNewScopeExit(usedParamRegs, func.vars)
-    println(exitScope)
 
     val toAllocate = func.vars.drop(Allocator.NON_PARAM_REGS.length)
 
     val instructions = lb(
       Label(s"wacc_${func.ident.name}"),
-      genNewScopeEnter(usedParamRegs, toAllocate), {
-        val instrs =
-          genStmts(func.body, paramTable.makeChild, Allocator(toAllocate, NonParamMode), exitScope)
-        lb(
-          instrs
-        )
-      }
+      genNewScopeEnter(usedParamRegs, toAllocate),
+      genStmts(func.body, paramTable.makeChild, Allocator(toAllocate, NonParamMode), exitScope)
     )
 
     symTableExitScope(paramTable, allocator, usedParamRegs, ParamMode)
@@ -494,10 +488,7 @@ object generator {
     },
 
     // If the expression is a bracketed expression, the result will already be pushed to the stack
-    if (
-      expr.isInstanceOf[BracketedExpr] || expr.isInstanceOf[ArrayElem] || expr
-        .isInstanceOf[UnaryApp] && expr.asInstanceOf[UnaryApp].op == Ord
-    )
+    if (expr.isInstanceOf[BracketedExpr] || expr.isInstanceOf[ArrayElem])
       lb()
     else Push(Eax(Size64))
   )
@@ -565,6 +556,7 @@ object generator {
       symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] = lb(
     genExpr(expr, symTable),
+    Pop(Eax(Size64)),
     op match {
       case Chr =>
         lb(
