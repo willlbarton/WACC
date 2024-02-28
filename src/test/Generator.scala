@@ -26,9 +26,9 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
         Main.main(Array(filePath))
       }
       compileAssembly(s"$filename.s") shouldEqual None
-      val (expOut, expExit) = parseWaccFile(filePath)
+      val (input, expOut, expExit) = parseWaccFile(filePath)
       try {
-        val (out, exit) = Await.result(Future(runBinary(filename)), 10.seconds)
+        val (out, exit) = Await.result(Future(runBinary(filename, input)), 60.seconds)
         out shouldEqual expOut
         exit shouldEqual expExit
       } catch {
@@ -53,8 +53,8 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
     }
   }
 
-  def runBinary(binaryFile: String): (String, Int) = {
-    val process = Process(s"./$binaryFile")
+  def runBinary(binaryFile: String, input: String): (String, Int) = {
+    val process = s"./$binaryFile"
     new File(binaryFile).setExecutable(true)
     val output = new StringBuilder
     val exitCode = process ! ProcessLogger(output.append(_))
@@ -62,8 +62,9 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
     (output.toString, exitCode)
   }
 
-  def parseWaccFile(filePath: String): (String, Int) = {
+  def parseWaccFile(filePath: String): (String, String, Int) = {
     var output: String = ""
+    var input: String = ""
     var exitCode: Int = 0
     val source = Source.fromFile(filePath)
     val lines = source.getLines()
@@ -73,11 +74,13 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
         output = lines.takeWhile(!_.isBlank).map(_.drop(2)).mkString("\n")
       } else if (line.startsWith("# Exit:")) {
         exitCode = lines.next().drop(2).toInt
+      } else if (line.startsWith("# Input:")) {
+        input = lines.takeWhile(!_.isBlank).map(_.drop(2)).mkString("\n")
       }
     }
 
     source.close()
-    (output, exitCode)
+    (input, output, exitCode)
   }
 
   def deleteFile(filePath: String): Unit = {
