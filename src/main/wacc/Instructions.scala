@@ -83,9 +83,10 @@ final case class CMovne(op: Operand, dest: Dest) extends Instruction
 // Bitwise operators
 final case class BitNotAsm(dest: Dest) extends Instruction
 final case class BitAndAsm(op: Operand, dest: Dest) extends Instruction
-// final case class BitOrAsm(dest: Dest, op: Operand) extends Instruction
-// final case class BitLeftShiftAsm(dest: Dest, op: Operand) extends Instruction
-// final case class BitRightShiftAsm(dest: Dest, op: Operand) extends Instruction
+final case class BitOrAsm(op: Operand, dest: Dest) extends Instruction
+final case class BitXorAsm(op: Operand, dest: Dest) extends Instruction
+final case class BitLeftShiftAsm(op: Operand, dest: Dest) extends Instruction
+final case class BitRightShiftAsm(op: Operand, dest: Dest) extends Instruction
 
 trait Formatter {
   def apply(instruction: Instruction): String
@@ -144,7 +145,14 @@ object x86Formatter extends Formatter {
       case BitNotAsm(dest) => indent ++ s"not${instructionPostfix(dest)}  ${this(dest)}"
       case BitAndAsm(op, dest) =>
         indent ++ s"and${instructionPostfix(dest)}  ${this(op)}, ${this(dest)}"
-
+      case BitOrAsm(op, dest) =>
+        indent ++ s"or${instructionPostfix(dest)}   ${this(op)}, ${this(dest)}"
+      case BitXorAsm(op, dest) =>
+        indent ++ s"xor${instructionPostfix(dest)}  ${this(op)}, ${this(dest)}"
+      case BitLeftShiftAsm(op, dest) =>
+        indent ++ s"sal${instructionPostfix(dest)}  ${this(op)}, ${this(dest)}"
+      case BitRightShiftAsm(op, dest) =>
+        indent ++ s"shr${instructionPostfix(dest)}  ${this(op)}, ${this(dest)}"
     }
   }
 
