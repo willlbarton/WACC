@@ -365,11 +365,15 @@ object generator {
   }
 
   private def genPairElem(
-      expr: LVal,
+      lval: LVal,
       symTable: SymbolTable[Dest],
       offset: Int
-  ): ListBuffer[Instruction] = lb(
-  )
+  ): ListBuffer[Instruction] = lval match {
+    case a: Ident     => ???
+    case b: ArrayElem => ???
+    case Fst(value)   => genPairElem(value, symTable, 0)
+    case Snd(value)   => genPairElem(value, symTable, 8)
+  }
 
   private val eof = -1
   private var d = 0
