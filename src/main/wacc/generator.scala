@@ -80,11 +80,13 @@ object generator {
     val exitScope = genNewScopeExit(usedParamRegs, func.vars)
     println(exitScope)
 
+    val toAllocate = func.vars.drop(Allocator.NON_PARAM_REGS.length)
+
     val instructions = lb(
       Label(s"wacc_${func.ident.name}"),
-      genNewScopeEnter(usedParamRegs, func.vars), {
+      genNewScopeEnter(usedParamRegs, toAllocate), {
         val instrs =
-          genStmts(func.body, paramTable.makeChild, Allocator(func.vars, NonParamMode), exitScope)
+          genStmts(func.body, paramTable.makeChild, Allocator(toAllocate, NonParamMode), exitScope)
         lb(
           instrs
         )
