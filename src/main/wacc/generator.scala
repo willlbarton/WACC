@@ -496,7 +496,7 @@ object generator {
     // If the expression is a bracketed expression, the result will already be pushed to the stack
     if (
       expr.isInstanceOf[BracketedExpr] || expr.isInstanceOf[ArrayElem] || expr
-        .isInstanceOf[BinaryApp] && expr.asInstanceOf[BinaryApp].op == Ord
+        .isInstanceOf[UnaryApp] && expr.asInstanceOf[UnaryApp].op == Ord
     )
       lb()
     else Push(Eax(Size64))
@@ -590,7 +590,8 @@ object generator {
           SetAsm(Eax(Size8), NotEq),
           Movs(Eax(Size8), Eax(Size64), Size8, Size64)
         )
-      case Ord => lb() // Do nothing as char already being stored as a Long in eax
+      case Ord =>
+        lb() // Do nothing as char already being stored as a Long in eax
     }
   )
 }
