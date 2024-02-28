@@ -45,17 +45,17 @@ object parser {
   private lazy val statements: Parsley[List[Stmt]] = sepBy1(statement, ";")
 
   private lazy val sideEffectOp: Parsley[SideEffectOp] =
-    "+" #> AddEq |
-      "-" #> SubEq |
-      "*" #> MulEq |
-      "/" #> DivEq |
-      "%" #> ModEq
+    "+=" #> AddEq |
+      "-=" #> SubEq |
+      "*=" #> MulEq |
+      "/=" #> DivEq |
+      "%=" #> ModEq
 
   // Parses a single statement
   private lazy val statement: Parsley[Stmt] =
     "skip" #> Skip |
       Decl(typ, ident, "=" ~> rvalue) |
-      Asgn(lvalue, "=".explain("unknown statement treated as assignment") ~> rvalue) |
+      Asgn(atomic(lvalue <~ "=".explain("unknown statement treated as assignment")), rvalue) |
       SideEffectStmt(lvalue, sideEffectOp, expr) |
       Read("read" ~> lvalue) |
       Free("free" ~> expr) |
