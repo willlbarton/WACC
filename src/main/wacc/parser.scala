@@ -121,13 +121,6 @@ object parser {
       Add <# "+",
       Sub <# "-".label("binary operator")
     ),
-    Ops(InfixL)(
-      BitXor <# "^",
-      BitOr <# "|",
-      BitAnd <# "&",
-      BitLeftShift <# "<<",
-      BitRightShift <# ">>"
-    ),
     Ops(InfixN)(
       GtEq <# ">=",
       LtEq <# "<=",
@@ -139,6 +132,13 @@ object parser {
       Eq <# "=="
     ),
     Ops(InfixR)(And <# "&&"),
-    Ops(InfixR)(Or <# "||")
+    Ops(InfixR)(Or <# "||"),
+    Ops(InfixL)(
+      BitXor <# "^",
+      BitOr <# "|",
+      BitAnd <# "&",
+      BitLeftShift <# "<<",
+      BitRightShift <# ">>"
+    )
   )
 }

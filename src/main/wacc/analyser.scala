@@ -411,7 +411,7 @@ object analyser {
           if (someType == CharType) retType = Some(IntType)
           else error ++= unaryAppErrMsg(Ord, someType, expr)
         case BitNot =>
-          if (someType == IntType) retType = Some(CharType)
+          if (someType == IntType) retType = Some(IntType)
           else error ++= unaryAppErrMsg(BitNot, someType, expr)
       }
     }

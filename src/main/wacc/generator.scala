@@ -507,6 +507,7 @@ object generator {
       Pop(Eax(Size64)),
       Pop(Ebx(Size64)),
       op match {
+        case BitAnd => lb(BitAndAsm(Ebx(Size64), Eax(Size64)))
         case Add | Sub | Mul =>
           lb(
             op match {
@@ -587,6 +588,7 @@ object generator {
         lb(
           Movs(Eax(Size8), Eax(Size64), Size8, Size64)
         ) // Do nothing as char already being stored as a Long in eax
+      case BitNot => lb(BitNotAsm(Eax(Size64)))
     }
   )
 }
