@@ -51,8 +51,10 @@ final case class Decl(t: Type, ident: Ident, value: RVal) extends Stmt {
   override def toString: String = s"$t $ident = $value"
 }
 
-trait SideEffectOp extends Stmt with generic.ParserBridge2[LVal, Expr, SideEffectStmt] {
-  def apply(l: LVal, r: Expr): SideEffectStmt = SideEffectStmt(this, l, r)
+sealed trait SideEffectOp
+
+final case class SideEffectStmt(left: LVal, op: SideEffectOp, expr: Expr) extends Stmt {
+  override def toString: String = s"$left $op $expr"
 }
 
 case object AddEq extends SideEffectOp { override def toString = "+=" }
@@ -60,10 +62,6 @@ case object SubEq extends SideEffectOp { override def toString = "-=" }
 case object MulEq extends SideEffectOp { override def toString = "*=" }
 case object DivEq extends SideEffectOp { override def toString = "/=" }
 case object ModEq extends SideEffectOp { override def toString = "%=" }
-
-case class SideEffectStmt(op: SideEffectOp, left: LVal, expr: Expr) extends Stmt {
-  override def toString: String = s"$left $op $expr"
-}
 
 final case class Asgn(left: LVal, value: RVal) extends Stmt {
   override def toString: String = s"$left = $value"
@@ -176,6 +174,8 @@ object Func extends generic.ParserBridge4[Type, Ident, List[Param], List[Stmt], 
 object Param extends generic.ParserBridge2[Type, Ident, Param]
 
 object PairType extends generic.ParserBridge2[PairElemType, PairElemType, PairType]
+
+object SideEffectStmt extends generic.ParserBridge3[LVal, SideEffectOp, Expr, SideEffectStmt]
 
 object Decl extends generic.ParserBridge3[Type, Ident, RVal, Stmt]
 object Asgn extends generic.ParserBridge2[LVal, RVal, Stmt]
