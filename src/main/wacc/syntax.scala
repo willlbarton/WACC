@@ -50,6 +50,21 @@ case object Skip extends Stmt { override def toString = "skip" }
 final case class Decl(t: Type, ident: Ident, value: RVal) extends Stmt {
   override def toString: String = s"$t $ident = $value"
 }
+
+trait SideEffectOp extends Stmt with generic.ParserBridge2[LVal, Expr, SideEffectStmt] {
+  def apply(l: LVal, r: Expr): SideEffectStmt = SideEffectStmt(this, l, r)
+}
+
+case object AddEq extends SideEffectOp { override def toString = "+=" }
+case object SubEq extends SideEffectOp { override def toString = "-=" }
+case object MulEq extends SideEffectOp { override def toString = "*=" }
+case object DivEq extends SideEffectOp { override def toString = "/=" }
+case object ModEq extends SideEffectOp { override def toString = "%=" }
+
+case class SideEffectStmt(op: SideEffectOp, left: LVal, expr: Expr) extends Stmt {
+  override def toString: String = s"$left $op $expr"
+}
+
 final case class Asgn(left: LVal, value: RVal) extends Stmt {
   override def toString: String = s"$left = $value"
 }
