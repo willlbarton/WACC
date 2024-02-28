@@ -33,7 +33,9 @@ object analyser {
           symTable.put(p.ident, p)
         }
       )
-      error ++= checkFuncStmts(symTable.makeChild, f.body, f.t) withContext s"function $f"
+      val funcBodyTable = symTable.makeChild
+      error ++= checkFuncStmts(funcBodyTable, f.body, f.t) withContext s"function $f"
+      f.vars = funcBodyTable.vars
     }
 
     // Check the main program body
@@ -106,13 +108,25 @@ object analyser {
   // Main program body
   private def checkMainStmt(st: SymbolTable[SymbolTableObj], stmt: Stmt): String = stmt match {
     case Return(_) => s"Return not allowed in main\n" withContext stmt
-    case IfStmt(cond, body1, body2) =>
-      checkCond(st, cond, isIf = true) ++
-        checkMainStmts(st.makeChild, body1) ++ checkMainStmts(st.makeChild, body2)
-    case While(cond, body) =>
-      checkCond(st, cond, isIf = false) ++ checkMainStmts(st.makeChild, body)
-    case ScopedStmt(stmt) => checkMainStmts(st.makeChild, stmt)
-    case _                => checkLeafStatement(st, stmt)
+    case f @ IfStmt(cond, body1, body2) =>
+      val childTable1 = st.makeChild
+      val childTable2 = st.makeChild
+      val err = checkCond(st, cond, isIf = true) ++
+        checkMainStmts(childTable1, body1) ++ checkMainStmts(childTable2, body2)
+      f.branch1Vars = childTable1.vars
+      f.branch2Vars = childTable2.vars
+      err
+    case w @ While(cond, body) =>
+      val childTable = st.makeChild
+      val err = checkCond(st, cond, isIf = false) ++ checkMainStmts(childTable, body)
+      w.vars = childTable.vars
+      err
+    case s @ ScopedStmt(stmt) =>
+      val childTable = st.makeChild
+      val err = checkMainStmts(childTable, stmt)
+      s.vars = childTable.vars
+      err
+    case _ => checkLeafStatement(st, stmt)
   }
 
   // Used in if and while statements to check that the condition is a boolean
@@ -210,6 +224,7 @@ object analyser {
       case Right(typ) => typ1 = Some(typ)
     }
     val (err, typ2) = checkRVal(symTable, value)
+    value.typ = typ1
     error ++= err withContext s"$left = $value"
     // Check that the types are compatible
     if (typ1.isDefined && typ2.isDefined && !isWeakerType(typ1.get, typ2.get))
@@ -222,6 +237,7 @@ object analyser {
     checkLVal(st, value) match {
       case Left(err) => err
       case Right(typ) =>
+        value.typ = Some(typ)
         typ match {
           case IntType | CharType => ""
           case _ => // Only int and char are allowed
@@ -243,14 +259,14 @@ object analyser {
   }
 
   // Checks the validity of an expression and finds it type if possible
-  @tailrec
-  private def checkExpr(symTable: SymbolTable[SymbolTableObj], expr: Expr): (String, Option[Type]) =
-    expr match {
+  private def checkExpr(symTable: SymbolTable[SymbolTableObj], expr: Expr): (String, Option[Type]) = {
+    val (err, typ) = expr match {
       case Integer(_)   => ("", Some(IntType))
       case Bool(_)      => ("", Some(BoolType))
       case Character(_) => ("", Some(CharType))
       case StringAtom(s) =>
-        generator.stringLiters += (s -> generator.stringLiters.size)
+        if (!generator.stringLiters.contains(s))
+          generator.stringLiters += (s.replace("\"", "\\\"") -> generator.stringLiters.size)
         ("", Some(StringType))
       case Null => ("", Some(Pair))
       case id: Ident =>
@@ -261,14 +277,22 @@ object analyser {
       // Array indexing
       case ArrayElem(ident, exprs) =>
         checkArrayElem(symTable, ident, exprs) match {
-          case Left(err)  => (err, None)
-          case Right(typ) => ("", Some(typ))
+          case Left(err) => (err, None)
+          case Right(typ) =>
+            ident.typ = symTable(ident) match {
+              case Some(t) => t.typ
+              case _       => None
+            }
+            ("", Some(typ))
         }
       case BracketedExpr(expr) => checkExpr(symTable, expr)
       // Unary and binary operators mutually recursive with this function
       case UnaryApp(op, expr)         => checkUnaryApp(symTable, op, expr)
       case BinaryApp(op, left, right) => checkBinaryApp(symTable, op, left, right)
     }
+  expr.typ = typ
+  (err, typ)
+  }
 
   // Checks that an identifier is defined and returns its type if possible
   private def checkIdent(
@@ -506,8 +530,14 @@ object analyser {
   // and returns its type if valid
   private def checkLVal(symTable: SymbolTable[SymbolTableObj], lval: LVal): Either[String, Type] =
     lval match {
-      case id: Ident               => checkIdent(symTable, id)
-      case ArrayElem(ident, exprs) => checkArrayElem(symTable, ident, exprs)
+      case id: Ident => checkIdent(symTable, id)
+      case ArrayElem(ident, exprs) =>
+        val res = checkArrayElem(symTable, ident, exprs)
+        ident.typ = symTable(ident) match {
+          case Some(t) => t.typ
+          case _       => None
+        }
+        res
       case Fst(value) =>
         checkLVal(symTable, value) match {
           // The type of fst is the type of the first element of the pair
@@ -615,6 +645,7 @@ object analyser {
         // Check the type of the parameters
         for ((param, expr) <- params.zip(exprs)) {
           val (err, ptype) = checkExpr(symTable, expr)
+          expr.typ = Some(param.t)
           errors ++= err withContext s"call $ident(${exprs.mkString(", ")})"
           if (ptype.isDefined) {
             if (!isWeakerType(param.t, ptype.get))

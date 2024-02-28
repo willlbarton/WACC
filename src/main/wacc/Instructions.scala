@@ -13,7 +13,6 @@ sealed trait Reg extends Dest with MemOp {
 
 sealed trait Size
 case object Size8 extends Size
-case object Size16 extends Size
 case object Size32 extends Size
 case object Size64 extends Size
 
@@ -45,15 +44,15 @@ final case class Address(
     index: MemOp = Immediate(0),
     scale: MemOp = Immediate(1)
 ) extends Dest
-final case class Immediate(value: Long) extends Operand with MemOp
+final case class Immediate(value: Int) extends Operand with MemOp
 
 case object Ret extends Instruction
 case object Cltd extends Instruction
 
 final case class Directive(name: String) extends Instruction
 final case class Label(name: String) extends Instruction with MemOp
-final case class Mov(op: Operand, dest: Dest) extends Instruction
-final case class Movs(op: Operand, dest: Dest) extends Instruction
+final case class Mov(op: Operand, dest: Dest, useOpSize: Boolean = false) extends Instruction
+final case class Movs(op: Operand, dest: Dest, srcSize: Size, destSize: Size) extends Instruction
 final case class Pop(dest: Dest) extends Instruction
 final case class Push(op: Operand) extends Instruction
 final case class CallAsm(label: Label) extends Instruction
@@ -71,17 +70,13 @@ final case class Jo(label: Label) extends Instruction
 
 final case class JmpComparison(label: Label, comparison: Comparison) extends Instruction
 
-// final case class Je(label: Label) extends Instruction
-// final case class Jl(label: Label) extends Instruction
-// final case class Jne(label: Label) extends Instruction
-
 final case class Idiv(op: Operand) extends Instruction
 final case class Imul(op1: Operand, dest: Dest) extends Instruction
 
 final case class Testq(op1: Operand, op2: Operand) extends Instruction
 final case class CMovl(op: Operand, dest: Dest) extends Instruction
-final case class CMovge(dest: Dest, src: Operand) extends Instruction
-final case class Cmovne(dest: Dest, src: Operand) extends Instruction
+final case class CMovge(op: Operand, dest: Dest) extends Instruction
+final case class CMovne(op: Operand, dest: Dest) extends Instruction
 
 trait Formatter {
   def apply(instruction: Instruction): String
@@ -103,10 +98,10 @@ object x86Formatter extends Formatter {
       case Label(name) => s"$name:"
       case Ret         => indent ++ "ret\n"
       case Cltd        => indent ++ "cltd"
-      case Mov(op1, dest) =>
-        indent ++ s"mov${instructionPostfix(dest)}  ${this(op1)}, ${this(dest)}"
-      case Movs(op, dest) =>
-        indent ++ s"movs${instructionPostfix(op, dest)} ${this(op)}, ${this(dest)}"
+      case Mov(op1, dest, useOpSize) =>
+        indent ++ s"mov${instructionPostfix(if (useOpSize) op1 else dest)}  ${this(op1)}, ${this(dest)}"
+      case Movs(op, dest, srcSize, destSize) =>
+        indent ++ s"movs${instructionPostfix(srcSize, destSize)} ${this(op)}, ${this(dest)}"
       case Pop(dest)      => indent ++ s"pop${instructionPostfix(dest)}  ${this(dest)}"
       case Push(op1)      => indent ++ s"push${instructionPostfix(op1)} ${this(op1)}"
       case CallAsm(label) => indent ++ s"call  ${label.name}"
@@ -124,19 +119,16 @@ object x86Formatter extends Formatter {
         indent ++ s"cmp${instructionPostfix(dest)}  ${this(src)}, ${this(dest)}"
       case Jmp(label) => indent ++ s"jmp   ${label.name}"
       case Jo(label)  => indent ++ s"jo    ${label.name}"
-      // case Je(label)  => indent ++ s"je    ${label.name}"
-      // case Jl(label)  => indent ++ s"jl    ${label.name}"
-      // case Jne(label) => indent ++ s"jne   ${label.name}"
       case JmpComparison(label, comparison) =>
         indent ++ s"j${instructionPostfix(comparison)} ${label.name}"
       case Idiv(op1) => indent ++ s"idiv${instructionPostfix(op1)} ${this(op1)}"
       case Imul(op1, dest) =>
         indent ++ s"imul${instructionPostfix(dest)} ${this(op1)}, ${this(dest)}"
-      case CMovl(dest, src) =>
+      case CMovl(src, dest) =>
         indent ++ s"cmovl ${this(src)}, ${this(dest)}"
-      case CMovge(dest, src) =>
+      case CMovge(src, dest) =>
         indent ++ s"cmovge ${this(src)}, ${this(dest)}"
-      case Cmovne(dest, src) =>
+      case CMovne(src, dest) =>
         indent ++ s"cmovne ${this(src)}, ${this(dest)}"
       case Testq(op1, op2) => indent ++ s"test  ${this(op1)}, ${this(op2)}"
     }
@@ -157,98 +149,84 @@ object x86Formatter extends Formatter {
     case _: Eax =>
       reg.size match {
         case Size8  => "%al"
-        case Size16 => "%ax"
         case Size32 => "%eax"
         case Size64 => "%rax"
       }
     case _: Ebx =>
       reg.size match {
         case Size8  => "%bl"
-        case Size16 => "%bx"
         case Size32 => "%ebx"
         case Size64 => "%rbx"
       }
     case _: Ecx =>
       reg.size match {
         case Size8  => "%cl"
-        case Size16 => "%cx"
         case Size32 => "%ecx"
         case Size64 => "%rcx"
       }
     case _: Edx =>
       reg.size match {
         case Size8  => "%dl"
-        case Size16 => "%dx"
         case Size32 => "%edx"
         case Size64 => "%rdx"
       }
     case _: Esi =>
       reg.size match {
         case Size8  => "%sil"
-        case Size16 => "%si"
         case Size32 => "%esi"
         case Size64 => "%rsi"
       }
     case _: Edi =>
       reg.size match {
         case Size8  => "%dil"
-        case Size16 => "%di"
         case Size32 => "%edi"
         case Size64 => "%rdi"
       }
     case _: R8 =>
       reg.size match {
         case Size8  => "%r8b"
-        case Size16 => "%r8w"
         case Size32 => "%r8d"
         case Size64 => "%r8"
       }
     case _: R9 =>
       reg.size match {
         case Size8  => "%r9b"
-        case Size16 => "%r9w"
         case Size32 => "%r9d"
         case Size64 => "%r9"
       }
     case _: R10 =>
       reg.size match {
         case Size8  => "%r10b"
-        case Size16 => "%r10w"
         case Size32 => "%r10d"
         case Size64 => "%r10"
       }
     case _: R11 =>
       reg.size match {
         case Size8  => "%r11b"
-        case Size16 => "%r11w"
         case Size32 => "%r11d"
         case Size64 => "%r11"
       }
     case _: R12 =>
       reg.size match {
         case Size8  => "%r12b"
-        case Size16 => "%r12w"
         case Size32 => "%r12d"
         case Size64 => "%r12"
       }
     case _: R13 =>
       reg.size match {
         case Size8  => "%r13b"
-        case Size16 => "%r13w"
         case Size32 => "%r13d"
         case Size64 => "%r13"
       }
     case _: R14 =>
       reg.size match {
         case Size8  => "%r14b"
-        case Size16 => "%r14w"
         case Size32 => "%r14d"
         case Size64 => "%r14"
       }
     case _: R15 =>
       reg.size match {
         case Size8  => "%r15b"
-        case Size16 => "%r15w"
         case Size32 => "%r15d"
         case Size64 => "%r15"
       }
@@ -267,7 +245,6 @@ object x86Formatter extends Formatter {
     case r: Reg =>
       r.size match {
         case Size8  => "b"
-        case Size16 => "w"
         case Size32 => "l"
         case Size64 => "q"
       }
@@ -277,6 +254,8 @@ object x86Formatter extends Formatter {
 
   private def instructionPostfix(op: Operand, dest: Dest): String =
     instructionPostfix(op) + instructionPostfix(dest)
+  private def instructionPostfix(srcSize: Size, destSize: Size): String =
+    instructionPostfix(srcSize) + instructionPostfix(destSize)
 
   private def instructionPostfix(comparison: Comparison) = comparison match {
     case Eq    => "e"
@@ -285,6 +264,12 @@ object x86Formatter extends Formatter {
     case LtEq  => "le"
     case GtEq  => "ge"
     case NotEq => "ne"
+  }
+
+  private def instructionPostfix(size: Size): String = size match {
+    case Size8  => "b"
+    case Size32 => "l"
+    case Size64 => "q"
   }
 
 }

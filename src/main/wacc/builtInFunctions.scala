@@ -7,31 +7,152 @@ import src.main.wacc.constants._
 object builtInFunctions {
 
   private val maskRsp = AndAsm(Immediate(-16), Rsp)
+  private val errOutOfMemory = "errOutOfMemory"
+  private val errOutOfBounds = "errOutOfBounds"
+
+  val dirGlobl: Directive = Directive("globl main")
+  private val dirStr = "asciz"
+  private val dirSectionData = Directive("section .data")
+
+  val mainLabel: Label = Label("main")
+
+  val errOverflow = "errOverflow"
+  val errDivZero = "errDivZero"
+  val errBadChar = "errBadChar"
+
+  val exit = "exit"
+  val free = "free"
+  val malloc = "malloc"
+
+  val print = "print"
+  val read = "read"
+
+  val stringType = 's'
+  val intType = 'i'
+  val charType = 'c'
+  val printlnType = 'n'
+  val ptrType = 'p'
+  val boolType = 'b'
+
+  val arrStore = "arrStore"
+  val arrLoad = "arrLoad"
 
   lazy val genFunctions: ListBuffer[Instruction] = lb(
-    genCall("exit", provided.exit),
+    genCall(exit, provided.exit),
     genPrint(stringType, "%.*s"),
     genPrint(intType, "%d"),
     genPrint(printlnType, ""),
     genPrint(charType, "%c"),
     genPrint(ptrType, "%p"),
     genPrintBool,
-    genRead(intType, "%d"),
-    genRead(charType, "%c"),
+    genRead(intType, " %d"),
+    genRead(charType, " %c"),
     genMalloc,
-    genCall("free", provided.free),
-    genArrLoad(Size8),
-    genArrLoad(Size32),
-    genArrLoad(Size64),
-    genErr("errOverflow", "fatal error: integer overflow or underflow occurred"),
-    genErr("errDivZero", "fatal error: division or modulo by zero"),
-    genErr("errOutOfMemory", "fatal error: out of memory"),
-    genErr1Arg("errBadChar", "fatal error: int %d is not ascii character 0-127"),
-    genErr1Arg("errOutOfBounds", "fatal error: array index %d out of bounds")
+    genCall(free, provided.free),
+    genArrAccess(Size8, direction = true),
+    genArrAccess(Size32, direction = true),
+    genArrAccess(Size64, direction = true),
+    genArrAccess(Size8, direction = false),
+    genArrAccess(Size32, direction = false),
+    genArrAccess(Size64, direction = false),
+    genErr(errOverflow, "fatal error: integer overflow or underflow occurred"),
+    genErr(errDivZero, "fatal error: division or modulo by zero"),
+    genErr(errOutOfMemory, "fatal error: out of memory"),
+    genErr1Arg(errBadChar, "fatal error: int %d is not ascii character 0-127"),
+    genErr1Arg(errOutOfBounds, "fatal error: array index %d out of bounds")
   )
 
-  def genNewScope(
-      body: ListBuffer[Instruction],
+  /** Updates the symbol table to reflect entry to a new child scope
+    *
+    * @param symTable
+    *   The symbol table to be updated
+    * @param allocator
+    *   The allocator of the parent scope
+    * @param toSave
+    *    List of registers that need to be saved. The list should be in the same order as the
+    *    variables are declared. In general, Allocator.(NON_)PARAM_REGS.take(n) should be used, where
+    *    n is the number of variables declared in the scope.
+    */
+  def symTableEnterScope(
+      symTable: SymbolTable[Dest],
+      allocator: Allocator,
+      toSave: List[Reg],
+      mode: Mode = NonParamMode
+  ): Unit = {
+    val offset = allocator.reservedSpace +
+      (toSave.size + (if (mode == NonParamMode) 1 else 2)) * ptrSize
+
+    var st = Option(symTable)
+    while (st.isDefined) {
+      val table = st.get.table
+      table.keySet.foreach(ident =>
+        table.put(
+          ident,
+          table(ident) match {
+            case Address(Rbp, Immediate(pos), _, _) =>
+              Address(Rbp, Immediate(pos + offset))
+            case r: Reg => r
+            case _ =>
+              throw new IllegalArgumentException("Variable addresses must be relative to Rbp")
+          }
+        )
+      )
+      st = st.get.parent
+    }
+
+    toSave.reverse.zipWithIndex.foreach { case (r, i) =>
+      val ident = symTable.reverseLookup(r).get
+      symTable.put(ident, Address(Rbp, Immediate(i * 8))) // might be (i + 1)
+    }
+  }
+
+  /** Updates the symbol table to reflect exit from a child scope
+    *
+    * @param symTable
+    *   The symbol table to be updated
+    * @param allocator
+    *   The allocator of the parent scope
+    * @param toSave
+    *   List of registers that need to be saved. The list should be in the same order as the
+    *   variables are declared. In general, Allocator.(NON_)PARAM_REGS.take(n) should be used, where
+    *   n is the number of variables declared in the scope.
+    */
+  def symTableExitScope(
+      symTable: SymbolTable[Dest],
+      allocator: Allocator,
+      toSave: List[Reg],
+      mode: Mode = NonParamMode
+  ): Unit = {
+    val offset = allocator.reservedSpace +
+      (toSave.size + (if (mode == NonParamMode) 1 else 2)) * ptrSize
+
+    toSave.reverse.zipWithIndex.foreach { case (r, i) =>
+      val ident =
+        symTable.reverseLookup(Address(Rbp, Immediate(i * ptrSize))).get // might be (i + 1)
+      symTable.put(ident, r)
+    }
+
+    var st = Option(symTable)
+    while (st.isDefined) {
+      val table = st.get.table
+      table.keySet.foreach(ident =>
+        table.put(
+          ident,
+          table(ident) match {
+            case Address(Rbp, Immediate(pos), _, _) =>
+              Address(Rbp, Immediate(pos - offset))
+            case r: Reg => r
+            case _ =>
+              throw new IllegalArgumentException("Variable addresses must be relative to Rbp")
+          }
+        )
+      )
+      st = st.get.parent
+    }
+
+  }
+
+  def genNewScopeEnter(
       toSave: List[Reg],
       toAllocate: List[SymbolTableObj]
   ): ListBuffer[Instruction] = {
@@ -40,34 +161,51 @@ object builtInFunctions {
       Push(Rbp),
       toSave.map(r => Push(r)),
       Mov(Rsp, Rbp),
-      SubAsm(Immediate(size.toLong), Rsp),
-      body,
-      AddAsm(Immediate(size.toLong), Rsp),
-      Mov(Rbp, Rsp),
-      toSave.map(r => Pop(r)),
-      Pop(Rbp)
+      SubAsm(Immediate(size), Rsp)
     )
   }
-  def genNewScope(body: ListBuffer[Instruction]): ListBuffer[Instruction] = {
-    genNewScope(body, List.empty, List.empty)
+  def genNewScopeEnter(): ListBuffer[Instruction] = {
+    genNewScopeEnter(List.empty, List.empty)
   }
-  def genNewScope(
-      body: ListBuffer[Instruction],
+  def genNewScopeEnter(
       vars: List[SymbolTableObj]
   ): ListBuffer[Instruction] = {
     val toSave = Allocator.NON_PARAM_REGS.take(vars.size)
     val toAllocate = vars.drop(Allocator.NON_PARAM_REGS.size)
-    genNewScope(body, toSave, toAllocate)
+    genNewScopeEnter(toSave, toAllocate)
+  }
+
+  def genNewScopeExit(
+      toSave: List[Reg],
+      toAllocate: List[SymbolTableObj]
+  ): ListBuffer[Instruction] = {
+    val size = toAllocate.map(x => Allocator.getTypeWidth(x.typ.get)).sum
+
+    lb(
+      AddAsm(Immediate(size), Rsp),
+      Mov(Rbp, Rsp),
+      toSave.reverse.map(r => { Pop(r) }),
+      Pop(Rbp)
+    )
+  }
+  def genNewScopeExit(): ListBuffer[Instruction] = {
+    genNewScopeExit(List.empty, List.empty)
+  }
+  def genNewScopeExit(
+      toAllocate: List[SymbolTableObj]
+  ): ListBuffer[Instruction] = {
+    val toSave = Allocator.NON_PARAM_REGS.take(toAllocate.size)
+    genNewScopeExit(toSave, toAllocate)
   }
 
   def genDataSection(data: (String, String)*): ListBuffer[Instruction] = lb(
-    Directive("section .data"),
+    dirSectionData,
     lb(
       data.map(kv =>
         lb(
           Directive(s"int ${kv._1.length - kv._1.count(_ == '\\')}"),
           Label(kv._2),
-          Directive(s"asciz \"${kv._1}\"")
+          Directive(s"$dirStr \"${kv._1}\"")
         )
       ): _*
     ),
@@ -76,20 +214,15 @@ object builtInFunctions {
 
   private def genCall(name: String, func: Label): ListBuffer[Instruction] = lb(
     Label(s"_$name"),
-    genNewScope(
-      lb(
-        maskRsp,
-        CallAsm(func)
-      )
+    genNewScopeEnter(),
+    lb(
+      maskRsp,
+      CallAsm(func)
     ),
+    genNewScopeExit(),
     Ret
   )
 
-  private lazy val stringType = 's'
-  private lazy val intType = 'i'
-  private lazy val charType = 'c'
-  private lazy val printlnType = 'n'
-  private lazy val ptrType = 'p'
   private def genPrint(typ: Char, format: String): ListBuffer[Instruction] = {
     val graph: ListBuffer[Instruction] = lb(
       genDataSection(format -> s".print${typ}_format"),
@@ -119,7 +252,7 @@ object builtInFunctions {
 
     printBody += Mov(Immediate(0), Edi(Size64))
     printBody += CallAsm(provided.fflush)
-    graph ++= lb(genNewScope(printBody), Ret)
+    graph ++= lb(genNewScopeEnter(), printBody, genNewScopeExit(), Ret)
   }
 
   private val genPrintBool: ListBuffer[Instruction] = {
@@ -137,7 +270,7 @@ object builtInFunctions {
       Label(".printb_end"),
       CallAsm(Label("_prints"))
     )
-    graph ++= lb(genNewScope(printBody), Ret)
+    graph ++= lb(genNewScopeEnter(), printBody, genNewScopeExit(), Ret)
   }
 
   private def genRead(typ: Char, format: String): ListBuffer[Instruction] = {
@@ -148,15 +281,16 @@ object builtInFunctions {
     val size = if (typ == intType) Size32 else Size8
     val readBody: ListBuffer[Instruction] = lb(
       maskRsp,
-      SubAsm(Immediate(16), Rsp),
-      Mov(Address(Rsp), Edi(size)),
+      SubAsm(Immediate(2 * ptrSize), Rsp),
+      Mov(Edi(size), Address(Rsp), useOpSize = true),
       Lea(Address(Rsp), Esi(Size64)),
       Lea(Address(Rip, Label(s".read${typ}_format")), Edi(Size64)),
       Mov(Immediate(0), Eax(Size8)),
       CallAsm(provided.scanf),
-      Mov(Address(Rsp), Eax(size))
+      Movs(Address(Rsp), Eax(Size64), size, Size64),
+      AddAsm(Immediate(2 * ptrSize), Rsp)
     )
-    instructions ++= lb(genNewScope(readBody), Ret)
+    instructions ++= lb(genNewScopeEnter(), readBody, genNewScopeExit(), Ret)
   }
 
   private def genErr(name: String, msg: String): ListBuffer[Instruction] = {
@@ -188,42 +322,47 @@ object builtInFunctions {
   }
 
   private val genMalloc: ListBuffer[Instruction] = lb(
-    Label("_malloc"),
-    genNewScope(
-      lb(
-        maskRsp,
-        CallAsm(provided.malloc),
-        Cmp(Immediate(0), Eax(Size64)),
-        JmpComparison(Label("_errOutOfMemory"), Eq)
-      )
+    Label(s"_$malloc"),
+    genNewScopeEnter(),
+    lb(
+      maskRsp,
+      CallAsm(provided.malloc),
+      Cmp(Immediate(0), Eax(Size64)),
+      JmpComparison(Label(s"_$errOutOfMemory"), Eq)
     ),
+    genNewScopeExit(),
     Ret
   )
 
   // Special calling convention:
   // R9: array address
   // R10: index
-  // Return: R9 = array[index]
-  private def genArrLoad(size: Size): ListBuffer[Instruction] = {
+  // Rax: value to store (only or store)
+  // Return: R9 = value (only for load)
+  private def genArrAccess(size: Size, direction: Boolean): ListBuffer[Instruction] = {
     val s = size match {
       case Size8  => byteSize
       case Size32 => intSize
       case Size64 => ptrSize
     }
     lb(
-      Label(s"_arrLoad$s"),
-      genNewScope(
-        lb(
-          Cmp(Immediate(0), R10()),
-          CMovl(R10(Size64), Esi(Size64)),
-          JmpComparison(Label("_errOutOfBounds"), Lt),
-          Mov(Address(R9(Size64), Immediate(-4)), Ebx()),
-          Cmp(Ebx(), R10()),
-          CMovge(R10(Size64), Esi(Size64)),
-          JmpComparison(Label("_errOutOfBounds"), Eq),
-          Mov(Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)), R9(Size64))
-        )
+      Label(s"_arr${if (direction) "Store" else "Load"}$s"),
+      genNewScopeEnter(),
+      lb(
+        Cmp(Immediate(0), R10()),
+        CMovl(R10(Size64), Esi(Size64)),
+        JmpComparison(Label(s"_$errOutOfBounds"), Lt),
+        Mov(Address(R9(Size64), Immediate(-4)), Ebx()),
+        Cmp(Ebx(), R10()),
+        CMovge(R10(Size64), Esi(Size64)),
+        JmpComparison(Label(s"_$errOutOfBounds"), GtEq),
+        if (direction)
+          Mov(Eax(size),
+            Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)), useOpSize = true)
+        else
+          Mov(Address(R9(Size64), Immediate(0), R10(Size64), Immediate(s)), R9(size))
       ),
+      genNewScopeExit(),
       Ret
     )
   }
