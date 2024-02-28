@@ -133,6 +133,8 @@ case object Neg extends UnaryOp { override def toString = "-" }
 case object Len extends UnaryOp { override def toString = "len" }
 case object Ord extends UnaryOp { override def toString = "ord" }
 case object Chr extends UnaryOp { override def toString = "chr" }
+
+// Bitwise operators
 case object BitNot extends UnaryOp { override def toString = "~" }
 
 trait Comparison
