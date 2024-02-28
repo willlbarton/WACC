@@ -133,6 +133,7 @@ case object Neg extends UnaryOp { override def toString = "-" }
 case object Len extends UnaryOp { override def toString = "len" }
 case object Ord extends UnaryOp { override def toString = "ord" }
 case object Chr extends UnaryOp { override def toString = "chr" }
+case object BitNot extends UnaryOp { override def toString = "~" }
 
 trait Comparison
 
@@ -154,8 +155,14 @@ case object NotEq extends BinaryOp with Comparison { override def toString = "!=
 case object And extends BinaryOp { override def toString = "&&" }
 case object Or extends BinaryOp { override def toString = "||" }
 
-// Parser bridges used in the parser
+// Bitwise operators
+case object BitAnd extends BinaryOp { override def toString = "&" }
+case object BitOr extends BinaryOp { override def toString = "|" }
+case object BitXor extends BinaryOp { override def toString = "^" }
+case object BitLeftShift extends BinaryOp { override def toString = "<<" }
+case object BitRightShift extends BinaryOp { override def toString = ">>" }
 
+// Parser bridges used in the parser
 object Program extends generic.ParserBridge2[List[Func], List[Stmt], Program]
 object Func extends generic.ParserBridge4[Type, Ident, List[Param], List[Stmt], Func]
 object Param extends generic.ParserBridge2[Type, Ident, Param]

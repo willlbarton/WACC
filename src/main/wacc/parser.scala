@@ -26,16 +26,19 @@ object parser {
 
   // Parses a sequence of statements, which must end with a return or exit
   private lazy val functionStatements: Parsley[List[Stmt]] =
-    (many(atomic(statement <~ ";")),
+    (
+      many(atomic(statement <~ ";")),
       functionReturn.explain("functions must end with a return or exit")
     ).zipped((stmts, ret) => stmts.appended(ret))
 
   // The statements a function may end with, if it has sub-statements it must end with one of these
   private lazy val functionReturn = Return("return" ~> expr) |
     Exit("exit" ~> expr) |
-    IfStmt("if" ~> expr <~ "then".explain("if statements require \'then\'"),
+    IfStmt(
+      "if" ~> expr <~ "then".explain("if statements require \'then\'"),
       functionStatements <~ "else".explain("if statements require an \'else\' branch"),
-      functionStatements <~ "fi".explain("if statements must end in \'fi\'")) |
+      functionStatements <~ "fi".explain("if statements must end in \'fi\'")
+    ) |
     ScopedStmt("begin" ~> functionStatements <~ "end")
 
   // Parses a sequence of statements with no requirement to end with a return or exit
@@ -52,11 +55,16 @@ object parser {
       PrintLn("println" ~> expr) |
       Return("return" ~> expr) |
       Exit("exit" ~> expr) |
-      IfStmt("if" ~> expr <~ "then".explain("if statements require \'then\'"),
+      IfStmt(
+        "if" ~> expr <~ "then".explain("if statements require \'then\'"),
         statements <~ "else".explain("if statements require an \'else\' branch"),
-        statements <~ "fi".explain("if statements must end in \'fi\'")) |
-      While("while" ~> expr <~ "do", statements <~
-        "done".explain("while loops must end with \'done\'")) |
+        statements <~ "fi".explain("if statements must end in \'fi\'")
+      ) |
+      While(
+        "while" ~> expr <~ "do",
+        statements <~
+          "done".explain("while loops must end with \'done\'")
+      ) |
       ScopedStmt("begin" ~> statements <~ "end")
 
   // Parses a type
@@ -69,8 +77,10 @@ object parser {
       "char" #> CharType |
       "string" #> StringType
   private lazy val arrayType: Parsley[ArrayType] =
-    chain.postfix1(atomic(baseType) |
-      atomic(pairType))(("[".label("array") <~ "]") #> ArrayType)
+    chain.postfix1(
+      atomic(baseType) |
+        atomic(pairType)
+    )(("[".label("array") <~ "]") #> ArrayType)
   private lazy val pairElemType: Parsley[PairElemType] =
     atomic(arrayType) | baseType | "pair" #> Pair
 
@@ -99,7 +109,8 @@ object parser {
       Not <# "!",
       Len <# "len ",
       Ord <# "ord ",
-      Chr <# "chr "
+      Chr <# "chr ",
+      BitNot <# "~"
     ),
     Ops(InfixL)(
       Mul <# "*",
@@ -109,6 +120,13 @@ object parser {
     Ops(InfixL)(
       Add <# "+",
       Sub <# "-".label("binary operator")
+    ),
+    Ops(InfixL)(
+      BitXor <# "^",
+      BitOr <# "|",
+      BitAnd <# "&",
+      BitLeftShift <# "<<",
+      BitRightShift <# ">>"
     ),
     Ops(InfixN)(
       GtEq <# ">=",
