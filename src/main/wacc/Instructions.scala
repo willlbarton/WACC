@@ -249,7 +249,7 @@ object x86Formatter extends Formatter {
         case Size64 => "q"
       }
     case _: Address => "q"
-    case _          => ???
+    case _          => throw new IllegalArgumentException(s"Invalid postfix argument: $location")
   }
 
   private def instructionPostfix(op: Operand, dest: Dest): String =
@@ -281,4 +281,5 @@ object constants {
   val boolTrue: Immediate = Immediate(1)
   val badChar: Immediate = Immediate(-128)
   val exitSuccess: Immediate = Immediate(0)
+  val nullPtr: Immediate = Immediate(0)
 }

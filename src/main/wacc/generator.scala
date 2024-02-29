@@ -441,22 +441,27 @@ object generator {
         throw new IllegalArgumentException(s"Read called with unsupported type: ${lval.typ.get}")
     }
     lval match {
-      case id: Ident =>
-        lb(
-          Mov(symTable(id).get, Edi(Size64)),
-          call,
-          Mov(Eax(Size64), symTable(id).get)
-        )
-      case _ =>
-        lb(
-          genLVal(lval, symTable),
-          Pop(Ebx(Size64)),
-          Mov(Address(Ebx(Size64)), Edi(Size64)),
-          Push(Ebx(Size64)),
-          call,
-          Pop(Ebx(Size64)),
-          Mov(Eax(Size64), Address(Ebx(Size64)))
-        )
+      case id: Ident => lb(
+        Mov(symTable(id).get, Edi(Size64)),
+        call,
+        Mov(Eax(Size64), symTable(id).get)
+      )
+      case _ => lb(
+        genLVal(lval, symTable),
+        Pop(Ebx(Size64)),
+        lval match {
+          case Fst(_) | Snd(_) => lb(
+            Cmp(nullPtr, Ebx(Size64)),
+            JmpComparison(Label(s"_$errNull"), Eq)
+          )
+          case _ => lb()
+        },
+        Mov(Address(Ebx(Size64)), Edi(Size64)),
+        Push(Ebx(Size64)),
+        call,
+        Pop(Ebx(Size64)),
+        Mov(Eax(Size64), Address(Ebx(Size64)))
+      )
     }
   }
 
@@ -532,7 +537,7 @@ object generator {
           case Some(value) => Mov(value, Eax(Size64))
           case None        => throw new NoSuchElementException(s"Variable $name not found")
         }
-      case Null => Mov(Immediate(0), Eax(Size64))
+      case Null => Mov(nullPtr, Eax(Size64))
 
       case BinaryApp(op, left, right) => genBinaryApp(op, left, right, symTable)
       case UnaryApp(op, expr)         => genUnaryApp(op, expr, symTable)
