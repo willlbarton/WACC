@@ -440,7 +440,7 @@ object generator {
             case Fst(_) | Snd(_) => genPairElem(value, symTable)
             case _ => genLVal(value, symTable)
           },
-          checkNullPtr
+          if (deref_?) checkNullPtr else lb(),
         )
         case Snd(value) => lb(
           value match {
@@ -448,7 +448,7 @@ object generator {
             case _ => genLVal(value, symTable)
           },
           Pop(Eax(Size64)),
-          checkNullPtr,
+          if (deref_?) checkNullPtr else lb(),
           AddAsm(Immediate(ptrSize), Eax(Size64))
         )
         case _ => throw new IllegalArgumentException(s"Fst or Snd expected, got: ${lval.getClass}")
