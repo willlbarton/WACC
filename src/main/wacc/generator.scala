@@ -4,7 +4,6 @@ import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import src.main.wacc.constants._
 import src.main.wacc.builtInFunctions._
-import scala.sys.process._
 
 object generator {
 
@@ -42,9 +41,10 @@ object generator {
 
     val mainSymTable: SymbolTable[Dest] = SymbolTable(None)
     val allocator = Allocator(program.vars)
+
     val mainBody = lb(
       genStmts(program.body, mainSymTable, allocator),
-      Mov(Immediate(0), Eax(Size64))
+      Mov(exitSuccess, Eax(Size64)),
     )
 
     val savedRegs = Allocator.NON_PARAM_REGS.take(program.vars.size)
@@ -203,7 +203,7 @@ object generator {
       labelExpr,
       generatedExpr,
       Pop(Eax(Size64)),
-      Cmp(Immediate(1), Eax(Size64)),
+      Cmp(boolTrue, Eax(Size64)),
       JmpComparison(labelStmts, Eq)
     )
   }
@@ -305,44 +305,57 @@ object generator {
           Pop(R9(Size64)),
           CallAsm(Label(s"_$arrStore${Allocator.getTypeWidth(typ)}"))
         )
-      case Fst(f) =>
-        lb(
-          genLVal(f, symTable),
-          genRval(value, symTable, allocator),
-          Pop(Eax(Size64))
-          // Implement: Store the value in the pair
-        )
-      case Snd(s) =>
-        lb(
-          genLVal(s, symTable),
-          genRval(value, symTable, allocator),
-          Pop(Eax(Size64))
-          // Implement: Store the value in the pair
-        )
+      case f @ Fst(_) => asgnPairElem(f, value, symTable, allocator)
+      case s @ Snd(_) => asgnPairElem(s, value, symTable, allocator, snd_? = true)
     }
   }
 
-  private def genFreeStmt(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
-    genExpr(expr, symTable),
+  private def asgnPairElem(
+    left: LVal,
+    right: RVal,
+    symTable: SymbolTable[Dest],
+    allocator: Allocator,
+    snd_? :Boolean = false
+  ): ListBuffer[Instruction] = lb(
+    genLVal(left, symTable),
+    genRval(right, symTable, allocator),
     Pop(Eax(Size64)),
-    Mov(Eax(Size64), Edi(Size64)),
-    SubAsm(Immediate(4), Edi(Size64)),
-    CallAsm(Label(s"_$free"))
+    Pop(Ebx(Size64)),
+    Cmp(nullPtr, Ebx(Size64)),
+    JmpComparison(Label(s"_$errNull"), Eq),
+    Mov(Eax(Size64), Address(Ebx(Size64), Immediate(if (snd_?) ptrSize else 0))
+    )
   )
+
+  private def genFreeStmt(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
+    expr.typ.get match {
+      case ArrayType(_) => lb(
+        genExpr(expr, symTable),
+        Pop(Eax(Size64)),
+        Mov(Eax(Size64), Edi(Size64)),
+        SubAsm(Immediate(4), Edi(Size64)),
+        CallAsm(Label(s"_$free"))
+      )
+      case PairType(_, _) | Pair => lb(
+        genExpr(expr, symTable),
+        Pop(Eax(Size64)),
+        Mov(Eax(Size64), Edi(Size64)),
+        CallAsm(Label(s"_$freepair"))
+      )
+    }
 
   private def genRval(
       value: RVal,
       symTable: SymbolTable[Dest],
       allocator: Allocator
-  ): ListBuffer[Instruction] =
-    value match {
-      case e: Expr       => genExpr(e, symTable)
-      case a: ArrayLiter => genArray(value.typ.get, a, symTable)
-      case c: Call       => genCall(c, symTable, allocator)
-      case NewPair(a, b) => genPair(a, b, symTable)
-      case Fst(f)        => genPairElem(f, symTable, 0)
-      case Snd(s)        => genPairElem(s, symTable, 8)
-    }
+  ): ListBuffer[Instruction] = value match {
+    case e: Expr       => genExpr(e, symTable)
+    case a: ArrayLiter => genArray(a, symTable)
+    case c: Call       => genCall(c, symTable, allocator)
+    case NewPair(a, b) => genPair(a, b, symTable)
+    case f @ Fst(v)    => genPairElem(f, symTable, deref_? = v.isInstanceOf[Fst] || v.isInstanceOf[Snd])
+    case s @ Snd(v)    => genPairElem(s, symTable, deref_? = v.isInstanceOf[Fst] || v.isInstanceOf[Snd])
+  }
 
   private def genCall(
       c: Call,
@@ -364,14 +377,14 @@ object generator {
   }
 
   private def genArray(
-      t: Type,
       a: ArrayLiter,
       symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] = {
-    val typ = t match {
+    val typ = a.typ.get match {
       case ArrayType(t) => t
       case StringType   => CharType
-      case _            => throw new IllegalArgumentException(s"Type $t was not an array")
+      case NullType     => ArrayType(NullType)
+      case _            => throw new IllegalArgumentException(s"Type ${a.typ.get} was not an array")
     }
     val elemSize = Allocator.getTypeWidth(typ)
     val size = intSize + a.elems.length * elemSize
@@ -394,57 +407,57 @@ object generator {
     )
   }
 
-  private def genPair(
-      a: Expr,
-      b: Expr,
-      symTable: SymbolTable[Dest]
-  ): ListBuffer[Instruction] = {
-    lb(
-      Mov(Immediate(16), Edi()),
-      CallAsm(Label(s"_$malloc")),
-      Mov(Eax(Size64), R11(Size64)),
-      genExpr(a, symTable),
-      Pop(Eax(Size64)),
-      Mov(Eax(Size64), Address(R11(Size64), Immediate(0))),
-      genExpr(b, symTable),
-      Pop(Eax(Size64)),
-      Mov(Eax(Size64), Address(R11(Size64), Immediate(8))),
-      Push(R11(Size64))
-    )
-  }
+  private def genPair(a: Expr, b: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
+    Mov(Immediate(2 * ptrSize), Edi()),
+    CallAsm(Label(s"_$malloc")),
+    Mov(Eax(Size64), R11(Size64)),
+    genExpr(a, symTable),
+    Pop(Eax(Size64)),
+    Mov(Eax(Size64), Address(R11(Size64))),
+    genExpr(b, symTable),
+    Pop(Eax(Size64)),
+    Mov(Eax(Size64), Address(R11(Size64), Immediate(ptrSize))),
+    Push(R11(Size64))
+  )
+
+  private val checkNullPtr = lb(
+    Cmp(nullPtr, Eax(Size64)),
+    JmpComparison(Label(s"_$errNull"), Eq)
+  )
 
   private def genPairElem(
       lval: LVal,
       symTable: SymbolTable[Dest],
-      offset: Int
-  ): ListBuffer[Instruction] = lval match {
-    case id: Ident => {
-      val dest = symTable(id).get
-      lb(
-        Mov(dest, Eax(Size64)),
-        Mov(Address(Eax(Size64), Immediate(offset)), Eax(Size64)),
-        Push(Eax(Size64))
-      )
-    }
-    case b: ArrayElem => {
-      val dest = symTable(b.ident).get
-      val typ = b.ident.typ.get
-      typ match {
-        case PairType(_, _) | Pair =>
-          lb(
-            genArrayElem(b.ident, b.exprs.init, symTable),
-            Mov(dest, Eax(Size64)),
-            Mov(Address(Eax(Size64), Immediate(offset)), Eax(Size64))
-          )
-        case _ => throw new IllegalArgumentException(s"Type $typ was not a pair")
-      }
-    }
-    case Fst(value) => genPairElem(value, symTable, 0)
-    case Snd(value) => genPairElem(value, symTable, 8)
+      deref_? : Boolean = true
+  ): ListBuffer[Instruction] = {
+    val deref = if (deref_?) lb(
+      Mov(Address(Eax(Size64)), Eax(Size64)),
+    ) else lb()
+    lb(
+      lval match {
+        case Fst(value) => lb(
+          value match {
+            case Fst(_) | Snd(_) => genPairElem(value, symTable)
+            case _ => genLVal(value, symTable)
+          },
+          checkNullPtr
+        )
+        case Snd(value) => lb(
+          value match {
+            case Fst(_) | Snd(_) => genPairElem(value, symTable)
+            case _ => genLVal(value, symTable)
+          },
+          Pop(Eax(Size64)),
+          checkNullPtr,
+          AddAsm(Immediate(ptrSize), Eax(Size64))
+        )
+        case _ => throw new IllegalArgumentException(s"Fst or Snd expected, got: ${lval.getClass}")
+      },
+      deref,
+      Push(Eax(Size64))
+    )
   }
 
-  private val eof = -1
-  private var d = 0
   private def genReadStmt(symTable: SymbolTable[Dest], lval: LVal): ListBuffer[Instruction] = {
     val call = lval.typ match {
       case Some(CharType) => CallAsm(Label(s"_$read$charType"))
@@ -453,22 +466,27 @@ object generator {
         throw new IllegalArgumentException(s"Read called with unsupported type: ${lval.typ.get}")
     }
     lval match {
-      case id: Ident =>
-        lb(
-          Mov(symTable(id).get, Edi(Size64)),
-          call,
-          Mov(Eax(Size64), symTable(id).get)
-        )
-      case _ =>
-        lb(
-          genLVal(lval, symTable),
-          Pop(Ebx(Size64)),
-          Mov(Address(Ebx(Size64)), Edi(Size64)),
-          Push(Ebx(Size64)),
-          call,
-          Pop(Ebx(Size64)),
-          Mov(Eax(Size64), Address(Ebx(Size64)))
-        )
+      case id: Ident => lb(
+        Mov(symTable(id).get, Edi(Size64)),
+        call,
+        Mov(Eax(Size64), symTable(id).get)
+      )
+      case _ => lb(
+        genLVal(lval, symTable),
+        Pop(Ebx(Size64)),
+        lval match {
+          case Fst(_) | Snd(_) => lb(
+            Cmp(nullPtr, Ebx(Size64)),
+            JmpComparison(Label(s"_$errNull"), Eq)
+          )
+          case _ => lb()
+        },
+        Mov(Address(Ebx(Size64)), Edi(Size64)),
+        Push(Ebx(Size64)),
+        call,
+        Pop(Ebx(Size64)),
+        Mov(Eax(Size64), Address(Ebx(Size64)))
+      )
     }
   }
 
@@ -489,27 +507,26 @@ object generator {
     )
   }
 
-  private def genExit(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
-    lb(
-      genExpr(expr, symTable),
-      Pop(Eax(Size64)),
-      Mov(Eax(Size64), Edi(Size64)),
-      CallAsm(Label(s"_$exit")),
-      Mov(Immediate(0), Eax())
-    )
+  private def genExit(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
+    genExpr(expr, symTable),
+    Pop(Eax(Size64)),
+    Mov(Eax(Size64), Edi(Size64)),
+    CallAsm(Label(s"_$exit")),
+    Mov(Immediate(0), Eax())
+  )
 
   private def genLVal(lval: LVal, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
     lval match {
       case id: Ident               => lb(Push(symTable(id).get))
       case ArrayElem(ident, exprs) => genArrayElem(ident, exprs.init, symTable)
-      case Fst(f)                  => genPairElem(f, symTable, 0)
-      case Snd(s)                  => genPairElem(s, symTable, 8)
+      case f @ Fst(_)              => genPairElem(f, symTable, deref_? = false)
+      case s @ Snd(_)              => genPairElem(s, symTable, deref_? = false)
     }
 
   private def genArrayElem(
-      ident: Ident,
-      exprs: List[Expr],
-      symTable: SymbolTable[Dest]
+    ident: Ident,
+    exprs: List[Expr],
+    symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] = {
     val dest = symTable(ident).get
     var typ: Type = ident.typ.get
@@ -545,7 +562,7 @@ object generator {
           case Some(value) => Mov(value, Eax(Size64))
           case None        => throw new NoSuchElementException(s"Variable $name not found")
         }
-      case Null => Mov(Immediate(0), Eax(Size64))
+      case Null => Mov(nullPtr, Eax(Size64))
 
       case BinaryApp(op, left, right) => genBinaryApp(op, left, right, symTable)
       case UnaryApp(op, expr)         => genUnaryApp(op, expr, symTable)
@@ -573,42 +590,37 @@ object generator {
       Pop(Eax(Size64)),
       Pop(Ebx(Size64)),
       op match {
-        case Add | Sub | Mul =>
-          lb(
-            op match {
-              case Add => AddAsm(Ebx(Size32), Eax(Size32))
-              case Sub => SubAsm(Ebx(Size32), Eax(Size32))
-              case Mul => Imul(Ebx(Size32), Eax(Size32))
-            },
-            Jo(Label(s"_$errOverflow")),
-            Movs(Eax(Size32), Eax(Size64), Size32, Size64)
-          )
-
-        case Eq | NotEq | Gt | GtEq | Lt | LtEq =>
-          lb(
-            Cmp(Ebx(size), Eax(size)),
-            SetAsm(Eax(Size8), op.asInstanceOf[Comparison]),
-            Movs(Eax(Size8), Eax(Size64), Size8, Size64)
-          )
-        case Mod | Div =>
-          lb(
-            Cmp(Immediate(0), Ebx(Size32)),
-            JmpComparison(Label(s"_$errDivZero"), Eq),
-            // As Cltd will write into edx?? This isn't in reference compiler I just did it.
-            Push(Edx(Size64)),
-            Cltd,
-            Idiv(Ebx(Size32)),
-            if (op == Mod) Mov(Edx(Size32), Eax(Size32)) else lb(),
-            Movs(Eax(Size32), Eax(Size64), Size32, Size64),
-            Pop(Edx(Size64)) // Pop back
-          )
-
+        case Add | Sub | Mul => lb(
+          op match {
+            case Add => AddAsm(Ebx(Size32), Eax(Size32))
+            case Sub => SubAsm(Ebx(Size32), Eax(Size32))
+            case Mul => Imul(Ebx(Size32), Eax(Size32))
+          },
+          Jo(Label(s"_$errOverflow")),
+          Movs(Eax(Size32), Eax(Size64), Size32, Size64)
+        )
+        case Eq | NotEq | Gt | GtEq | Lt | LtEq => lb(
+          Cmp(Ebx(size), Eax(size)),
+          SetAsm(Eax(Size8), op.asInstanceOf[Comparison]),
+          Movs(Eax(Size8), Eax(Size64), Size8, Size64)
+        )
+        case Mod | Div => lb(
+          Cmp(Immediate(0), Ebx(Size32)),
+          JmpComparison(Label(s"_$errDivZero"), Eq),
+          // As Cltd will write into edx?? This isn't in reference compiler I just did it.
+          Push(Edx(Size64)),
+          Cltd,
+          Idiv(Ebx(Size32)),
+          if (op == Mod) Mov(Edx(Size32), Eax(Size32)) else lb(),
+          Movs(Eax(Size32), Eax(Size64), Size32, Size64),
+          Pop(Edx(Size64)) // Pop back
+        )
         case Or | And =>
           val label = Allocator.allocateLabel
           lb(
-            Cmp(Immediate(1), Eax(Size64)),
+            Cmp(boolTrue, Eax(Size64)),
             if (op == Or) JmpComparison(label, Eq) else JmpComparison(label, NotEq),
-            Cmp(Immediate(1), Ebx(Size64)),
+            Cmp(boolTrue, Ebx(Size64)),
             label,
             SetAsm(Eax(Size8), Eq),
             Movs(Eax(Size8), Eax(Size64), Size8, Size64)
@@ -628,7 +640,7 @@ object generator {
       case Chr =>
         lb(
           Movs(Eax(Size8), Eax(Size64), Size8, Size64),
-          Testq(Immediate(-128), Eax(Size64)),
+          Testq(badChar, Eax(Size64)),
           CMovne(Eax(Size64), Esi(Size64)),
           JmpComparison(Label(s"_$errBadChar"), NotEq)
         )
@@ -645,7 +657,7 @@ object generator {
         )
       case Not =>
         lb(
-          Cmp(Immediate(1), Eax(Size64)),
+          Cmp(boolTrue, Eax(Size64)),
           SetAsm(Eax(Size8), NotEq),
           Movs(Eax(Size8), Eax(Size64), Size8, Size64)
         )
@@ -653,11 +665,4 @@ object generator {
         lb(Movs(Eax(Size8), Eax(Size64), Size8, Size64)) // Do nothing as char already being stored as a Long in eax
     }
   )
-
-  def main(args: Array[String]): Unit = {
-    val process = Process("./writeFst")
-    val output = new StringBuilder
-    val exitCode = process ! ProcessLogger(output.append(_))
-    println(output)
-  }
 }

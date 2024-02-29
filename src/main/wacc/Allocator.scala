@@ -50,7 +50,7 @@ object Allocator {
   val PARAM_REGS: List[Reg] =
     List(Edi(Size64), Esi(Size64), Edx(Size64), Ecx(Size64), R8(Size64), R9(Size64))
   val NON_PARAM_REGS: List[Reg] =
-    List( /*R10(Size64), R11(Size64),*/ R12(Size64), R13(Size64), R14(Size64), R15(Size64))
+    List(R12(Size64), R13(Size64), R14(Size64), R15(Size64))
 
   var label = 0
 
@@ -73,7 +73,7 @@ object Allocator {
     case NullType => throw new IllegalArgumentException("NullType should not be allocated")
   }
 
-  def getTypeSize(t: Type) = t match {
+  def getTypeSize(t: Type): Size = t match {
     case CharType | BoolType                               => Size8
     case IntType                                           => Size32
     case StringType | ArrayType(_) | PairType(_, _) | Pair => Size64
