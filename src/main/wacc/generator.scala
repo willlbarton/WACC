@@ -269,8 +269,20 @@ object generator {
           Pop(R9(Size64)),
           CallAsm(Label(s"_$arrStore${Allocator.getTypeWidth(typ)}"))
         )
-      case Fst(f) => lb()
-      case Snd(s) => lb()
+      case Fst(f) =>
+        lb(
+          genLVal(f, symTable),
+          genRval(value, symTable, allocator),
+          Pop(Eax(Size64))
+          // Implement: Store the value in the pair
+        )
+      case Snd(s) =>
+        lb(
+          genLVal(s, symTable),
+          genRval(value, symTable, allocator),
+          Pop(Eax(Size64))
+          // Implement: Store the value in the pair
+        )
     }
   }
 
@@ -605,10 +617,10 @@ object generator {
     }
   )
 
-  // def main(args: Array[String]): Unit = {
-  //   val process = Process("./printPair")
-  //   val output = new StringBuilder
-  //   val exitCode = process ! ProcessLogger(output.append(_))
-  //   println(output)
-  // }
+  def main(args: Array[String]): Unit = {
+    val process = Process("./writeFst")
+    val output = new StringBuilder
+    val exitCode = process ! ProcessLogger(output.append(_))
+    println(output)
+  }
 }
