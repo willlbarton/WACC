@@ -344,13 +344,25 @@ object generator {
       value: RVal,
       symTable: SymbolTable[Dest],
       allocator: Allocator
-  ): ListBuffer[Instruction] = value match {
-    case e: Expr       => genExpr(e, symTable)
-    case a: ArrayLiter => genArray(a, symTable)
-    case c: Call       => genCall(c, symTable, allocator)
-    case NewPair(a, b) => genPair(a, b, symTable)
-    case f @ Fst(v)    => genPairElem(f, symTable, deref_? = v.isInstanceOf[Fst] || v.isInstanceOf[Snd])
-    case s @ Snd(v)    => genPairElem(s, symTable, deref_? = v.isInstanceOf[Fst] || v.isInstanceOf[Snd])
+  ): ListBuffer[Instruction] =
+    value match {
+      case e: Expr       => genExpr(e, symTable)
+      case a: ArrayLiter => genArray(a, symTable)
+      case c: Call       => genCall(c, symTable, allocator)
+      case NewPair(a, b) => genPair(a, b, symTable)
+      case f @ Fst(_)    => genPairRval(f, symTable)
+      case s @ Snd(_)    => genPairRval(s, symTable, snd_? = true)
+    }
+
+  private def genPairRval(value: LVal, symTable: SymbolTable[Dest], snd_? : Boolean = false) = {
+    genPairElem(value, symTable, snd_?) ++= lb(
+      Pop(Eax(Size64)),
+      Cmp(nullPtr, Eax(Size64)),
+      JmpComparison(Label(s"_$errNull"), Eq),
+      Mov(Address(Eax(Size64)),
+      Eax(Size64)),
+      Push(Eax(Size64))
+    )
   }
 
   private def genCall(
@@ -424,34 +436,16 @@ object generator {
   private def genPairElem(
       lval: LVal,
       symTable: SymbolTable[Dest],
-      deref_? : Boolean = true
-  ): ListBuffer[Instruction] = {
-    val deref = if (deref_?) lb(
-      Mov(Address(Eax(Size64)), Eax(Size64)),
-    ) else lb()
-    lb(
-      lval match {
-        case Fst(value) => lb(
-          value match {
-            case Fst(_) | Snd(_) => genPairElem(value, symTable)
-            case _ => genLVal(value, symTable)
-          },
-          checkNullPtr
-        )
-        case Snd(value) => lb(
-          value match {
-            case Fst(_) | Snd(_) => genPairElem(value, symTable)
-            case _ => genLVal(value, symTable)
-          },
-          Pop(Eax(Size64)),
-          checkNullPtr,
-          AddAsm(Immediate(ptrSize), Eax(Size64))
-        )
-        case _ => throw new IllegalArgumentException(s"Fst or Snd expected, got: ${lval.getClass}")
-      },
-      deref,
+      snd_? : Boolean = false
+  ): ListBuffer[Instruction] = lval match {
+    case Fst(value) => genLVal(value, symTable)
+    case Snd(value) => lb(
+      genLVal(value, symTable),
+      Pop(Eax(Size64)),
+      AddAsm(Immediate(ptrSize), Eax(Size64)),
       Push(Eax(Size64))
     )
+    case _ => throw new IllegalArgumentException(s"Fst or Snd expected, got: ${lval.getClass}")
   }
 
   private def genReadStmt(symTable: SymbolTable[Dest], lval: LVal): ListBuffer[Instruction] = {
@@ -515,8 +509,12 @@ object generator {
     lval match {
       case id: Ident               => lb(Push(symTable(id).get))
       case ArrayElem(ident, exprs) => genArrayElem(ident, exprs.init, symTable)
-      case f @ Fst(_)              => genPairElem(f, symTable, deref_? = false)
-      case s @ Snd(_)              => genPairElem(s, symTable, deref_? = false)
+      case Fst(f @ Fst(_))         => genRval(f, symTable, Allocator(0, ParamMode))
+      case Fst(f @ Snd(_))         => genRval(f, symTable, Allocator(0, ParamMode))
+      case Snd(f @ Fst(_))         => genRval(f, symTable, Allocator(0, ParamMode))
+      case Snd(f @ Snd(_))         => genRval(f, symTable, Allocator(0, ParamMode))
+      case f @ Fst(_)              => genPairElem(f, symTable)
+      case s @ Snd(_)              => genPairElem(s, symTable, snd_? = true)
     }
 
   private def genArrayElem(

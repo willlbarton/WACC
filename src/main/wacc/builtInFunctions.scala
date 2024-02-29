@@ -314,7 +314,7 @@ object builtInFunctions {
     lb(
       genDataSection(s"$msg\\n" -> s".$name"),
       Label(s"_$name"),
-      AddAsm(Immediate(-16), Rsp),
+      maskRsp,
       Lea(Address(Rip, Label(s".$name")), Edi(Size64)),
       Mov(Immediate(0), Eax(Size8)),
       CallAsm(provided.printf),
