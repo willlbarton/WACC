@@ -305,22 +305,27 @@ object generator {
           Pop(R9(Size64)),
           CallAsm(Label(s"_$arrStore${Allocator.getTypeWidth(typ)}"))
         )
-      case Fst(f) => lb(
-          genLVal(f, symTable),
-          genRval(value, symTable, allocator),
-          Pop(Eax(Size64)),
-          Pop(Ebx(Size64)),
-          Mov(Eax(Size64), Address(Ebx(Size64)))
-        )
-      case Snd(s) => lb(
-          genLVal(s, symTable),
-          genRval(value, symTable, allocator),
-          Pop(Eax(Size64)),
-          Pop(Ebx(Size64)),
-          Mov(Eax(Size64), Address(Ebx(Size64), Immediate(ptrSize)))
-        )
+      case Fst(f) => asgnPairElem(f, value, symTable, allocator)
+      case Snd(s) => asgnPairElem(s, value, symTable, allocator, snd_? = true)
     }
   }
+
+  private def asgnPairElem(
+    left: LVal,
+    right: RVal,
+    symTable: SymbolTable[Dest],
+    allocator: Allocator,
+    snd_? :Boolean = false
+  ): ListBuffer[Instruction] = lb(
+    genLVal(left, symTable),
+    genRval(right, symTable, allocator),
+    Pop(Eax(Size64)),
+    Pop(Ebx(Size64)),
+    Cmp(nullPtr, Ebx(Size64)),
+    JmpComparison(Label(s"_$errNull"), Eq),
+    Mov(Eax(Size64), Address(Ebx(Size64), Immediate(if (snd_?) ptrSize else 0))
+    )
+  )
 
   private def genFreeStmt(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
     expr.typ.get match {
