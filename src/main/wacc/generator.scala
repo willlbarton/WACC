@@ -1,13 +1,9 @@
 package src.main.wacc
 
-import src.main.wacc
-
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import src.main.wacc.constants._
 import src.main.wacc.builtInFunctions._
-
-import scala.annotation.tailrec
 
 object generator {
 
@@ -46,12 +42,16 @@ object generator {
     val mainSymTable: SymbolTable[Dest] = SymbolTable(None)
     val allocator = Allocator(program.vars)
 
+    val mainBody = lb(
+      genStmts(program.body, mainSymTable, allocator),
+      Mov(exitSuccess, Eax(Size64)),
+    )
+
     val savedRegs = Allocator.NON_PARAM_REGS.take(program.vars.size)
     symTableEnterScope(mainSymTable, allocator, savedRegs)
     instructions ++= lb(
       genNewScopeEnter(program.vars),
-      genStmts(program.body, mainSymTable, allocator),
-      Mov(exitSuccess, Eax(Size64)),
+      mainBody,
       genNewScopeExit(program.vars),
       Ret,
       program.functions.flatMap(x => genFunc(x)),
@@ -340,8 +340,10 @@ object generator {
       case a: ArrayLiter => genArray(value.typ.get, a, symTable)
       case c: Call       => genCall(c, symTable, allocator)
       case NewPair(a, b) => genPair(a, b, symTable)
-      case Fst(f)        => genPairElem(f, symTable)
-      case Snd(s)        => genPairElem(s, symTable, snd_? = true)
+      case f @ Fst(_)    => genPairElem(f, symTable) ++=
+        lb(Pop(Eax(Size64)), Mov(Address(Eax(Size64)), Eax(Size64)), Push(Eax(Size64)))
+      case s @ Snd(_)    => genPairElem(s, symTable, snd_? = true) ++=
+        lb(Pop(Eax(Size64)), Mov(Address(Eax(Size64)), Eax(Size64)), Push(Eax(Size64)))
     }
 
   private def genCall(
@@ -407,33 +409,19 @@ object generator {
     Push(R11(Size64))
   )
 
-  @tailrec
   private def genPairElem(
       lval: LVal,
       symTable: SymbolTable[Dest],
       snd_? : Boolean = false
-  ): ListBuffer[Instruction] = {
-    val offset = if (snd_?) ptrSize else 0
-    lval match {
-      case id: Ident => lb(
-        Mov(symTable(id).get, Eax(Size64)),
-        Mov(Address(Eax(Size64), Immediate(offset)), Eax(Size64)),
-        Push(Eax(Size64))
-      )
-      case b: ArrayElem =>
-        val dest = symTable(b.ident).get
-        val typ = b.ident.typ.get
-        typ match {
-          case PairType(_, _) | Pair => lb(
-            genArrayElem(b.ident, b.exprs.init, symTable),
-            Mov(dest, Eax(Size64)),
-            Mov(Address(Eax(Size64), Immediate(offset)), Eax(Size64))
-          )
-          case _ => throw new IllegalArgumentException(s"Type $typ was not a pair")
-        }
-      case Fst(value) => genPairElem(value, symTable)
-      case Snd(value) => genPairElem(value, symTable, snd_? = true)
-    }
+  ): ListBuffer[Instruction] = lval match {
+    case Fst(value) => genLVal(value, symTable)
+    case Snd(value) => lb(
+      genLVal(value, symTable),
+      Pop(Eax(Size64)),
+      AddAsm(Immediate(ptrSize), Eax(Size64)),
+      Push(Eax(Size64))
+    )
+    case _ => throw new IllegalArgumentException(s"Fst or Snd expected, got: ${lval.getClass}")
   }
 
   private def genReadStmt(symTable: SymbolTable[Dest], lval: LVal): ListBuffer[Instruction] = {
@@ -492,8 +480,8 @@ object generator {
     lval match {
       case id: Ident               => lb(Push(symTable(id).get))
       case ArrayElem(ident, exprs) => genArrayElem(ident, exprs.init, symTable)
-      case Fst(f)                  => genPairElem(f, symTable)
-      case Snd(s)                  => genPairElem(s, symTable, snd_? = true)
+      case f @ Fst(_)              => genPairElem(f, symTable)
+      case s @ Snd(_)              => genPairElem(s, symTable, snd_? = true)
     }
 
   private def genArrayElem(
