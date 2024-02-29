@@ -305,8 +305,8 @@ object generator {
           Pop(R9(Size64)),
           CallAsm(Label(s"_$arrStore${Allocator.getTypeWidth(typ)}"))
         )
-      case Fst(f) => asgnPairElem(f, value, symTable, allocator)
-      case Snd(s) => asgnPairElem(s, value, symTable, allocator, snd_? = true)
+      case f @ Fst(_) => asgnPairElem(f, value, symTable, allocator)
+      case s @ Snd(_) => asgnPairElem(s, value, symTable, allocator, snd_? = true)
     }
   }
 
@@ -508,14 +508,18 @@ object generator {
     lval match {
       case id: Ident               => lb(Push(symTable(id).get))
       case ArrayElem(ident, exprs) => genArrayElem(ident, exprs.init, symTable)
+      case Fst(f @ Fst(_))         => genRval(f, symTable, Allocator(0, ParamMode))
+      case Fst(f @ Snd(_))         => genRval(f, symTable, Allocator(0, ParamMode))
+      case Snd(f @ Fst(_))         => genRval(f, symTable, Allocator(0, ParamMode))
+      case Snd(f @ Snd(_))         => genRval(f, symTable, Allocator(0, ParamMode))
       case f @ Fst(_)              => genPairElem(f, symTable)
       case s @ Snd(_)              => genPairElem(s, symTable, snd_? = true)
     }
 
   private def genArrayElem(
-      ident: Ident,
-      exprs: List[Expr],
-      symTable: SymbolTable[Dest]
+    ident: Ident,
+    exprs: List[Expr],
+    symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] = {
     val dest = symTable(ident).get
     var typ: Type = ident.typ.get

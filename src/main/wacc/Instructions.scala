@@ -252,8 +252,6 @@ object x86Formatter extends Formatter {
     case _          => throw new IllegalArgumentException(s"Invalid postfix argument: $location")
   }
 
-  private def instructionPostfix(op: Operand, dest: Dest): String =
-    instructionPostfix(op) + instructionPostfix(dest)
   private def instructionPostfix(srcSize: Size, destSize: Size): String =
     instructionPostfix(srcSize) + instructionPostfix(destSize)
 
