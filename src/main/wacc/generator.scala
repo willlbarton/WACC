@@ -317,7 +317,7 @@ object generator {
     genRval(right, symTable, allocator),
     Pop(Eax(Size64)),
     Pop(Ebx(Size64)),
-    Mov(Eax(Size64), Address(Ebx(Size64), Immediate(if (snd_?) ptrSize else 0))
+    Mov(Eax(Size64), Address(Ebx(Size64))
     )
   )
 
