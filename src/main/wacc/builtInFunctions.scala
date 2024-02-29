@@ -378,7 +378,8 @@ object builtInFunctions {
     Cmp(Immediate(0), Edi(Size64)),
     JmpComparison(Label(s"_$errNull"), Eq),
     CallAsm(provided.free),
-    genNewScopeExit()
+    genNewScopeExit(),
+    Ret
   )
 }
 
