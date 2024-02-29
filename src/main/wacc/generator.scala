@@ -428,24 +428,27 @@ object generator {
     Push(R11(Size64))
   )
 
-  private val checkNullPtr = lb(
-    Cmp(nullPtr, Eax(Size64)),
-    JmpComparison(Label(s"_$errNull"), Eq)
-  )
-
   private def genPairElem(
       lval: LVal,
       symTable: SymbolTable[Dest],
-      snd_? : Boolean = false
-  ): ListBuffer[Instruction] = lval match {
-    case Fst(value) => genLVal(value, symTable)
-    case Snd(value) => lb(
-      genLVal(value, symTable),
-      Pop(Eax(Size64)),
-      AddAsm(Immediate(ptrSize), Eax(Size64)),
-      Push(Eax(Size64))
-    )
-    case _ => throw new IllegalArgumentException(s"Fst or Snd expected, got: ${lval.getClass}")
+      snd_? : Boolean = false,
+      checkDeref_? : Boolean = false
+  ): ListBuffer[Instruction] = {
+    val derefCheck = if (checkDeref_?) lb(
+      Cmp(nullPtr, Eax(Size64)),
+      JmpComparison(Label(s"_$errNull"), Eq)
+    ) else lb()
+    lval match {
+      case Fst(value) => genLVal(value, symTable, checkDeref_? = checkDeref_?) ++= derefCheck
+      case Snd(value) => lb(
+        genLVal(value, symTable, checkDeref_? = checkDeref_?),
+        Pop(Eax(Size64)),
+        derefCheck,
+        AddAsm(Immediate(ptrSize), Eax(Size64)),
+        Push(Eax(Size64))
+      )
+      case _ => throw new IllegalArgumentException(s"Fst or Snd expected, got: ${lval.getClass}")
+    }
   }
 
   private def genReadStmt(symTable: SymbolTable[Dest], lval: LVal): ListBuffer[Instruction] = {
@@ -462,15 +465,8 @@ object generator {
         Mov(Eax(Size64), symTable(id).get)
       )
       case _ => lb(
-        genLVal(lval, symTable),
+        genLVal(lval, symTable, checkDeref_? = true),
         Pop(Ebx(Size64)),
-        lval match {
-          case Fst(_) | Snd(_) => lb(
-            Cmp(nullPtr, Ebx(Size64)),
-            JmpComparison(Label(s"_$errNull"), Eq)
-          )
-          case _ => lb()
-        },
         Mov(Address(Ebx(Size64)), Edi(Size64)),
         Push(Ebx(Size64)),
         call,
@@ -505,17 +501,22 @@ object generator {
     Mov(Immediate(0), Eax())
   )
 
-  private def genLVal(lval: LVal, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
+  private def genLVal(
+    lval: LVal,
+    symTable: SymbolTable[Dest],
+    checkDeref_? : Boolean = false
+  ): ListBuffer[Instruction] = {
     lval match {
-      case id: Ident               => lb(Push(symTable(id).get))
+      case id: Ident => lb(Push(symTable(id).get))
       case ArrayElem(ident, exprs) => genArrayElem(ident, exprs.init, symTable)
-      case Fst(f @ Fst(_))         => genRval(f, symTable, Allocator(0, ParamMode))
-      case Fst(f @ Snd(_))         => genRval(f, symTable, Allocator(0, ParamMode))
-      case Snd(f @ Fst(_))         => genRval(f, symTable, Allocator(0, ParamMode))
-      case Snd(f @ Snd(_))         => genRval(f, symTable, Allocator(0, ParamMode))
-      case f @ Fst(_)              => genPairElem(f, symTable)
-      case s @ Snd(_)              => genPairElem(s, symTable, snd_? = true)
+      case Fst(f@Fst(_)) => genRval(f, symTable, Allocator(0, ParamMode))
+      case Fst(f@Snd(_)) => genRval(f, symTable, Allocator(0, ParamMode))
+      case Snd(f@Fst(_)) => genRval(f, symTable, Allocator(0, ParamMode))
+      case Snd(f@Snd(_)) => genRval(f, symTable, Allocator(0, ParamMode))
+      case f@Fst(_) => genPairElem(f, symTable, checkDeref_? = true)
+      case s@Snd(_) => genPairElem(s, symTable, snd_? = true, checkDeref_? = true)
     }
+  }
 
   private def genArrayElem(
     ident: Ident,
