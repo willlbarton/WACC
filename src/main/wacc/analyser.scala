@@ -225,7 +225,7 @@ object analyser {
       case Right(typ) => typ1 = Some(typ)
     }
     val (err, typ2) = checkRVal(symTable, value)
-    value.typ = typ1
+    value.typ = if (typ1.contains(NullType)) if (typ2.isDefined) typ2 else Some(NullType) else typ1
     error ++= err withContext s"$left = $value"
     // Check that the types are compatible
     if (typ1.isDefined && typ2.isDefined && !isWeakerType(typ1.get, typ2.get))

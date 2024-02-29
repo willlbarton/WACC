@@ -350,7 +350,7 @@ object generator {
       allocator: Allocator
   ): ListBuffer[Instruction] = value match {
     case e: Expr       => genExpr(e, symTable)
-    case a: ArrayLiter => genArray(value.typ.get, a, symTable)
+    case a: ArrayLiter => genArray(a, symTable)
     case c: Call       => genCall(c, symTable, allocator)
     case NewPair(a, b) => genPair(a, b, symTable)
     case f @ Fst(v)    => genPairElem(f, symTable, deref_? = v.isInstanceOf[Fst] || v.isInstanceOf[Snd])
@@ -377,14 +377,14 @@ object generator {
   }
 
   private def genArray(
-      t: Type,
       a: ArrayLiter,
       symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] = {
-    val typ = t match {
+    val typ = a.typ.get match {
       case ArrayType(t) => t
       case StringType   => CharType
-      case _            => throw new IllegalArgumentException(s"Type $t was not an array")
+      case NullType     => ArrayType(NullType)
+      case _            => throw new IllegalArgumentException(s"Type ${a.typ.get} was not an array")
     }
     val elemSize = Allocator.getTypeWidth(typ)
     val size = intSize + a.elems.length * elemSize
