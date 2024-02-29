@@ -278,4 +278,7 @@ object constants {
   val byteSize: Int = 1
   val intSize: Int = 4
   val ptrSize: Int = 8
+  val boolTrue: Immediate = Immediate(1)
+  val badChar: Immediate = Immediate(-128)
+  val exitSuccess: Immediate = Immediate(0)
 }

@@ -1,12 +1,13 @@
 package src.main.wacc
 
+import src.main.wacc
+
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import src.main.wacc.constants._
 import src.main.wacc.builtInFunctions._
 
 import scala.annotation.tailrec
-import scala.sys.process._
 
 object generator {
 
@@ -44,16 +45,13 @@ object generator {
 
     val mainSymTable: SymbolTable[Dest] = SymbolTable(None)
     val allocator = Allocator(program.vars)
-    val mainBody = lb(
-      genStmts(program.body, mainSymTable, allocator),
-      Mov(Immediate(0), Eax(Size64))
-    )
 
     val savedRegs = Allocator.NON_PARAM_REGS.take(program.vars.size)
     symTableEnterScope(mainSymTable, allocator, savedRegs)
     instructions ++= lb(
       genNewScopeEnter(program.vars),
-      mainBody,
+      genStmts(program.body, mainSymTable, allocator),
+      Mov(exitSuccess, Eax(Size64)),
       genNewScopeExit(program.vars),
       Ret,
       program.functions.flatMap(x => genFunc(x)),
@@ -205,7 +203,7 @@ object generator {
       labelExpr,
       generatedExpr,
       Pop(Eax(Size64)),
-      Cmp(Immediate(1), Eax(Size64)),
+      Cmp(boolTrue, Eax(Size64)),
       JmpComparison(labelStmts, Eq)
     )
   }
@@ -482,14 +480,13 @@ object generator {
     )
   }
 
-  private def genExit(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
-    lb(
-      genExpr(expr, symTable),
-      Pop(Eax(Size64)),
-      Mov(Eax(Size64), Edi(Size64)),
-      CallAsm(Label(s"_$exit")),
-      Mov(Immediate(0), Eax())
-    )
+  private def genExit(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
+    genExpr(expr, symTable),
+    Pop(Eax(Size64)),
+    Mov(Eax(Size64), Edi(Size64)),
+    CallAsm(Label(s"_$exit")),
+    Mov(Immediate(0), Eax())
+  )
 
   private def genLVal(lval: LVal, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
     lval match {
@@ -566,42 +563,37 @@ object generator {
       Pop(Eax(Size64)),
       Pop(Ebx(Size64)),
       op match {
-        case Add | Sub | Mul =>
-          lb(
-            op match {
-              case Add => AddAsm(Ebx(Size32), Eax(Size32))
-              case Sub => SubAsm(Ebx(Size32), Eax(Size32))
-              case Mul => Imul(Ebx(Size32), Eax(Size32))
-            },
-            Jo(Label(s"_$errOverflow")),
-            Movs(Eax(Size32), Eax(Size64), Size32, Size64)
-          )
-
-        case Eq | NotEq | Gt | GtEq | Lt | LtEq =>
-          lb(
-            Cmp(Ebx(size), Eax(size)),
-            SetAsm(Eax(Size8), op.asInstanceOf[Comparison]),
-            Movs(Eax(Size8), Eax(Size64), Size8, Size64)
-          )
-        case Mod | Div =>
-          lb(
-            Cmp(Immediate(0), Ebx(Size32)),
-            JmpComparison(Label(s"_$errDivZero"), Eq),
-            // As Cltd will write into edx?? This isn't in reference compiler I just did it.
-            Push(Edx(Size64)),
-            Cltd,
-            Idiv(Ebx(Size32)),
-            if (op == Mod) Mov(Edx(Size32), Eax(Size32)) else lb(),
-            Movs(Eax(Size32), Eax(Size64), Size32, Size64),
-            Pop(Edx(Size64)) // Pop back
-          )
-
+        case Add | Sub | Mul => lb(
+          op match {
+            case Add => AddAsm(Ebx(Size32), Eax(Size32))
+            case Sub => SubAsm(Ebx(Size32), Eax(Size32))
+            case Mul => Imul(Ebx(Size32), Eax(Size32))
+          },
+          Jo(Label(s"_$errOverflow")),
+          Movs(Eax(Size32), Eax(Size64), Size32, Size64)
+        )
+        case Eq | NotEq | Gt | GtEq | Lt | LtEq => lb(
+          Cmp(Ebx(size), Eax(size)),
+          SetAsm(Eax(Size8), op.asInstanceOf[Comparison]),
+          Movs(Eax(Size8), Eax(Size64), Size8, Size64)
+        )
+        case Mod | Div => lb(
+          Cmp(Immediate(0), Ebx(Size32)),
+          JmpComparison(Label(s"_$errDivZero"), Eq),
+          // As Cltd will write into edx?? This isn't in reference compiler I just did it.
+          Push(Edx(Size64)),
+          Cltd,
+          Idiv(Ebx(Size32)),
+          if (op == Mod) Mov(Edx(Size32), Eax(Size32)) else lb(),
+          Movs(Eax(Size32), Eax(Size64), Size32, Size64),
+          Pop(Edx(Size64)) // Pop back
+        )
         case Or | And =>
           val label = Allocator.allocateLabel
           lb(
-            Cmp(Immediate(1), Eax(Size64)),
+            Cmp(boolTrue, Eax(Size64)),
             if (op == Or) JmpComparison(label, Eq) else JmpComparison(label, NotEq),
-            Cmp(Immediate(1), Ebx(Size64)),
+            Cmp(boolTrue, Ebx(Size64)),
             label,
             SetAsm(Eax(Size8), Eq),
             Movs(Eax(Size8), Eax(Size64), Size8, Size64)
@@ -621,7 +613,7 @@ object generator {
       case Chr =>
         lb(
           Movs(Eax(Size8), Eax(Size64), Size8, Size64),
-          Testq(Immediate(-128), Eax(Size64)),
+          Testq(badChar, Eax(Size64)),
           CMovne(Eax(Size64), Esi(Size64)),
           JmpComparison(Label(s"_$errBadChar"), NotEq)
         )
@@ -638,7 +630,7 @@ object generator {
         )
       case Not =>
         lb(
-          Cmp(Immediate(1), Eax(Size64)),
+          Cmp(boolTrue, Eax(Size64)),
           SetAsm(Eax(Size8), NotEq),
           Movs(Eax(Size8), Eax(Size64), Size8, Size64)
         )
@@ -646,11 +638,4 @@ object generator {
         lb(Movs(Eax(Size8), Eax(Size64), Size8, Size64)) // Do nothing as char already being stored as a Long in eax
     }
   )
-
-  def main(args: Array[String]): Unit = {
-    val process = Process("./writeFst")
-    val output = new StringBuilder
-    val exitCode = process ! ProcessLogger(output.append(_))
-    println(output)
-  }
 }
