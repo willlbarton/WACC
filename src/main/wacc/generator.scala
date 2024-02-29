@@ -435,7 +435,8 @@ object generator {
       JmpComparison(Label(s"_$errNull"), Eq)
     ) else lb()
     lval match {
-      case Fst(value) => genLVal(value, symTable, checkDeref_? = checkDeref_?) ++= derefCheck
+      case Fst(value) => genLVal(value, symTable, checkDeref_? = checkDeref_?) ++=
+        lb(Pop(Eax(Size64)), derefCheck, Push(Eax(Size64)))
       case Snd(value) => lb(
         genLVal(value, symTable, checkDeref_? = checkDeref_?),
         Pop(Eax(Size64)),
