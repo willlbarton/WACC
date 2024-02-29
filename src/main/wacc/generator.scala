@@ -354,11 +354,20 @@ object generator {
       case a: ArrayLiter => genArray(value.typ.get, a, symTable)
       case c: Call       => genCall(c, symTable, allocator)
       case NewPair(a, b) => genPair(a, b, symTable)
-      case f @ Fst(_)    => genPairElem(f, symTable) ++=
-        lb(Pop(Eax(Size64)), Mov(Address(Eax(Size64)), Eax(Size64)), Push(Eax(Size64)))
-      case s @ Snd(_)    => genPairElem(s, symTable, snd_? = true) ++=
-        lb(Pop(Eax(Size64)), Mov(Address(Eax(Size64)), Eax(Size64)), Push(Eax(Size64)))
+      case f @ Fst(_)    => genPairRval(f, symTable)
+      case s @ Snd(_)    => genPairRval(s, symTable, snd_? = true)
     }
+
+  private def genPairRval(value: LVal, symTable: SymbolTable[Dest], snd_? : Boolean = false) = {
+    genPairElem(value, symTable, snd_?) ++= lb(
+      Pop(Eax(Size64)),
+      Cmp(nullPtr, Eax(Size64)),
+      JmpComparison(Label(s"_$errNull"), Eq),
+      Mov(Address(Eax(Size64)),
+      Eax(Size64)),
+      Push(Eax(Size64))
+    )
+  }
 
   private def genCall(
       c: Call,
