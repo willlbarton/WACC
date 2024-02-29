@@ -35,7 +35,10 @@ object Main {
                       new FileWriter(outputFile)
                     )
                     try {
-                      writer.write(generator.generate(program, x86Formatter))
+                      val unoptimised = generator.generate(program)
+                      val optimised = optimiser.optimise(unoptimised)
+                      val formatted = formatter.format(optimised, x86Formatter)
+                      writer.write(formatted)
                       println(s"Compilation successful! Output written to $outputFile")
                     } finally writer.close()
                   case msg =>

@@ -28,11 +28,7 @@ object generator {
 
   val stringLiters: mutable.Map[String, Int] = mutable.Map.empty
 
-  def generate(program: Program, formatter: Formatter): String = genProgram(program)
-    .map(formatter(_))
-    .mkString("\n") + "\n"
-
-  private def genProgram(program: Program): ListBuffer[Instruction] = {
+  def generate(program: Program): ListBuffer[Instruction] = {
     val instructions = lb(
       dirGlobl,
       genDataSection(stringLiters.view.mapValues(i => s".L.str$i").toSeq: _*),
