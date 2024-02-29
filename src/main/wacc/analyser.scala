@@ -179,6 +179,7 @@ object analyser {
 
     // Check and find the type of the right hand side
     val (err, typ2) = checkRVal(symTable, value)
+    ident.typ = Some(typ)
     error ++= err withContext s"$typ $ident = $value"
     // Check that the type of the right hand side is compatible with the declared type
     if (typ2.isDefined && !isWeakerType(typ, typ2.get)) {
