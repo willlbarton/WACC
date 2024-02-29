@@ -322,13 +322,22 @@ object generator {
     }
   }
 
-  private def genFreeStmt(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
-    genExpr(expr, symTable),
-    Pop(Eax(Size64)),
-    Mov(Eax(Size64), Edi(Size64)),
-    SubAsm(Immediate(4), Edi(Size64)),
-    CallAsm(Label(s"_$free"))
-  )
+  private def genFreeStmt(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
+    expr.typ.get match {
+      case ArrayType(_) => lb(
+        genExpr(expr, symTable),
+        Pop(Eax(Size64)),
+        Mov(Eax(Size64), Edi(Size64)),
+        SubAsm(Immediate(4), Edi(Size64)),
+        CallAsm(Label(s"_$free"))
+      )
+      case PairType(_, _) | Pair => lb(
+        genExpr(expr, symTable),
+        Pop(Eax(Size64)),
+        Mov(Eax(Size64), Edi(Size64)),
+        CallAsm(Label(s"_$freepair"))
+      )
+    }
 
   private def genRval(
       value: RVal,

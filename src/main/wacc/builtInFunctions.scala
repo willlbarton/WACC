@@ -19,9 +19,11 @@ object builtInFunctions {
   val errOverflow = "errOverflow"
   val errDivZero = "errDivZero"
   val errBadChar = "errBadChar"
+  val errNull = "errNull"
 
   val exit = "exit"
   val free = "free"
+  val freepair = "freepair"
   val malloc = "malloc"
 
   val print = "print"
@@ -49,6 +51,7 @@ object builtInFunctions {
     genRead(charType, " %c"),
     genMalloc,
     genCall(free, provided.free),
+    genFreePair,
     genArrAccess(Size8, direction = true),
     genArrAccess(Size32, direction = true),
     genArrAccess(Size64, direction = true),
@@ -58,6 +61,7 @@ object builtInFunctions {
     genErr(errOverflow, "fatal error: integer overflow or underflow occurred"),
     genErr(errDivZero, "fatal error: division or modulo by zero"),
     genErr(errOutOfMemory, "fatal error: out of memory"),
+    genErr(errNull, "fatal error: null pair dereferenced or freed"),
     genErr1Arg(errBadChar, "fatal error: int %d is not ascii character 0-127"),
     genErr1Arg(errOutOfBounds, "fatal error: array index %d out of bounds")
   )
@@ -366,6 +370,16 @@ object builtInFunctions {
       Ret
     )
   }
+
+  val genFreePair: ListBuffer[Instruction] = lb(
+    Label(s"_$freepair"),
+    genNewScopeEnter(),
+    maskRsp,
+    Cmp(Immediate(0), Edi(Size64)),
+    JmpComparison(Label(s"_$errNull"), Eq),
+    CallAsm(provided.free),
+    genNewScopeExit()
+  )
 }
 
 object provided {
