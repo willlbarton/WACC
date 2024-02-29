@@ -7,7 +7,7 @@ import scala.collection.mutable.ListBuffer
 object optimiser {
 
   def optimise(prog: ListBuffer[Instruction]): ListBuffer[Instruction] = {
-    peepN(prog, 2, removePushPop)
+    peepN(peepN(prog, 2, removePushPop), 2, pushPopToMov)
   }
 
   private def peepN(prog: ListBuffer[Instruction], n: Int, f: ListBuffer[Instruction] => (ListBuffer[Instruction], Int)): ListBuffer[Instruction] = {
@@ -22,9 +22,17 @@ object optimiser {
   }
 
   private def removePushPop(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
-      prog.head match {
-        case Push(op) if prog.last == Pop(op.asInstanceOf[Dest]) => lb() -> 2
-        case _ => lb(prog.head) -> 1
-      }
+    prog.head match {
+      case Push(op) if prog.last == Pop(op.asInstanceOf[Dest]) => lb() -> 2
+      case _ => lb(prog.head) -> 1
+    }
+  }
+
+  private def pushPopToMov(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    prog.head match {
+      case Push(op) if prog.last == Pop(op.asInstanceOf[Dest]) =>
+        lb(Mov(op, prog.last.asInstanceOf[Pop].dest)) -> 2
+      case _ => lb(prog.head) -> 1
+    }
   }
 }
