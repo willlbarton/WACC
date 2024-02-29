@@ -1,23 +1,30 @@
 package src.main.wacc
 
+import src.main.wacc.generator.lb
+
 import scala.collection.mutable.ListBuffer
 
 object optimiser {
 
   def optimise(prog: ListBuffer[Instruction]): ListBuffer[Instruction] = {
-    removePushPop(prog)
+    peepN(prog, 2, removePushPop)
   }
 
-  private def removePushPop(prog: ListBuffer[Instruction]): ListBuffer[Instruction] = {
+  private def peepN(prog: ListBuffer[Instruction], n: Int, f: ListBuffer[Instruction] => (ListBuffer[Instruction], Int)): ListBuffer[Instruction] = {
     val newProg = ListBuffer[Instruction]()
     var i = 0
     while (i < prog.length) {
-      prog(i) match {
-        case Push(op) if prog(i+1) == Pop(op.asInstanceOf[Dest]) => i += 2
-        case _ => newProg += prog(i)
-          i += 1
-      }
+      val (inst, step) = f(prog.slice(i, i+n))
+      newProg ++= inst
+      i += step
     }
     newProg
+  }
+
+  private def removePushPop(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+      prog.head match {
+        case Push(op) if prog.last == Pop(op.asInstanceOf[Dest]) => lb() -> 2
+        case _ => lb(prog.head) -> 1
+      }
   }
 }
