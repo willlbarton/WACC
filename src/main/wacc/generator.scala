@@ -313,12 +313,10 @@ object generator {
     allocator: Allocator,
     snd_? :Boolean = false
   ): ListBuffer[Instruction] = lb(
-    genLVal(left, symTable),
+    genLVal(left, symTable, checkDeref_? = true),
     genRval(right, symTable, allocator),
     Pop(Eax(Size64)),
     Pop(Ebx(Size64)),
-    Cmp(nullPtr, Ebx(Size64)),
-    JmpComparison(Label(s"_$errNull"), Eq),
     Mov(Eax(Size64), Address(Ebx(Size64), Immediate(if (snd_?) ptrSize else 0))
     )
   )
@@ -355,10 +353,8 @@ object generator {
     }
 
   private def genPairRval(value: LVal, symTable: SymbolTable[Dest], snd_? : Boolean = false) = {
-    genPairElem(value, symTable, snd_?) ++= lb(
+    genPairElem(value, symTable, snd_?, checkDeref_? = true) ++= lb(
       Pop(Eax(Size64)),
-      Cmp(nullPtr, Eax(Size64)),
-      JmpComparison(Label(s"_$errNull"), Eq),
       Mov(Address(Eax(Size64)),
       Eax(Size64)),
       Push(Eax(Size64))
