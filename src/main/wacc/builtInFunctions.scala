@@ -45,8 +45,8 @@ object builtInFunctions {
     genPrint(charType, "%c"),
     genPrint(ptrType, "%p"),
     genPrintBool,
-    genRead(intType, "%d"),
-    genRead(charType, "%c"),
+    genRead(intType, " %d"),
+    genRead(charType, " %c"),
     genMalloc,
     genCall(free, provided.free),
     genArrAccess(Size8, direction = true),
@@ -69,10 +69,9 @@ object builtInFunctions {
     * @param allocator
     *   The allocator of the parent scope
     * @param toSave
-    *   List of registers that need to be saved. It is always safe to use Allocator.NON_PARAM_REGS,
-    *   but not all of them are always needed. The list should be in the same order as the variables
-    *   are declared. In general, Allocator.NON_PARAM_REGS.take(n) should be used, where n is the
-    *   number of variables declared in the scope.
+    *    List of registers that need to be saved. The list should be in the same order as the
+    *    variables are declared. In general, Allocator.(NON_)PARAM_REGS.take(n) should be used, where
+    *    n is the number of variables declared in the scope.
     */
   def symTableEnterScope(
       symTable: SymbolTable[Dest],
@@ -114,10 +113,9 @@ object builtInFunctions {
     * @param allocator
     *   The allocator of the parent scope
     * @param toSave
-    *   List of registers that need to be saved. It is always safe to use Allocator.NON_PARAM_REGS,
-    *   but not all of them are always needed. The list should be in the same order as the variables
-    *   are declared. In general, Allocator.NON_PARAM_REGS.take(n) should be used, where n is the
-    *   number of variables declared in the scope.
+    *   List of registers that need to be saved. The list should be in the same order as the
+    *   variables are declared. In general, Allocator.(NON_)PARAM_REGS.take(n) should be used, where
+    *   n is the number of variables declared in the scope.
     */
   def symTableExitScope(
       symTable: SymbolTable[Dest],
@@ -283,13 +281,14 @@ object builtInFunctions {
     val size = if (typ == intType) Size32 else Size8
     val readBody: ListBuffer[Instruction] = lb(
       maskRsp,
-      SubAsm(Immediate(16), Rsp),
-      Mov(Address(Rsp), Edi(size)),
+      SubAsm(Immediate(2 * ptrSize), Rsp),
+      Mov(Edi(size), Address(Rsp), useOpSize = true),
       Lea(Address(Rsp), Esi(Size64)),
       Lea(Address(Rip, Label(s".read${typ}_format")), Edi(Size64)),
       Mov(Immediate(0), Eax(Size8)),
       CallAsm(provided.scanf),
-      Mov(Address(Rsp), Eax(size))
+      Movs(Address(Rsp), Eax(Size64), size, Size64),
+      AddAsm(Immediate(2 * ptrSize), Rsp)
     )
     instructions ++= lb(genNewScopeEnter(), readBody, genNewScopeExit(), Ret)
   }
@@ -301,7 +300,7 @@ object builtInFunctions {
       AddAsm(Immediate(-16), Rsp),
       Lea(Address(Rip, Label(s".$name")), Edi(Size64)),
       CallAsm(Label("_prints")),
-      Mov(Immediate(-1), Eax(Size64)),
+      Mov(Immediate(-1), Edi(Size8)),
       CallAsm(provided.exit)
     )
   }

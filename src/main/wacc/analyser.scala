@@ -116,10 +116,17 @@ object analyser {
       f.branch1Vars = childTable1.vars
       f.branch2Vars = childTable2.vars
       err
-    case While(cond, body) =>
-      checkCond(st, cond, isIf = false) ++ checkMainStmts(st.makeChild, body)
-    case ScopedStmt(stmt) => checkMainStmts(st.makeChild, stmt)
-    case _                => checkLeafStatement(st, stmt)
+    case w @ While(cond, body) =>
+      val childTable = st.makeChild
+      val err = checkCond(st, cond, isIf = false) ++ checkMainStmts(childTable, body)
+      w.vars = childTable.vars
+      err
+    case s @ ScopedStmt(stmt) =>
+      val childTable = st.makeChild
+      val err = checkMainStmts(childTable, stmt)
+      s.vars = childTable.vars
+      err
+    case _ => checkLeafStatement(st, stmt)
   }
 
   // Used in if and while statements to check that the condition is a boolean
@@ -253,9 +260,8 @@ object analyser {
   }
 
   // Checks the validity of an expression and finds it type if possible
-  @tailrec
-  private def checkExpr(symTable: SymbolTable[SymbolTableObj], expr: Expr): (String, Option[Type]) =
-    expr match {
+  private def checkExpr(symTable: SymbolTable[SymbolTableObj], expr: Expr): (String, Option[Type]) = {
+    val (err, typ) = expr match {
       case Integer(_)   => ("", Some(IntType))
       case Bool(_)      => ("", Some(BoolType))
       case Character(_) => ("", Some(CharType))
@@ -285,6 +291,9 @@ object analyser {
       case UnaryApp(op, expr)         => checkUnaryApp(symTable, op, expr)
       case BinaryApp(op, left, right) => checkBinaryApp(symTable, op, left, right)
     }
+  expr.typ = typ
+  (err, typ)
+  }
 
   // Checks that an identifier is defined and returns its type if possible
   private def checkIdent(

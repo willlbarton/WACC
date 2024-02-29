@@ -78,17 +78,14 @@ object generator {
 
     symTableEnterScope(paramTable, allocator, usedParamRegs, ParamMode)
 
+    val exitScope = genNewScopeExit(usedParamRegs, func.vars)
+
+    val toAllocate = func.vars.drop(Allocator.NON_PARAM_REGS.length)
+
     val instructions = lb(
       Label(s"wacc_${func.ident.name}"),
-      genNewScopeEnter(usedParamRegs, func.vars), {
-        val instrs =
-          genStmts(func.body, paramTable.makeChild, Allocator(func.vars, NonParamMode))
-        lb(
-          instrs.init,
-          genNewScopeExit(usedParamRegs, func.vars),
-          instrs.last
-        )
-      }
+      genNewScopeEnter(usedParamRegs, toAllocate),
+      genStmts(func.body, paramTable.makeChild, Allocator(toAllocate, NonParamMode), exitScope)
     )
 
     symTableExitScope(paramTable, allocator, usedParamRegs, ParamMode)
@@ -99,29 +96,33 @@ object generator {
   private def genStmts(
       stmts: ListBuffer[Stmt],
       symTable: SymbolTable[Dest],
-      allocator: Allocator
+      allocator: Allocator,
+      exitScope: ListBuffer[Instruction]
   ): ListBuffer[Instruction] =
     lb(
       stmts.flatMap(x => {
-        genStmt(x, symTable, allocator)
+        genStmt(x, symTable, allocator, exitScope)
       })
     )
 
   private def genStmts(
       stmts: List[Stmt],
       symTable: SymbolTable[Dest],
-      allocator: Allocator
+      allocator: Allocator,
+      exitScope: ListBuffer[Instruction] = lb()
   ): ListBuffer[Instruction] =
     genStmts(
       ListBuffer() ++= stmts,
       symTable,
-      allocator
+      allocator,
+      exitScope
     )
 
   private def genStmt(
       stmt: Stmt,
       symTable: SymbolTable[Dest],
-      allocator: Allocator
+      allocator: Allocator,
+      exitScope: ListBuffer[Instruction] = lb()
   ): ListBuffer[Instruction] =
     stmt match {
       case Skip       => lb()
@@ -130,6 +131,7 @@ object generator {
         lb(
           genExpr(expr, symTable),
           Pop(Eax(Size64)),
+          exitScope,
           Ret
         )
       case Print(expr)   => genPrintStmt(symTable, expr)
@@ -144,9 +146,10 @@ object generator {
       case Asgn(lval, value) => genAsgnStmt(lval, value, symTable, allocator)
       case Free(expr)        => genFreeStmt(expr, symTable)
       case ifStmt: IfStmt =>
-        genIfStmt(ifStmt, symTable, allocator) // handle IfStmt case
-      case s @ ScopedStmt(stmts)  => genScopedStmt(stmts, s.vars, symTable, allocator)
-      case w @ While(expr, stmts) => genWhile(expr, stmts, w.vars, symTable, allocator)
+        genIfStmt(ifStmt, symTable, allocator, exitScope) // handle IfStmt case
+      case s @ ScopedStmt(stmts) =>
+        genScopedStmt(stmts, s.vars, symTable, allocator, NonParamMode, lb(), exitScope)
+      case w @ While(expr, stmts) => genWhile(expr, stmts, w.vars, symTable, allocator, exitScope)
     }
 
   private def genScopedStmt(
@@ -155,7 +158,8 @@ object generator {
       symTable: SymbolTable[Dest],
       allocator: Allocator,
       mode: Mode = NonParamMode,
-      extraInstructions: ListBuffer[Instruction] = lb()
+      extraInstructions: ListBuffer[Instruction] = lb(),
+      exitScope: ListBuffer[Instruction] = lb()
   ): ListBuffer[Instruction] = {
 
     val used = allocator.usedRegs
@@ -166,11 +170,13 @@ object generator {
       (if (mode == ParamMode) Allocator.PARAM_REGS else Allocator.NON_PARAM_REGS).size
     )
 
+    val exitScope2 = genNewScopeExit(used, toAllocate)
+
     val instructions = lb(
       genNewScopeEnter(used, toAllocate),
-      genStmts(stmts, symTable.makeChild, Allocator(vars, mode)),
+      genStmts(stmts, symTable.makeChild, Allocator(vars, mode), exitScope2 ++ exitScope),
       extraInstructions,
-      genNewScopeExit(used, toAllocate)
+      exitScope2
     )
 
     symTableExitScope(symTable, allocator, used)
@@ -182,7 +188,8 @@ object generator {
       stmts: List[Stmt],
       vars: List[SymbolTableObj],
       symTable: SymbolTable[Dest],
-      allocator: Allocator
+      allocator: Allocator,
+      exitScope: ListBuffer[Instruction]
   ): ListBuffer[Instruction] = {
     val labelExpr = Allocator.allocateLabel
     val labelStmts = Allocator.allocateLabel
@@ -192,7 +199,7 @@ object generator {
     lb(
       Jmp(labelExpr),
       labelStmts,
-      genScopedStmt(stmts, vars, symTable, allocator),
+      genScopedStmt(stmts, vars, symTable, allocator, NonParamMode, lb(), exitScope),
       labelExpr,
       generatedExpr,
       Pop(Eax(Size64)),
@@ -204,7 +211,8 @@ object generator {
   private def genIfStmt(
       ifStmt: IfStmt,
       symTable: SymbolTable[Dest],
-      allocator: Allocator
+      allocator: Allocator,
+      exitScope: ListBuffer[Instruction] = lb()
   ): ListBuffer[Instruction] = {
     val IfStmt(expr, body1, body2) = ifStmt
     lb(
@@ -214,12 +222,29 @@ object generator {
 
         lb(
           Pop(Eax(Size64)),
+          Movs(Eax(Size8), Eax(Size64), Size8, Size64),
           Cmp(Immediate(1), Eax(Size64)),
           JmpComparison(labelTrue, Eq),
-          genScopedStmt(body2, ifStmt.branch2Vars, symTable, allocator),
+          genScopedStmt(
+            body2,
+            ifStmt.branch2Vars,
+            symTable,
+            allocator,
+            NonParamMode,
+            lb(),
+            exitScope
+          ),
           Jmp(labelContinue),
           labelTrue,
-          genScopedStmt(body1, ifStmt.branch1Vars, symTable, allocator),
+          genScopedStmt(
+            body1,
+            ifStmt.branch1Vars,
+            symTable,
+            allocator,
+            NonParamMode,
+            lb(),
+            exitScope
+          ),
           labelContinue
         )
 
@@ -236,7 +261,11 @@ object generator {
   ): ListBuffer[Instruction] = lb(
     genRval(value, symTable, allocator),
     Pop(Eax(Size64)),
-    Mov(Eax(Size64), dest)
+    Mov(
+      Eax(if (dest.isInstanceOf[Reg]) Size64 else Allocator.getTypeSize(value.typ.get)),
+      dest,
+      useOpSize = true
+    )
   )
 
   private def genAsgnStmt(
@@ -250,7 +279,14 @@ object generator {
         lb(
           genRval(value, symTable, allocator),
           Pop(Eax(Size64)),
-          Mov(Eax(Size64), symTable(id).get)
+          Mov(
+            Eax(
+              if (symTable(id).get.isInstanceOf[Reg]) Size64
+              else Allocator.getTypeSize(value.typ.get)
+            ),
+            symTable(id).get,
+            useOpSize = true
+          )
         )
       case arr @ ArrayElem(ident, exprs) =>
         var typ = ident.typ.get
@@ -416,26 +452,22 @@ object generator {
       case _ =>
         throw new IllegalArgumentException(s"Read called with unsupported type: ${lval.typ.get}")
     }
-    d += 1
-    val label = Label(s".read_skip$d")
     lval match {
       case id: Ident =>
         lb(
+          Mov(symTable(id).get, Edi(Size64)),
           call,
-          Cmp(Immediate(eof), Eax(Size32)),
-          JmpComparison(label, Eq),
-          Mov(Eax(Size64), symTable(id).get),
-          label
+          Mov(Eax(Size64), symTable(id).get)
         )
       case _ =>
         lb(
           genLVal(lval, symTable),
+          Pop(Ebx(Size64)),
+          Mov(Address(Ebx(Size64)), Edi(Size64)),
+          Push(Ebx(Size64)),
           call,
           Pop(Ebx(Size64)),
-          Cmp(Immediate(eof), Eax(Size32)),
-          JmpComparison(label, Eq),
-          Mov(Eax(Size64), Address(Ebx(Size64))),
-          label
+          Mov(Eax(Size64), Address(Ebx(Size64)))
         )
     }
   }
@@ -533,54 +565,57 @@ object generator {
       left: Expr,
       right: Expr,
       symTable: SymbolTable[Dest]
-  ): ListBuffer[Instruction] = lb(
-    genExpr(right, symTable),
-    genExpr(left, symTable),
-    Pop(Eax(Size64)),
-    Pop(Ebx(Size64)),
-    op match {
-      case Add | Sub | Mul =>
-        lb(
-          op match {
-            case Add => AddAsm(Ebx(Size32), Eax(Size32))
-            case Sub => SubAsm(Ebx(Size32), Eax(Size32))
-            case Mul => Imul(Ebx(Size32), Eax(Size32))
-          },
-          Jo(Label(s"_$errOverflow")),
-          Movs(Eax(Size32), Eax(Size64))
-        )
+  ): ListBuffer[Instruction] = {
+    val size = Allocator.getTypeSize(left.typ.get)
+    lb(
+      genExpr(right, symTable),
+      genExpr(left, symTable),
+      Pop(Eax(Size64)),
+      Pop(Ebx(Size64)),
+      op match {
+        case Add | Sub | Mul =>
+          lb(
+            op match {
+              case Add => AddAsm(Ebx(Size32), Eax(Size32))
+              case Sub => SubAsm(Ebx(Size32), Eax(Size32))
+              case Mul => Imul(Ebx(Size32), Eax(Size32))
+            },
+            Jo(Label(s"_$errOverflow")),
+            Movs(Eax(Size32), Eax(Size64), Size32, Size64)
+          )
 
-      case Eq | NotEq | Gt | GtEq | Lt | LtEq =>
-        lb(
-          Cmp(Ebx(Size64), Eax(Size64)),
-          SetAsm(Eax(Size8), op.asInstanceOf[Comparison]),
-          Movs(Eax(Size8), Eax(Size64))
-        )
-      case Mod | Div =>
-        lb(
-          Cmp(Immediate(0), Ebx(Size32)),
-          JmpComparison(Label(s"_$errDivZero"), Eq),
-          // As Cltd will write into edx?? This isn't in reference compiler I just did it.
-          Push(Edx(Size64)),
-          Cltd,
-          Idiv(Ebx(Size32)),
-          if (op == Mod) Mov(Edx(Size32), Eax(Size32)) else lb(),
-          Movs(Eax(Size32), Eax(Size64)),
-          Pop(Edx(Size64)) // Pop back
-        )
+        case Eq | NotEq | Gt | GtEq | Lt | LtEq =>
+          lb(
+            Cmp(Ebx(size), Eax(size)),
+            SetAsm(Eax(Size8), op.asInstanceOf[Comparison]),
+            Movs(Eax(Size8), Eax(Size64), Size8, Size64)
+          )
+        case Mod | Div =>
+          lb(
+            Cmp(Immediate(0), Ebx(Size32)),
+            JmpComparison(Label(s"_$errDivZero"), Eq),
+            // As Cltd will write into edx?? This isn't in reference compiler I just did it.
+            Push(Edx(Size64)),
+            Cltd,
+            Idiv(Ebx(Size32)),
+            if (op == Mod) Mov(Edx(Size32), Eax(Size32)) else lb(),
+            Movs(Eax(Size32), Eax(Size64), Size32, Size64),
+            Pop(Edx(Size64)) // Pop back
+          )
 
-      case Or | And =>
-        val label = Allocator.allocateLabel
-        lb(
-          Cmp(Immediate(1), Eax(Size64)),
-          if (op == Or) JmpComparison(label, Eq) else JmpComparison(label, NotEq),
-          Cmp(Immediate(1), Ebx(Size64)),
-          label,
-          SetAsm(Eax(Size8), Eq),
-          Movs(Eax(Size8), Eax(Size64))
-        )
-    }
-  )
+        case Or | And =>
+          val label = Allocator.allocateLabel
+          lb(
+            Cmp(Immediate(1), Eax(Size64)),
+            if (op == Or) JmpComparison(label, Eq) else JmpComparison(label, NotEq),
+            Cmp(Immediate(1), Ebx(Size64)),
+            label,
+            SetAsm(Eax(Size8), Eq),
+            Movs(Eax(Size8), Eax(Size64), Size8, Size64)
+          )
+      }
+    )
+  }
 
   private def genUnaryApp(
       op: UnaryOp,
@@ -588,16 +623,17 @@ object generator {
       symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] = lb(
     genExpr(expr, symTable),
+    Pop(Eax(Size64)),
     op match {
       case Chr =>
         lb(
+          Movs(Eax(Size8), Eax(Size64), Size8, Size64),
           Testq(Immediate(-128), Eax(Size64)),
           CMovne(Eax(Size64), Esi(Size64)),
           JmpComparison(Label(s"_$errBadChar"), NotEq)
         )
       case Len =>
         lb(
-          Pop(Eax(Size64)), // Array address returned on stack
           Mov(Address(Eax(Size64), Immediate(-intSize)), Eax())
         )
       case Neg =>
@@ -605,15 +641,16 @@ object generator {
           Mov(Immediate(0), Edx(Size64)),
           SubAsm(Eax(Size32), Edx(Size32)),
           Jo(Label(s"_$errOverflow")),
-          Movs(Edx(Size32), Eax(Size64))
+          Movs(Edx(Size32), Eax(Size64), Size32, Size64)
         )
       case Not =>
         lb(
           Cmp(Immediate(1), Eax(Size64)),
           SetAsm(Eax(Size8), NotEq),
-          Movs(Eax(Size8), Eax(Size64))
+          Movs(Eax(Size8), Eax(Size64), Size8, Size64)
         )
-      case Ord => lb() // Do nothing as char already being stored as a Long in eax
+      case Ord =>
+        lb(Movs(Eax(Size8), Eax(Size64), Size8, Size64)) // Do nothing as char already being stored as a Long in eax
     }
   )
 

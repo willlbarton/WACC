@@ -73,6 +73,13 @@ object Allocator {
     case NullType => throw new IllegalArgumentException("NullType should not be allocated")
   }
 
+  def getTypeSize(t: Type) = t match {
+    case CharType | BoolType                               => Size8
+    case IntType                                           => Size32
+    case StringType | ArrayType(_) | PairType(_, _) | Pair => Size64
+    case NullType => throw new IllegalArgumentException("NullType should not be allocated")
+  }
+
   def allocateLabel: Label = {
     val oldLabel = label
     label += 1

@@ -52,7 +52,7 @@ case object Cltd extends Instruction
 final case class Directive(name: String) extends Instruction
 final case class Label(name: String) extends Instruction with MemOp
 final case class Mov(op: Operand, dest: Dest, useOpSize: Boolean = false) extends Instruction
-final case class Movs(op: Operand, dest: Dest) extends Instruction
+final case class Movs(op: Operand, dest: Dest, srcSize: Size, destSize: Size) extends Instruction
 final case class Pop(dest: Dest) extends Instruction
 final case class Push(op: Operand) extends Instruction
 final case class CallAsm(label: Label) extends Instruction
@@ -100,8 +100,8 @@ object x86Formatter extends Formatter {
       case Cltd        => indent ++ "cltd"
       case Mov(op1, dest, useOpSize) =>
         indent ++ s"mov${instructionPostfix(if (useOpSize) op1 else dest)}  ${this(op1)}, ${this(dest)}"
-      case Movs(op, dest) =>
-        indent ++ s"movs${instructionPostfix(op, dest)} ${this(op)}, ${this(dest)}"
+      case Movs(op, dest, srcSize, destSize) =>
+        indent ++ s"movs${instructionPostfix(srcSize, destSize)} ${this(op)}, ${this(dest)}"
       case Pop(dest)      => indent ++ s"pop${instructionPostfix(dest)}  ${this(dest)}"
       case Push(op1)      => indent ++ s"push${instructionPostfix(op1)} ${this(op1)}"
       case CallAsm(label) => indent ++ s"call  ${label.name}"
@@ -254,6 +254,8 @@ object x86Formatter extends Formatter {
 
   private def instructionPostfix(op: Operand, dest: Dest): String =
     instructionPostfix(op) + instructionPostfix(dest)
+  private def instructionPostfix(srcSize: Size, destSize: Size): String =
+    instructionPostfix(srcSize) + instructionPostfix(destSize)
 
   private def instructionPostfix(comparison: Comparison) = comparison match {
     case Eq    => "e"
@@ -262,6 +264,12 @@ object x86Formatter extends Formatter {
     case LtEq  => "le"
     case GtEq  => "ge"
     case NotEq => "ne"
+  }
+
+  private def instructionPostfix(size: Size): String = size match {
+    case Size8  => "b"
+    case Size32 => "l"
+    case Size64 => "q"
   }
 
 }
