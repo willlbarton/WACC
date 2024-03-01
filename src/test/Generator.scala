@@ -37,7 +37,7 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
             fail(s"Error running binary: ${e.getMessage}")
         }
         val (out, exit) = ret
-        out shouldEqual expOut
+        out.matches(expOut) shouldBe true
         exit shouldEqual expExit
       }
     }
@@ -75,7 +75,9 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
 
     for (line <- lines) {
       if (line.startsWith("# Output:")) {
-        output = lines.takeWhile(!_.isBlank).map(_.drop(2)).mkString("")
+        output = lines.takeWhile(!_.isBlank).map(_.drop(2))
+          .mkString("").replaceAll("#.*?#", ".*?")
+          .replaceAll("\\{", "\\\\{").replaceAll("}", "\\\\}").replaceAll("\\+", "\\\\+")
       } else if (line.startsWith("# Exit:")) {
         exitCode = lines.next().drop(2).toInt
       } else if (line.startsWith("# Input:")) {
