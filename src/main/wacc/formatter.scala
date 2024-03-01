@@ -67,11 +67,11 @@ object x86Formatter extends Formatter {
 
   override def apply(location: Location): String = location match {
     case Address(base, offset, index, scale) =>
-      val scl = if (scale == Immediate(1)) "" else s", ${memFormat(scale)}"
-      val optional = if (index == Immediate(0)) "" else s", ${memFormat(index)}$scl"
-      (if (offset == Immediate(0)) "" else s"${memFormat(offset)}") ++
+      val scl = if (scale == Imm(1)) "" else s", ${memFormat(scale)}"
+      val optional = if (index == Imm(0)) "" else s", ${memFormat(index)}$scl"
+      (if (offset == Imm(0)) "" else s"${memFormat(offset)}") ++
         s"(${memFormat(base)}$optional)"
-    case Immediate(value) => s"$$$value"
+    case Imm(value) => s"$$$value"
     case Label(name)      => name
     case reg: Reg         => formatReg(reg)
   }
@@ -168,7 +168,7 @@ object x86Formatter extends Formatter {
 
   private def memFormat(mem: MemOp): String = mem match {
     case reg: Reg         => this(reg)
-    case Immediate(value) => s"$value"
+    case Imm(value) => s"$value"
     case Label(name)      => name
   }
 

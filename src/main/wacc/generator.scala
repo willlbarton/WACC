@@ -219,7 +219,7 @@ object generator {
         lb(
           Pop(Eax(Size64)),
           Movs(Eax(Size8), Eax(Size64), Size8, Size64),
-          Cmp(Immediate(1), Eax(Size64)),
+          Cmp(boolTrue, Eax(Size64)),
           JmpComparison(labelTrue, Eq),
           genScopedStmt(
             body2,
@@ -327,7 +327,7 @@ object generator {
           genExpr(expr, symTable),
           Pop(Eax(Size64)),
           Mov(Eax(Size64), Edi(Size64)),
-          SubAsm(Immediate(4), Edi(Size64)),
+          SubAsm(intSize, Edi(Size64)),
           CallAsm(Label(s"_$free"))
         )
       case PairType(_, _) | Pair =>
@@ -387,17 +387,17 @@ object generator {
     val size = intSize + a.elems.length * elemSize
     var position = -elemSize
     lb(
-      Mov(Immediate(size), Edi()),
+      Mov(size, Edi()),
       CallAsm(Label(s"_$malloc")),
       Mov(Eax(Size64), R11(Size64)),
-      Mov(Immediate(a.elems.length), Address(R11(Size64))),
-      AddAsm(Immediate(intSize), R11(Size64)),
+      Mov(a.elems.length, Address(R11(Size64))),
+      AddAsm(intSize, R11(Size64)),
       a.elems.flatMap { x =>
         position += elemSize
         lb(
           genExpr(x, symTable),
           Pop(Eax(Size64)),
-          Mov(Eax(Size64), Address(R11(Size64), Immediate(position)))
+          Mov(Eax(Size64), Address(R11(Size64), position))
         )
       },
       Push(R11(Size64))
@@ -405,7 +405,7 @@ object generator {
   }
 
   private def genPair(a: Expr, b: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
-    Mov(Immediate(2 * ptrSize), Edi()),
+    Mov(2 * ptrSize, Edi()),
     CallAsm(Label(s"_$malloc")),
     Mov(Eax(Size64), R11(Size64)),
     genExpr(a, symTable),
@@ -413,7 +413,7 @@ object generator {
     Mov(Eax(Size64), Address(R11(Size64))),
     genExpr(b, symTable),
     Pop(Eax(Size64)),
-    Mov(Eax(Size64), Address(R11(Size64), Immediate(ptrSize))),
+    Mov(Eax(Size64), Address(R11(Size64), ptrSize)),
     Push(R11(Size64))
   )
 
@@ -439,7 +439,7 @@ object generator {
           genLVal(value, symTable, deref_? = true),
           Pop(Eax(Size64)),
           derefCheck,
-          AddAsm(Immediate(ptrSize), Eax(Size64)),
+          AddAsm(ptrSize, Eax(Size64)),
           deref,
           Push(Eax(Size64))
         )
@@ -496,7 +496,7 @@ object generator {
     Pop(Eax(Size64)),
     Mov(Eax(Size64), Edi(Size64)),
     CallAsm(Label(s"_$exit")),
-    Mov(Immediate(0), Eax())
+    Mov(0, Eax())
   )
 
   private def genLVal(
@@ -541,11 +541,11 @@ object generator {
 
   private def genExpr(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] = lb(
     expr match {
-      case Integer(i) => Mov(Immediate(i), Eax())
+      case Integer(i) => Mov(i, Eax())
       case StringAtom(s) =>
         Lea(Address(Rip, Label(s".L.str${stringLiters(s.replace("\"", "\\\""))}")), Eax(Size64))
-      case Bool(value)  => Mov(Immediate(if (value) 1 else 0), Eax(Size64))
-      case Character(c) => Mov(Immediate(c.toInt), Eax(Size64))
+      case Bool(value)  => Mov(if (value) 1 else 0, Eax(Size64))
+      case Character(c) => Mov(c, Eax(Size64))
 
       case ArrayElem(ident, exprs) => genArrayElem(ident, exprs, symTable)
       case Ident(name) =>
@@ -599,7 +599,7 @@ object generator {
           )
         case Mod | Div =>
           lb(
-            Cmp(Immediate(0), Ebx(Size32)),
+            Cmp(0, Ebx(Size32)),
             JmpComparison(Label(s"_$errDivZero"), Eq),
             // As Cltd will write into edx?? This isn't in reference compiler I just did it.
             Push(Edx(Size64)),
@@ -640,11 +640,11 @@ object generator {
         )
       case Len =>
         lb(
-          Mov(Address(Eax(Size64), Immediate(-intSize)), Eax())
+          Mov(Address(Eax(Size64), -intSize), Eax())
         )
       case Neg =>
         lb(
-          Mov(Immediate(0), Edx(Size64)),
+          Mov(0, Edx(Size64)),
           SubAsm(Eax(Size32), Edx(Size32)),
           Jo(Label(s"_$errOverflow")),
           Movs(Edx(Size32), Eax(Size64), Size32, Size64)

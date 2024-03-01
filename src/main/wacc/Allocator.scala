@@ -23,7 +23,7 @@ case class Allocator(reservedSpace: Int, mode: Mode) {
         case Size32 => intSize
         case Size64 => ptrSize
       })
-      Address(Rbp, Immediate(currentRelativeBP))
+      Address(Rbp, currentRelativeBP)
     }
   }
   def allocateSpace(t: Type): Dest = t match {

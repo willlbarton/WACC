@@ -1,5 +1,7 @@
 package src.main.wacc
 
+import scala.language.implicitConversions
+
 sealed trait Instruction
 
 sealed trait Location
@@ -40,11 +42,13 @@ case object Rip extends Reg { override val size: Size = Size64 }
 
 final case class Address(
     base: MemOp,
-    offset: MemOp = Immediate(0),
-    index: MemOp = Immediate(0),
-    scale: MemOp = Immediate(1)
+    offset: MemOp = 0,
+    index: MemOp = 0,
+    scale: MemOp = 1
 ) extends Dest
-final case class Immediate(value: Int) extends Operand with MemOp
+
+case class Imm(value: Int) extends Operand with MemOp
+implicit def intToImmediate(value: Int): Imm = Imm(value)
 
 case object Ret extends Instruction
 case object Cltd extends Instruction
@@ -82,9 +86,9 @@ object constants {
   val byteSize: Int = 1
   val intSize: Int = 4
   val ptrSize: Int = 8
-  val boolTrue: Immediate = Immediate(1)
-  val badChar: Immediate = Immediate(-128)
-  val exitSuccess: Immediate = Immediate(0)
-  val exitError: Immediate = Immediate(-1)
-  val nullPtr: Immediate = Immediate(0)
+  val boolTrue: Imm = 1
+  val badChar: Imm = -128
+  val exitSuccess: Imm = 0
+  val exitError: Imm = -1
+  val nullPtr: Imm = 0
 }
