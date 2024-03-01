@@ -476,10 +476,8 @@ object builtInFunctions {
 
     for (instruction <- instructions) {
       instruction match {
-        case inst: Instruction =>
-          resultBuffer += inst
-        case instIter: IterableOnce[_] if instIter.iterator.forall(_.isInstanceOf[Instruction]) =>
-          resultBuffer ++= instIter.asInstanceOf[IterableOnce[Instruction]]
+        case inst: Instruction => resultBuffer += inst
+        case instIter: IterableOnce[Instruction] => resultBuffer ++= instIter
         case _ =>
           throw new IllegalArgumentException(s"Unsupported type: ${instruction.getClass}")
       }
