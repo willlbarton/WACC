@@ -1,4 +1,4 @@
-image: docker.io/gumjoe/wacc-ci-scala:slim
+image: docker.io/gumjoe/wacc-ci-scala:x86
 
 stages:
   - parser
