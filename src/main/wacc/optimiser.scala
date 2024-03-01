@@ -1,7 +1,6 @@
 package src.main.wacc
 
-import src.main.wacc.builtInFunctions.lb
-
+import builtInFunctions.lb
 import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
 
@@ -10,8 +9,9 @@ object optimiser {
   def optimise(prog: ListBuffer[Instruction]): ListBuffer[Instruction] = {
     val program =
       AsmProgram(prog) |>
-        removePushPop |>
-        pushPopToMov
+        (removePushPop, 2) |>
+        (pushPopToMov, 2) |>
+        (removeZeroAddSub, 1)
     program.instrs
   }
 
@@ -29,6 +29,16 @@ object optimiser {
       case _ => lb(prog.head) -> 1
     }
   }
+
+  private def removeZeroAddSub(
+    prog: ListBuffer[Instruction]
+  ): (ListBuffer[Instruction], Int) = {
+    prog.head match {
+      case AddAsm(Imm(0), _) => lb() -> 1
+      case SubAsm(Imm(0), _) => lb() -> 1
+      case _ => lb(prog.head) -> 1
+    }
+  }
 }
 
 private case class AsmProgram(instrs: ListBuffer[Instruction]) {
@@ -36,8 +46,8 @@ private case class AsmProgram(instrs: ListBuffer[Instruction]) {
   def apply(i: Int): Instruction = instrs(i)
   def length: Int = instrs.length
 
-  def |>(f: ListBuffer[Instruction] => (ListBuffer[Instruction], Int)): AsmProgram = {
-    peepN(instrs, 2, f)
+  def |>(f: ListBuffer[Instruction] => (ListBuffer[Instruction], Int), n: Int): AsmProgram = {
+    peepN(instrs, n, f)
   }
 
   private def peepN(
