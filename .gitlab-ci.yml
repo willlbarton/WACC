@@ -1,8 +1,9 @@
-image: docker.io/gumjoe/wacc-ci-scala:slim
+image: docker.io/gumjoe/wacc-ci-scala:x86
 
 stages:
   - parser
   - analyser
+  - generator
 
 parser:
   stage: parser
@@ -13,3 +14,8 @@ analyser:
   stage: analyser
   script:
     - scala-cli test . --test-only src.test.Analyser
+
+generator:
+  stage: generator
+  script:
+    - scala-cli test . --test-only src.test.Generator

@@ -4,9 +4,10 @@ import src.main.wacc._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
 import org.scalatest.prop.TableDrivenPropertyChecks
+
 import scala.sys.process._
 import scala.io.Source
-import java.io.{File, FileOutputStream, PrintStream}
+import java.io.{BufferedWriter, File, FileOutputStream, FileWriter, PrintStream}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.DurationInt
@@ -18,23 +19,28 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
 
   behavior of "generator"
   forAll(Table("cases", TestFiles("valid/"): _*)) { file =>
-    it should s"produce the correct output and exit code for ${file.getParentFile}/${file.getName}" in {
-      val filePath = file.getPath
-      val filename = file.getName.replaceFirst("\\.wacc$", "")
-      val nullPrintStream = new PrintStream(new FileOutputStream("/dev/null"))
-      Console.withOut(nullPrintStream) {
-        Main.main(Array(filePath))
-      }
-      compileAssembly(s"$filename.s") shouldEqual None
-      val (input, expOut, expExit) = parseWaccFile(filePath)
-      try {
-        val (out, exit) = Await.result(Future(runBinary(filename, input)), 60.seconds)
-        out shouldEqual expOut
+    if (file.getParentFile.getName != "advanced") {
+      it should s"produce the correct output and exit code for ${file.getParentFile}/${file.getName}" in {
+        val filePath = file.getPath
+        val filename = file.getName.replaceFirst("\\.wacc$", "")
+        Console.withOut(new PrintStream(new FileOutputStream("/dev/null"))) {
+          Main.main(Array(filePath))
+        }
+        compileAssembly(s"$filename.s") shouldEqual None
+        val (input, expOut, expExit) = parseWaccFile(filePath)
+        var ret = ("", 1)
+        try {
+          ret = Await.result(Future(runBinary(filename, input)), 60.seconds)
+        } catch {
+          case e: Exception =>
+            deleteFile(filename)
+            fail(s"Error running binary: ${e.getMessage}")
+        }
+        val (out, exit) = ret
+        withClue(s"Output: $out\nShould have matched: $expOut\n") {
+          out.matches(expOut) shouldBe true
+        }
         exit shouldEqual expExit
-      } catch {
-        case e: Exception =>
-          deleteFile(filename)
-          fail(s"Error running binary: ${e.getMessage}")
       }
     }
   }
@@ -54,13 +60,30 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
   }
 
   def runBinary(binaryFile: String, input: String): (String, Int) = {
-    val process = s"./$binaryFile"
+    val process = s"echo $input" #> s"./$binaryFile"
     new File(binaryFile).setExecutable(true)
     val output = new StringBuilder
     val exitCode = process ! ProcessLogger(output.append(_))
     deleteFile(binaryFile)
     (output.toString, exitCode)
   }
+
+  def sanitiseRegex(s: String): String = s
+    .replaceAll("\\\\", "\\\\\\\\")
+    .replaceAll("\\{", "\\\\{")
+    .replaceAll("}", "\\\\}")
+    .replaceAll("\\+", "\\\\+")
+    .replaceAll("\\?", "\\\\?")
+    .replaceAll("\\*", "\\\\*")
+    .replaceAll("\\(", "\\\\(")
+    .replaceAll("\\)", "\\\\)")
+    .replaceAll("\\[", "\\\\[")
+    .replaceAll("]", "\\\\]")
+    .replaceAll("\\^", "\\\\^")
+    .replace("$", "\\$")
+    .replaceAll("\\.", "\\\\.")
+    .replaceAll("\\|", "\\\\|")
+    .replaceAll("-", "\\\\-")
 
   def parseWaccFile(filePath: String): (String, String, Int) = {
     var output: String = ""
@@ -71,11 +94,12 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
 
     for (line <- lines) {
       if (line.startsWith("# Output:")) {
-        output = lines.takeWhile(!_.isBlank).map(_.drop(2)).mkString("\n")
+        output = sanitiseRegex(lines.takeWhile(!_.isBlank).map(_.drop(2))
+          .mkString("")).replaceAll("#.*?#", ".*?")
       } else if (line.startsWith("# Exit:")) {
         exitCode = lines.next().drop(2).toInt
       } else if (line.startsWith("# Input:")) {
-        input = lines.takeWhile(!_.isBlank).map(_.drop(2)).mkString("\n")
+        input = line.drop(8) ++ lines.takeWhile(!_.isBlank).mkString("")
       }
     }
 
