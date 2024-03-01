@@ -4,9 +4,9 @@ import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import src.main.wacc.constants._
 import src.main.wacc.builtInFunctions._
+import scala.sys.process._
 
 object generator {
-
   def lb(instructions: Any*): ListBuffer[Instruction] = {
     val resultBuffer = ListBuffer[Instruction]()
 
@@ -40,7 +40,7 @@ object generator {
 
     val mainBody = lb(
       genStmts(program.body, mainSymTable, allocator),
-      Mov(exitSuccess, Eax(Size64)),
+      Mov(exitSuccess, Eax(Size64))
     )
 
     val savedRegs = Allocator.NON_PARAM_REGS.take(program.vars.size)
@@ -307,35 +307,36 @@ object generator {
   }
 
   private def asgnPairElem(
-    left: LVal,
-    right: RVal,
-    symTable: SymbolTable[Dest],
-    allocator: Allocator,
-    snd_? :Boolean = false
+      left: LVal,
+      right: RVal,
+      symTable: SymbolTable[Dest],
+      allocator: Allocator,
+      snd_? : Boolean = false
   ): ListBuffer[Instruction] = lb(
     genLVal(left, symTable, checkDeref_? = true),
     genRval(right, symTable, allocator),
     Pop(Eax(Size64)),
     Pop(Ebx(Size64)),
-    Mov(Eax(Size64), Address(Ebx(Size64))
-    )
+    Mov(Eax(Size64), Address(Ebx(Size64)))
   )
 
   private def genFreeStmt(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
     expr.typ.get match {
-      case ArrayType(_) => lb(
-        genExpr(expr, symTable),
-        Pop(Eax(Size64)),
-        Mov(Eax(Size64), Edi(Size64)),
-        SubAsm(Immediate(4), Edi(Size64)),
-        CallAsm(Label(s"_$free"))
-      )
-      case PairType(_, _) | Pair => lb(
-        genExpr(expr, symTable),
-        Pop(Eax(Size64)),
-        Mov(Eax(Size64), Edi(Size64)),
-        CallAsm(Label(s"_$freepair"))
-      )
+      case ArrayType(_) =>
+        lb(
+          genExpr(expr, symTable),
+          Pop(Eax(Size64)),
+          Mov(Eax(Size64), Edi(Size64)),
+          SubAsm(Immediate(4), Edi(Size64)),
+          CallAsm(Label(s"_$free"))
+        )
+      case PairType(_, _) | Pair =>
+        lb(
+          genExpr(expr, symTable),
+          Pop(Eax(Size64)),
+          Mov(Eax(Size64), Edi(Size64)),
+          CallAsm(Label(s"_$freepair"))
+        )
     }
 
   private def genRval(
@@ -355,8 +356,7 @@ object generator {
   private def genPairRval(value: LVal, symTable: SymbolTable[Dest], snd_? : Boolean = false) = {
     genPairElem(value, symTable, snd_?, checkDeref_? = true) ++= lb(
       Pop(Eax(Size64)),
-      Mov(Address(Eax(Size64)),
-      Eax(Size64)),
+      Mov(Address(Eax(Size64)), Eax(Size64)),
       Push(Eax(Size64))
     )
   }
@@ -430,20 +430,25 @@ object generator {
       snd_? : Boolean = false,
       checkDeref_? : Boolean = false
   ): ListBuffer[Instruction] = {
-    val derefCheck = if (checkDeref_?) lb(
-      Cmp(nullPtr, Eax(Size64)),
-      JmpComparison(Label(s"_$errNull"), Eq)
-    ) else lb()
+    val derefCheck =
+      if (checkDeref_?)
+        lb(
+          Cmp(nullPtr, Eax(Size64)),
+          JmpComparison(Label(s"_$errNull"), Eq)
+        )
+      else lb()
     lval match {
-      case Fst(value) => genLVal(value, symTable, checkDeref_? = checkDeref_?) ++=
-        lb(Pop(Eax(Size64)), derefCheck, Push(Eax(Size64)))
-      case Snd(value) => lb(
-        genLVal(value, symTable, checkDeref_? = checkDeref_?),
-        Pop(Eax(Size64)),
-        derefCheck,
-        AddAsm(Immediate(ptrSize), Eax(Size64)),
-        Push(Eax(Size64))
-      )
+      case Fst(value) =>
+        genLVal(value, symTable, checkDeref_? = checkDeref_?) ++=
+          lb(Pop(Eax(Size64)), derefCheck, Push(Eax(Size64)))
+      case Snd(value) =>
+        lb(
+          genLVal(value, symTable, checkDeref_? = checkDeref_?),
+          Pop(Eax(Size64)),
+          derefCheck,
+          Mov(Address(Eax(Size64), Immediate(ptrSize)), Eax(Size64)),
+          Push(Eax(Size64))
+        )
       case _ => throw new IllegalArgumentException(s"Fst or Snd expected, got: ${lval.getClass}")
     }
   }
@@ -456,20 +461,22 @@ object generator {
         throw new IllegalArgumentException(s"Read called with unsupported type: ${lval.typ.get}")
     }
     lval match {
-      case id: Ident => lb(
-        Mov(symTable(id).get, Edi(Size64)),
-        call,
-        Mov(Eax(Size64), symTable(id).get)
-      )
-      case _ => lb(
-        genLVal(lval, symTable, checkDeref_? = true),
-        Pop(Ebx(Size64)),
-        Mov(Address(Ebx(Size64)), Edi(Size64)),
-        Push(Ebx(Size64)),
-        call,
-        Pop(Ebx(Size64)),
-        Mov(Eax(Size64), Address(Ebx(Size64)))
-      )
+      case id: Ident =>
+        lb(
+          Mov(symTable(id).get, Edi(Size64)),
+          call,
+          Mov(Eax(Size64), symTable(id).get)
+        )
+      case _ =>
+        lb(
+          genLVal(lval, symTable, checkDeref_? = true),
+          Pop(Ebx(Size64)),
+          Mov(Address(Ebx(Size64)), Edi(Size64)),
+          Push(Ebx(Size64)),
+          call,
+          Pop(Ebx(Size64)),
+          Mov(Eax(Size64), Address(Ebx(Size64)))
+        )
     }
   }
 
@@ -499,26 +506,26 @@ object generator {
   )
 
   private def genLVal(
-    lval: LVal,
-    symTable: SymbolTable[Dest],
-    checkDeref_? : Boolean = false
+      lval: LVal,
+      symTable: SymbolTable[Dest],
+      checkDeref_? : Boolean = false
   ): ListBuffer[Instruction] = {
     lval match {
-      case id: Ident => lb(Push(symTable(id).get))
+      case id: Ident               => lb(Push(symTable(id).get))
       case ArrayElem(ident, exprs) => genArrayElem(ident, exprs.init, symTable)
-      case Fst(f@Fst(_)) => genRval(f, symTable, Allocator(0, ParamMode))
-      case Fst(f@Snd(_)) => genRval(f, symTable, Allocator(0, ParamMode))
-      case Snd(f@Fst(_)) => genRval(f, symTable, Allocator(0, ParamMode))
-      case Snd(f@Snd(_)) => genRval(f, symTable, Allocator(0, ParamMode))
-      case f@Fst(_) => genPairElem(f, symTable, checkDeref_? = true)
-      case s@Snd(_) => genPairElem(s, symTable, snd_? = true, checkDeref_? = true)
+      case Fst(f @ Fst(_))         => genRval(f, symTable, Allocator(0, ParamMode))
+      case Fst(f @ Snd(_))         => genRval(f, symTable, Allocator(0, ParamMode))
+      case Snd(f @ Fst(_))         => genRval(f, symTable, Allocator(0, ParamMode))
+      case Snd(f @ Snd(_))         => genRval(f, symTable, Allocator(0, ParamMode))
+      case f @ Fst(_)              => genPairElem(f, symTable, checkDeref_? = true)
+      case s @ Snd(_)              => genPairElem(s, symTable, snd_? = true, checkDeref_? = true)
     }
   }
 
   private def genArrayElem(
-    ident: Ident,
-    exprs: List[Expr],
-    symTable: SymbolTable[Dest]
+      ident: Ident,
+      exprs: List[Expr],
+      symTable: SymbolTable[Dest]
   ): ListBuffer[Instruction] = {
     val dest = symTable(ident).get
     var typ: Type = ident.typ.get
@@ -582,31 +589,34 @@ object generator {
       Pop(Eax(Size64)),
       Pop(Ebx(Size64)),
       op match {
-        case Add | Sub | Mul => lb(
-          op match {
-            case Add => AddAsm(Ebx(Size32), Eax(Size32))
-            case Sub => SubAsm(Ebx(Size32), Eax(Size32))
-            case Mul => Imul(Ebx(Size32), Eax(Size32))
-          },
-          Jo(Label(s"_$errOverflow")),
-          Movs(Eax(Size32), Eax(Size64), Size32, Size64)
-        )
-        case Eq | NotEq | Gt | GtEq | Lt | LtEq => lb(
-          Cmp(Ebx(size), Eax(size)),
-          SetAsm(Eax(Size8), op.asInstanceOf[Comparison]),
-          Movs(Eax(Size8), Eax(Size64), Size8, Size64)
-        )
-        case Mod | Div => lb(
-          Cmp(Immediate(0), Ebx(Size32)),
-          JmpComparison(Label(s"_$errDivZero"), Eq),
-          // As Cltd will write into edx?? This isn't in reference compiler I just did it.
-          Push(Edx(Size64)),
-          Cltd,
-          Idiv(Ebx(Size32)),
-          if (op == Mod) Mov(Edx(Size32), Eax(Size32)) else lb(),
-          Movs(Eax(Size32), Eax(Size64), Size32, Size64),
-          Pop(Edx(Size64)) // Pop back
-        )
+        case Add | Sub | Mul =>
+          lb(
+            op match {
+              case Add => AddAsm(Ebx(Size32), Eax(Size32))
+              case Sub => SubAsm(Ebx(Size32), Eax(Size32))
+              case Mul => Imul(Ebx(Size32), Eax(Size32))
+            },
+            Jo(Label(s"_$errOverflow")),
+            Movs(Eax(Size32), Eax(Size64), Size32, Size64)
+          )
+        case Eq | NotEq | Gt | GtEq | Lt | LtEq =>
+          lb(
+            Cmp(Ebx(size), Eax(size)),
+            SetAsm(Eax(Size8), op.asInstanceOf[Comparison]),
+            Movs(Eax(Size8), Eax(Size64), Size8, Size64)
+          )
+        case Mod | Div =>
+          lb(
+            Cmp(Immediate(0), Ebx(Size32)),
+            JmpComparison(Label(s"_$errDivZero"), Eq),
+            // As Cltd will write into edx?? This isn't in reference compiler I just did it.
+            Push(Edx(Size64)),
+            Cltd,
+            Idiv(Ebx(Size32)),
+            if (op == Mod) Mov(Edx(Size32), Eax(Size32)) else lb(),
+            Movs(Eax(Size32), Eax(Size64), Size32, Size64),
+            Pop(Edx(Size64)) // Pop back
+          )
         case Or | And =>
           val label = Allocator.allocateLabel
           lb(
@@ -654,7 +664,10 @@ object generator {
           Movs(Eax(Size8), Eax(Size64), Size8, Size64)
         )
       case Ord =>
-        lb(Movs(Eax(Size8), Eax(Size64), Size8, Size64)) // Do nothing as char already being stored as a Long in eax
+        lb(
+          Movs(Eax(Size8), Eax(Size64), Size8, Size64)
+        ) // Do nothing as char already being stored as a Long in eax
     }
   )
+
 }
