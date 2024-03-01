@@ -69,10 +69,21 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
   }
 
   def sanitiseRegex(s: String): String = s
+    .replaceAll("\\\\", "\\\\\\\\")
     .replaceAll("\\{", "\\\\{")
     .replaceAll("}", "\\\\}")
     .replaceAll("\\+", "\\\\+")
     .replaceAll("\\?", "\\\\?")
+    .replaceAll("\\*", "\\\\*")
+    .replaceAll("\\(", "\\\\(")
+    .replaceAll("\\)", "\\\\)")
+    .replaceAll("\\[", "\\\\[")
+    .replaceAll("]", "\\\\]")
+    .replaceAll("\\^", "\\\\^")
+    .replaceAll("\\$", "\\\\$")
+    .replaceAll("\\.", "\\\\.")
+    .replaceAll("\\|", "\\\\|")
+    .replaceAll("-", "\\\\-")
 
   def parseWaccFile(filePath: String): (String, String, Int) = {
     var output: String = ""
@@ -88,7 +99,7 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
       } else if (line.startsWith("# Exit:")) {
         exitCode = lines.next().drop(2).toInt
       } else if (line.startsWith("# Input:")) {
-        input = lines.takeWhile(!_.isBlank).map(_.dropWhile(_ == '#')).mkString("")
+        input = line.drop(8) ++ lines.takeWhile(!_.isBlank).mkString("")
       }
     }
 
