@@ -3,14 +3,15 @@ package src.main.wacc
 import scala.collection.mutable.ListBuffer
 
 object formatter {
-
   def format(prog: ListBuffer[Instruction], formatter: Formatter): String =
     prog.map(formatter(_))
       .mkString("\n") + "\n"
 }
 
 trait Formatter {
+  // Format an instruction
   def apply(instruction: Instruction): String
+  // Format an address, immediate, label or register
   def apply(location: Location): String
 }
 
@@ -25,7 +26,7 @@ object x86Formatter extends Formatter {
           case _ if name.startsWith("int") || name.startsWith("asciz") => indent
           case _                                                       => ""
         }
-        start ++ s".$name"
+        s"$start.$name"
       case Label(name) => s"$name:"
       case Ret         => indent ++ "ret\n"
       case Cltd        => indent ++ "cltd"
@@ -77,90 +78,76 @@ object x86Formatter extends Formatter {
   }
 
   private def formatReg(reg: Reg): String = reg match {
-    case _: Eax =>
-      reg.size match {
-        case Size8  => "%al"
-        case Size32 => "%eax"
-        case Size64 => "%rax"
-      }
-    case _: Ebx =>
-      reg.size match {
-        case Size8  => "%bl"
-        case Size32 => "%ebx"
-        case Size64 => "%rbx"
-      }
-    case _: Ecx =>
-      reg.size match {
-        case Size8  => "%cl"
-        case Size32 => "%ecx"
-        case Size64 => "%rcx"
-      }
-    case _: Edx =>
-      reg.size match {
-        case Size8  => "%dl"
-        case Size32 => "%edx"
-        case Size64 => "%rdx"
-      }
-    case _: Esi =>
-      reg.size match {
-        case Size8  => "%sil"
-        case Size32 => "%esi"
-        case Size64 => "%rsi"
-      }
-    case _: Edi =>
-      reg.size match {
-        case Size8  => "%dil"
-        case Size32 => "%edi"
-        case Size64 => "%rdi"
-      }
-    case _: R8 =>
-      reg.size match {
-        case Size8  => "%r8b"
-        case Size32 => "%r8d"
-        case Size64 => "%r8"
-      }
-    case _: R9 =>
-      reg.size match {
-        case Size8  => "%r9b"
-        case Size32 => "%r9d"
-        case Size64 => "%r9"
-      }
-    case _: R10 =>
-      reg.size match {
-        case Size8  => "%r10b"
-        case Size32 => "%r10d"
-        case Size64 => "%r10"
-      }
-    case _: R11 =>
-      reg.size match {
-        case Size8  => "%r11b"
-        case Size32 => "%r11d"
-        case Size64 => "%r11"
-      }
-    case _: R12 =>
-      reg.size match {
-        case Size8  => "%r12b"
-        case Size32 => "%r12d"
-        case Size64 => "%r12"
-      }
-    case _: R13 =>
-      reg.size match {
-        case Size8  => "%r13b"
-        case Size32 => "%r13d"
-        case Size64 => "%r13"
-      }
-    case _: R14 =>
-      reg.size match {
-        case Size8  => "%r14b"
-        case Size32 => "%r14d"
-        case Size64 => "%r14"
-      }
-    case _: R15 =>
-      reg.size match {
-        case Size8  => "%r15b"
-        case Size32 => "%r15d"
-        case Size64 => "%r15"
-      }
+    case _: Eax => reg.size match {
+      case Size8  => "%al"
+      case Size32 => "%eax"
+      case Size64 => "%rax"
+    }
+    case _: Ebx => reg.size match {
+      case Size8  => "%bl"
+      case Size32 => "%ebx"
+      case Size64 => "%rbx"
+    }
+    case _: Ecx => reg.size match {
+      case Size8  => "%cl"
+      case Size32 => "%ecx"
+      case Size64 => "%rcx"
+    }
+    case _: Edx => reg.size match {
+      case Size8  => "%dl"
+      case Size32 => "%edx"
+      case Size64 => "%rdx"
+    }
+    case _: Esi => reg.size match {
+      case Size8  => "%sil"
+      case Size32 => "%esi"
+      case Size64 => "%rsi"
+    }
+    case _: Edi => reg.size match {
+      case Size8  => "%dil"
+      case Size32 => "%edi"
+      case Size64 => "%rdi"
+    }
+    case _: R8 => reg.size match {
+      case Size8  => "%r8b"
+      case Size32 => "%r8d"
+      case Size64 => "%r8"
+    }
+    case _: R9 => reg.size match {
+      case Size8  => "%r9b"
+      case Size32 => "%r9d"
+      case Size64 => "%r9"
+    }
+    case _: R10 => reg.size match {
+      case Size8  => "%r10b"
+      case Size32 => "%r10d"
+      case Size64 => "%r10"
+    }
+    case _: R11 => reg.size match {
+      case Size8  => "%r11b"
+      case Size32 => "%r11d"
+      case Size64 => "%r11"
+    }
+    case _: R12 => reg.size match {
+      case Size8  => "%r12b"
+      case Size32 => "%r12d"
+      case Size64 => "%r12"
+    }
+    case _: R13 => reg.size match {
+      case Size8  => "%r13b"
+      case Size32 => "%r13d"
+      case Size64 => "%r13"
+    }
+    case _: R14 => reg.size match {
+      case Size8  => "%r14b"
+      case Size32 => "%r14d"
+      case Size64 => "%r14"
+    }
+    case _: R15 => reg.size match {
+      case Size8  => "%r15b"
+      case Size32 => "%r15d"
+      case Size64 => "%r15"
+    }
     case Rbp => "%rbp"
     case Rsp => "%rsp"
     case Rip => "%rip"
@@ -168,25 +155,24 @@ object x86Formatter extends Formatter {
 
   private def memFormat(mem: MemOp): String = mem match {
     case reg: Reg         => this(reg)
-    case Imm(value) => s"$value"
+    case Imm(value)       => s"$value"
     case Label(name)      => name
   }
 
   private def instructionPostfix(location: Location): String = location match {
-    case r: Reg =>
-      r.size match {
-        case Size8  => "b"
-        case Size32 => "l"
-        case Size64 => "q"
-      }
-    case _: Address => "q"
+    case r: Reg => r.size match {
+      case Size8  => "b"
+      case Size32 => "l"
+      case Size64 => "q"
+    }
+    case _: Address => "q" // Default to 64 bit
     case _          => throw new IllegalArgumentException(s"Invalid postfix argument: $location")
   }
 
   private def instructionPostfix(srcSize: Size, destSize: Size): String =
     instructionPostfix(srcSize) + instructionPostfix(destSize)
 
-  private def instructionPostfix(comparison: Comparison) = comparison match {
+  private def instructionPostfix(comparison: Comparison): String = comparison match {
     case Eq    => "e"
     case Lt    => "l"
     case Gt    => "g"
