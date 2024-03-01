@@ -18,13 +18,15 @@ trait Formatter {
 // x86-64 AT&T instructions
 object x86Formatter extends Formatter {
 
+  private lazy val intDirStart = "int"
+  private lazy val stringDirStart = "asciz"
   private lazy val indent = "        "
   override def apply(instruction: Instruction): String = {
     instruction match {
       case Directive(name) =>
         val start = name match {
-          case _ if name.startsWith("int") || name.startsWith("asciz") => indent
-          case _                                                       => ""
+          case _ if name.startsWith(intDirStart) || name.startsWith(stringDirStart) => indent
+          case _ => ""
         }
         s"$start.$name"
       case Label(name) => s"$name:"
@@ -72,9 +74,9 @@ object x86Formatter extends Formatter {
       val optional = if (index == Imm(0)) "" else s", ${memFormat(index)}$scl"
       (if (offset == Imm(0)) "" else s"${memFormat(offset)}") ++
         s"(${memFormat(base)}$optional)"
-    case Imm(value) => s"$$$value"
-    case Label(name)      => name
-    case reg: Reg         => formatReg(reg)
+    case Imm(value)  => s"$$$value"
+    case Label(name) => name
+    case reg: Reg    => formatReg(reg)
   }
 
   private def formatReg(reg: Reg): String = reg match {
@@ -186,5 +188,4 @@ object x86Formatter extends Formatter {
     case Size32 => "l"
     case Size64 => "q"
   }
-
 }

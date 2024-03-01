@@ -471,6 +471,12 @@ object builtInFunctions {
     Ret
   )
 
+  /** Generates a listbuffer of instructions from a list of instructions or listbuffers of
+   *  instructions
+   *
+   * @param instructions The list of instructions or listbuffers of instructions to be included
+   * @return The listbuffer of instructions
+   */
   def lb(instructions: Any*): ListBuffer[Instruction] = {
     val resultBuffer = ListBuffer[Instruction]()
 
@@ -486,6 +492,11 @@ object builtInFunctions {
     resultBuffer
   }
 
+  /** Doubly escapes escape characters
+   *
+   * @param s The string to be double escaped
+   * @return The double escaped string
+   */
   def doubleEscape(s: String): String = {
     s.flatMap {
       case '\\' => "\\\\"
