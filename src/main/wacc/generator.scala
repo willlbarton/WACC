@@ -313,7 +313,7 @@ object generator {
       allocator: Allocator,
       snd_? : Boolean = false
   ): ListBuffer[Instruction] = lb(
-    genLVal(left, symTable, checkDeref_? = true),
+    genLVal(left, symTable),
     genRval(right, symTable, allocator),
     Pop(Eax(Size64)),
     Pop(Ebx(Size64)),
@@ -349,17 +349,10 @@ object generator {
       case a: ArrayLiter => genArray(a, symTable)
       case c: Call       => genCall(c, symTable, allocator)
       case NewPair(a, b) => genPair(a, b, symTable)
-      case f @ Fst(_)    => genPairRval(f, symTable)
-      case s @ Snd(_)    => genPairRval(s, symTable, snd_? = true)
+      case f @ Fst(_)    => genPairElem(f, symTable, deref_? = true, checkDeref_? = true)
+      case s @ Snd(_)    =>
+        genPairElem(s, symTable, snd_? = true, deref_? = true, checkDeref_? = true)
     }
-
-  private def genPairRval(value: LVal, symTable: SymbolTable[Dest], snd_? : Boolean = false) = {
-    genPairElem(value, symTable, snd_?, checkDeref_? = true) ++= lb(
-      Pop(Eax(Size64)),
-      Mov(Address(Eax(Size64)), Eax(Size64)),
-      Push(Eax(Size64))
-    )
-  }
 
   private def genCall(
       c: Call,
@@ -425,28 +418,29 @@ object generator {
   )
 
   private def genPairElem(
-      lval: LVal,
-      symTable: SymbolTable[Dest],
-      snd_? : Boolean = false,
-      checkDeref_? : Boolean = false
+    lval: LVal,
+    symTable: SymbolTable[Dest],
+    snd_? : Boolean = false,
+    deref_? : Boolean = false,
+    checkDeref_? : Boolean = false,
   ): ListBuffer[Instruction] = {
-    val derefCheck =
-      if (checkDeref_?)
-        lb(
-          Cmp(nullPtr, Eax(Size64)),
-          JmpComparison(Label(s"_$errNull"), Eq)
-        )
-      else lb()
+    val derefCheck = if (checkDeref_?)
+      lb(
+        Cmp(nullPtr, Eax(Size64)),
+        JmpComparison(Label(s"_$errNull"), Eq)
+      ) else lb()
+    val deref = if (deref_?) Mov(Address(Eax(Size64)), Eax(Size64)) else lb()
     lval match {
       case Fst(value) =>
-        genLVal(value, symTable, checkDeref_? = checkDeref_?) ++=
-          lb(Pop(Eax(Size64)), derefCheck, Push(Eax(Size64)))
+        genLVal(value, symTable, deref_? = true) ++=
+          lb(Pop(Eax(Size64)), derefCheck, deref, Push(Eax(Size64)))
       case Snd(value) =>
         lb(
-          genLVal(value, symTable, checkDeref_? = checkDeref_?),
+          genLVal(value, symTable, deref_? = true),
           Pop(Eax(Size64)),
           derefCheck,
           AddAsm(Immediate(ptrSize), Eax(Size64)),
+          deref,
           Push(Eax(Size64))
         )
       case _ => throw new IllegalArgumentException(s"Fst or Snd expected, got: ${lval.getClass}")
@@ -469,7 +463,7 @@ object generator {
         )
       case _ =>
         lb(
-          genLVal(lval, symTable, checkDeref_? = true),
+          genLVal(lval, symTable, deref_? = true),
           Pop(Ebx(Size64)),
           Mov(Address(Ebx(Size64)), Edi(Size64)),
           Push(Ebx(Size64)),
@@ -506,19 +500,17 @@ object generator {
   )
 
   private def genLVal(
-      lval: LVal,
-      symTable: SymbolTable[Dest],
-      checkDeref_? : Boolean = false
+    lval: LVal,
+    symTable: SymbolTable[Dest],
+    deref_? : Boolean = false
   ): ListBuffer[Instruction] = {
     lval match {
       case id: Ident               => lb(Push(symTable(id).get))
       case ArrayElem(ident, exprs) => genArrayElem(ident, exprs.init, symTable)
-      case Fst(f @ Fst(_))         => genRval(f, symTable, Allocator(0, ParamMode))
-      case Fst(f @ Snd(_))         => genRval(f, symTable, Allocator(0, ParamMode))
-      case Snd(f @ Fst(_))         => genRval(f, symTable, Allocator(0, ParamMode))
-      case Snd(f @ Snd(_))         => genRval(f, symTable, Allocator(0, ParamMode))
-      case f @ Fst(_)              => genPairElem(f, symTable, checkDeref_? = true)
-      case s @ Snd(_)              => genPairElem(s, symTable, snd_? = true, checkDeref_? = true)
+      case f @ Fst(_)              =>
+        genPairElem(f, symTable, deref_? = deref_?, checkDeref_? = true)
+      case s @ Snd(_)              =>
+        genPairElem(s, symTable, snd_? = true, deref_? = deref_?, checkDeref_? = true)
     }
   }
 
