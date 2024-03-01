@@ -446,7 +446,7 @@ object generator {
           genLVal(value, symTable, checkDeref_? = checkDeref_?),
           Pop(Eax(Size64)),
           derefCheck,
-          AddAsm(Immediate(ptrSize), Eax(Size64)),
+          Mov(Address(Eax(Size64), Immediate(ptrSize)), Eax(Size64)),
           Push(Eax(Size64))
         )
       case _ => throw new IllegalArgumentException(s"Fst or Snd expected, got: ${lval.getClass}")
