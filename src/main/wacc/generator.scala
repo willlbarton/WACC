@@ -556,8 +556,10 @@ object generator {
     expr match {
       case Integer(i) => Mov(i, Eax())
       case StringAtom(s) =>
-        // String literals have " escaped
-        Lea(Address(Rip, Label(s".L.str${stringLiters(s.replace("\"", "\\\""))}")), Eax(Size64))
+        Lea(Address(
+          Rip, // String literals have " escaped
+          Label(s".L.str${stringLiters(builtInFunctions.doubleEscape(s))}")),
+          Eax(Size64))
       case Bool(value)  => Mov(if (value) 1 else 0, Eax(Size64))
       case Character(c) => Mov(c, Eax(Size64))
       case ArrayElem(ident, exprs) => genArrayElem(ident, exprs, symTable)

@@ -485,6 +485,18 @@ object builtInFunctions {
 
     resultBuffer
   }
+
+  def doubleEscape(s: String): String = {
+    s.flatMap {
+      case '\\' => "\\\\"
+      case '\n' => "\\n"
+      case '\t' => "\\t"
+      case '\b' => "\\b"
+      case '\r' => "\\r"
+      case '\"' => "\\\""
+      case c => c.toString
+    }
+  }
 }
 
 // Provides labels for external functions

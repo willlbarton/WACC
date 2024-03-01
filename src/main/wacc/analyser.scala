@@ -267,7 +267,8 @@ object analyser {
       case Character(_) => ("", Some(CharType))
       case StringAtom(s) =>
         if (!generator.stringLiters.contains(s))
-          generator.stringLiters += (s.replace("\"", "\\\"") -> generator.stringLiters.size)
+          generator.stringLiters +=
+            (builtInFunctions.doubleEscape(s) -> generator.stringLiters.size)
         ("", Some(StringType))
       case Null => ("", Some(Pair))
       case id: Ident =>
