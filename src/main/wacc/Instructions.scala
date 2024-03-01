@@ -85,5 +85,6 @@ object constants {
   val boolTrue: Immediate = Immediate(1)
   val badChar: Immediate = Immediate(-128)
   val exitSuccess: Immediate = Immediate(0)
+  val exitError: Immediate = Immediate(-1)
   val nullPtr: Immediate = Immediate(0)
 }
