@@ -42,7 +42,7 @@ object builtInFunctions {
   val boolTrueLit = "true"
   val boolFalseLit = "false"
 
-  lazy val genFunctions: ListBuffer[Instruction] = lb(
+  lazy val genBuiltInFunctions: ListBuffer[Instruction] = lb(
     genCall(exit, provided.exit),
     genPrint(stringType, "%.*s"),
     genPrint(intType, "%d"),
