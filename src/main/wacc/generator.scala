@@ -4,9 +4,9 @@ import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import src.main.wacc.constants._
 import src.main.wacc.builtInFunctions._
-import scala.sys.process._
 
 object generator {
+
   def lb(instructions: Any*): ListBuffer[Instruction] = {
     val resultBuffer = ListBuffer[Instruction]()
 
@@ -446,7 +446,7 @@ object generator {
           genLVal(value, symTable, checkDeref_? = checkDeref_?),
           Pop(Eax(Size64)),
           derefCheck,
-          Mov(Address(Eax(Size64), Immediate(ptrSize)), Eax(Size64)),
+          AddAsm(Immediate(ptrSize), Eax(Size64)),
           Push(Eax(Size64))
         )
       case _ => throw new IllegalArgumentException(s"Fst or Snd expected, got: ${lval.getClass}")
@@ -669,5 +669,4 @@ object generator {
         ) // Do nothing as char already being stored as a Long in eax
     }
   )
-
 }
