@@ -113,7 +113,7 @@ final case class Character(c: Char) extends Expr {
   override def toString: String = s"'$c'"
 }
 final case class StringAtom(s: String) extends Expr {
-  override def toString: String = s
+  override def toString: String = s"\"$s\""
 }
 case object Null extends Expr { override def toString = "null" } // Null pair
 final case class Ident(name: String) extends Expr with LVal { override def toString: String = name }
