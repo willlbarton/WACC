@@ -80,7 +80,7 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
     .replaceAll("\\[", "\\\\[")
     .replaceAll("]", "\\\\]")
     .replaceAll("\\^", "\\\\^")
-    .replaceAll("\\$", "\\\\$")
+    .replace("$", "\\$")
     .replaceAll("\\.", "\\\\.")
     .replaceAll("\\|", "\\\\|")
     .replaceAll("-", "\\\\-")
