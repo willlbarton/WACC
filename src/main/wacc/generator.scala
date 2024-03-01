@@ -4,27 +4,10 @@ import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import src.main.wacc.constants._
 import src.main.wacc.builtInFunctions._
+import builtInFunctions.lb
+import src.main.wacc.Imm.intToImmediate
 
 object generator {
-
-  def lb(instructions: Any*): ListBuffer[Instruction] = {
-    val resultBuffer = ListBuffer[Instruction]()
-
-    for (instruction <- instructions) {
-      instruction match {
-        case inst: Instruction =>
-          resultBuffer += inst
-        case instList: List[_] if instList.forall(_.isInstanceOf[Instruction]) =>
-          resultBuffer ++= instList.asInstanceOf[List[Instruction]]
-        case instBuffer: ListBuffer[_] if instBuffer.forall(_.isInstanceOf[Instruction]) =>
-          resultBuffer ++= instBuffer.asInstanceOf[ListBuffer[Instruction]]
-        case _ =>
-          throw new IllegalArgumentException(s"Unsupported type: ${instruction.getClass}")
-      }
-    }
-
-    resultBuffer
-  }
 
   val stringLiters: mutable.Map[String, Int] = mutable.Map.empty
 

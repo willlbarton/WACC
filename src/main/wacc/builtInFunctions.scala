@@ -1,8 +1,8 @@
 package src.main.wacc
 
 import scala.collection.mutable.ListBuffer
-import src.main.wacc.generator.lb
 import src.main.wacc.constants._
+import src.main.wacc.Imm.intToImmediate
 
 object builtInFunctions {
 
@@ -232,7 +232,7 @@ object builtInFunctions {
   def genDataSection(data: (String, String)*): ListBuffer[Instruction] = lb(
     dirSectionData,
     lb(
-      data.map(kv =>
+      data.flatMap(kv =>
         lb( // String literals have their length, label, and string data
           Directive(s"int ${kv._1.length - kv._1.count(_ == '\\')}"),
           Label(kv._2),
@@ -470,6 +470,23 @@ object builtInFunctions {
     genNewScopeExit(),
     Ret
   )
+
+  def lb(instructions: Any*): ListBuffer[Instruction] = {
+    val resultBuffer = ListBuffer[Instruction]()
+
+    for (instruction <- instructions) {
+      instruction match {
+        case inst: Instruction =>
+          resultBuffer += inst
+        case instIter: IterableOnce[_] if instIter.iterator.forall(_.isInstanceOf[Instruction]) =>
+          resultBuffer ++= instIter.asInstanceOf[IterableOnce[Instruction]]
+        case _ =>
+          throw new IllegalArgumentException(s"Unsupported type: ${instruction.getClass}")
+      }
+    }
+
+    resultBuffer
+  }
 }
 
 // Provides labels for external functions

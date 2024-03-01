@@ -1,6 +1,7 @@
 package src.main.wacc
 
 import scala.language.implicitConversions
+import Imm.intToImmediate
 
 sealed trait Instruction
 
@@ -48,7 +49,9 @@ final case class Address(
 ) extends Dest
 
 case class Imm(value: Int) extends Operand with MemOp
-implicit def intToImmediate(value: Int): Imm = Imm(value)
+case object Imm {
+  implicit def intToImmediate(value: Int): Imm = Imm(value)
+}
 
 case object Ret extends Instruction
 case object Cltd extends Instruction

@@ -2,6 +2,7 @@ package src.main.wacc
 
 import scala.collection.mutable.ListBuffer
 import src.main.wacc.constants._
+import src.main.wacc.Imm.intToImmediate
 
 sealed trait Mode
 case object ParamMode extends Mode
