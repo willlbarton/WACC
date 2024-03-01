@@ -37,7 +37,9 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
             fail(s"Error running binary: ${e.getMessage}")
         }
         val (out, exit) = ret
-        out.matches(expOut) shouldBe true
+        withClue(s"Output: $out\nShould have matched: $expOut\n") {
+          out.matches(expOut) shouldBe true
+        }
         exit shouldEqual expExit
       }
     }
@@ -66,6 +68,12 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
     (output.toString, exitCode)
   }
 
+  def sanitiseRegex(s: String): String = s
+    .replaceAll("\\{", "\\\\{")
+    .replaceAll("}", "\\\\}")
+    .replaceAll("\\+", "\\\\+")
+    .replaceAll("\\?", "\\\\?")
+
   def parseWaccFile(filePath: String): (String, String, Int) = {
     var output: String = ""
     var input: String = ""
@@ -75,13 +83,12 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
 
     for (line <- lines) {
       if (line.startsWith("# Output:")) {
-        output = lines.takeWhile(!_.isBlank).map(_.drop(2))
-          .mkString("").replaceAll("#.*?#", ".*?")
-          .replaceAll("\\{", "\\\\{").replaceAll("}", "\\\\}").replaceAll("\\+", "\\\\+")
+        output = sanitiseRegex(lines.takeWhile(!_.isBlank).map(_.drop(2))
+          .mkString("")).replaceAll("#.*?#", ".*?")
       } else if (line.startsWith("# Exit:")) {
         exitCode = lines.next().drop(2).toInt
       } else if (line.startsWith("# Input:")) {
-        input = lines.takeWhile(!_.isBlank).map(_.drop(2)).mkString("")
+        input = lines.takeWhile(!_.isBlank).map(_.dropWhile(_ == '#')).mkString("")
       }
     }
 
