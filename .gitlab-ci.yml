@@ -15,6 +15,11 @@ analyser:
   script:
     - scala-cli test . --test-only src.test.Analyser
 
+backEndUnit:
+  stage: backEndUnit
+  script:
+    - scala-cli test . --test-only src.test.BackEndUnit
+
 generator:
   stage: generator
   script:
