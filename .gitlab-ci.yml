@@ -3,6 +3,7 @@ image: docker.io/gumjoe/wacc-ci-scala:x86
 stages:
   - parser
   - analyser
+  - backEndUnit
   - generator
 
 parser:
