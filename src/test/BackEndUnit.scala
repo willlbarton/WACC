@@ -1,3 +1,5 @@
+package src.test
+
 import org.scalatest.funsuite.AnyFunSuite
 import src.main.wacc._
 import scala.collection.mutable.ListBuffer
