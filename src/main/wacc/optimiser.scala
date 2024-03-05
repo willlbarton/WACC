@@ -22,6 +22,21 @@ object optimiser {
 }
 
 private object inliner {
+  def convertToInlineMap(
+    funcs: Map[Ident, ListBuffer[Instruction]]
+  ): Map[Ident, ListBuffer[Instruction]] = {
+    funcs.map { case (k,v) =>
+      val label = Allocator.allocateLabel
+      k -> lb(
+        v.tail.map { // remove the label
+          case Ret => Jmp(label) // replace returns with jumps
+          case x => x
+        },
+        Label // this should be to before the pops, not the the end
+      )
+    }
+  }
+
   def inline(prog: ListBuffer[Instruction], funcs: Map[Ident, ListBuffer[Instruction]]): ListBuffer[Instruction] = {
     val toInline = funcs.filter { case (_, v) => v.length < 30 } // TODO: find a good heuristic
     prog.flatMap(inst => inst match {

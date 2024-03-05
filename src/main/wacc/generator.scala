@@ -48,7 +48,7 @@ object generator {
       genBuiltInFunctions
     )
     symTableExitScope(mainSymTable, allocator, savedRegs)
-    (instructions, functions.map { case (k,v) => k -> v.tail.init }.toMap)
+    (instructions, functions.toMap)
   }
 
   // Generates the assembly for a single user defined function
