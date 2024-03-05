@@ -325,6 +325,7 @@ object generator {
         Mov(Eax(Size64), Edi(Size64)),
         CallAsm(Label(s"_$freepair"))
       )
+      case _ => throw new IllegalArgumentException(s"Free called with type: ${expr.typ.get}")
     }
 
   // Generates the assembly for an RVal of an assignment or declaration

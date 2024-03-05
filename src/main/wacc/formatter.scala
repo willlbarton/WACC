@@ -3,12 +3,12 @@ package src.main.wacc
 import scala.collection.mutable.ListBuffer
 
 object formatter {
-  def format(prog: ListBuffer[Instruction], formatter: Formatter): String =
+  def format(prog: ListBuffer[Instruction], formatter: AsmFormatter): String =
     prog.map(formatter(_))
       .mkString("\n") + "\n"
 }
 
-trait Formatter {
+trait AsmFormatter {
   // Format an instruction
   def apply(instruction: Instruction): String
   // Format an address, immediate, label or register
@@ -16,7 +16,7 @@ trait Formatter {
 }
 
 // x86-64 AT&T instructions
-object x86Formatter extends Formatter {
+object x86Formatter extends AsmFormatter {
 
   private lazy val intDirStart = "int"
   private lazy val stringDirStart = "asciz"
