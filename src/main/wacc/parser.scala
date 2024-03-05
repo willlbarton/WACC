@@ -125,8 +125,6 @@ object parser {
       NotEq <# "!=",
       Eq <# "=="
     ),
-    Ops(InfixR)(And <# "&&"),
-    Ops(InfixR)(Or <# "||"),
     Ops(InfixL)(
       BitXor <# "^",
       BitOr <# "|",
@@ -139,6 +137,8 @@ object parser {
       LtEq <# "<=",
       Gt <# ">",
       Lt <# "<"
-    )
+    ),
+    Ops(InfixR)(And <# "&&"),
+    Ops(InfixR)(Or <# "||")
   )
 }
