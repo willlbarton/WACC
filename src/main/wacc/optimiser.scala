@@ -24,7 +24,7 @@ object optimiser {
 
   private def pushPopToMov(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
     prog.head match {
-      case Push(op) if prog(1) == Pop(op.asInstanceOf[Dest]) =>
+      case Push(op) if prog(1).isInstanceOf[Pop] =>
         lb(Mov(op, prog(1).asInstanceOf[Pop].dest)) -> 2
       case _ => lb(prog.head) -> 1
     }
@@ -44,7 +44,6 @@ object optimiser {
 private case class AsmProgram(instrs: ListBuffer[Instruction]) {
 
   def apply(i: Int): Instruction = instrs(i)
-  def length: Int = instrs.length
 
   def |>(f: ListBuffer[Instruction] => (ListBuffer[Instruction], Int), n: Int): AsmProgram = {
     peepN(instrs, n, f)
