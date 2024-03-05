@@ -52,12 +52,40 @@ object parser {
       PrintLn("println" ~> expr) |
       Return("return" ~> expr) |
       Exit("exit" ~> expr) |
-      IfStmt("if" ~> expr <~ "then".explain("if statements require \'then\'"),
+      IfStmt(atomic("if" ~> expr <~ "then".explain("if statements require \'then\'")),
         statements <~ "else".explain("if statements require an \'else\' branch"),
+        statements <~ "fi".explain("if statements must end in \'fi\'")) |
+      IfStmt(atomic("if" ~> expr <~ "then".explain("if statements require \'then\'")),
         statements <~ "fi".explain("if statements must end in \'fi\'")) |
       While("while" ~> expr <~ "do", statements <~
         "done".explain("while loops must end with \'done\'")) |
       ScopedStmt("begin" ~> statements <~ "end")
+      /*
+      If ... then
+        ...
+      else 
+        ...
+      fi
+
+
+      if .... then
+        ...
+      fi
+
+
+      if ... 
+        then ...
+      else 
+        skip
+      fi
+      */
+
+      //IfStmtWithoutElse("if" ~> expr <~ "then",
+        //statements <~ "fi") |
+        //statements, pure("else"), pure(Skip) <~ "fi".explain("if statements must end in \'fi\'")) |
+      //IfStmtWithoutElse(atomic("if" ~> expr <~ "then"),
+        //statements <~ "fi") |
+        //statements, pure("else"), pure(Skip) <~ "fi".explain("if statements must end in \'fi\'")) |
 
   // Parses a type
   private lazy val typ: Parsley[Type] = atomic(arrayType) | baseType | pairType
