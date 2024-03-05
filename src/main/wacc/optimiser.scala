@@ -6,7 +6,10 @@ import scala.language.implicitConversions
 
 object optimiser {
 
-  def optimise(prog: ListBuffer[Instruction]): ListBuffer[Instruction] = {
+  def optimise(
+    prog: ListBuffer[Instruction],
+    funcs: Map[Ident, ListBuffer[Instruction]]
+  ): ListBuffer[Instruction] = {
     val program =
       AsmProgram(prog) |>
         (removePushPop, 2) |>

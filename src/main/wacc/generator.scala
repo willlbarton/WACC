@@ -12,7 +12,7 @@ object generator {
   // string literals to be stored in the data section
   val stringLiters: mutable.Map[String, Int] = mutable.Map.empty
 
-  def generate(program: Program): ListBuffer[Instruction] = {
+  def generate(program: Program): (ListBuffer[Instruction], Map[Ident, ListBuffer[Instruction]]) = {
     val instructions = lb(
       dirGlobl,
       // Data section
@@ -29,10 +29,13 @@ object generator {
       Mov(exitSuccess, Eax(Size64))
     )
 
+
     // Main body should be evaluated before symTableEnterScope as the symbol table needs to be
     // updated with the variables in the main body
     val savedRegs = Allocator.NON_PARAM_REGS.take(program.vars.size)
     symTableEnterScope(mainSymTable, allocator, savedRegs)
+
+    val functions = program.functions.map(x => x.ident -> genFunc(x))
 
     instructions ++= lb(
       genNewScopeEnter(program.vars),
@@ -40,12 +43,12 @@ object generator {
       genNewScopeExit(program.vars),
       Ret,
       // Generate the functions
-      program.functions.flatMap(x => genFunc(x)),
+      functions.flatMap(_._2),
       // Generate the built-in functions
       genBuiltInFunctions
     )
     symTableExitScope(mainSymTable, allocator, savedRegs)
-    instructions
+    (instructions, functions.toMap)
   }
 
   // Generates the assembly for a single user defined function
