@@ -12,11 +12,13 @@ object optimiser {
     funcs: Map[Ident, ListBuffer[Instruction]]
   ): ListBuffer[Instruction] = {
     val inlined = inliner.inline(prog, inliner.convertToInlineMap(funcs))
-    val program =
-      AsmProgram(inlined) |>
-        (removePushPop, 2) |>
-        (pushPopToMov, 2) |>
-        (removeZeroAddSub, 1)
+    val program = AsmProgram(inlined) |>
+      (removePushPop, 2) |>
+      (pushPopToMov, 2) |>
+      (removeZeroAddSub, 1) |>
+      (removeDeadCode, 1) |>
+      (removeJumpToNext, 2) |>
+      (removeMovRaxMov, 2)
     program.instrs
   }
 }
@@ -71,9 +73,31 @@ private object peephole {
     }
   }
 
-  // dead code
+  def removeMovRaxMov(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    if (prog.length < 2) return lb(prog.head) -> 1
+    (prog.head, prog(1)) match {
+      case (Mov(op1, op2, _), Mov(op3, op4, _))
+        if op2 == Eax(Size64) && op3 == Eax(Size64) =>
+        lb(Mov(op1, op4)) -> 2
+      case _ => lb(prog.head) -> 1
+    }
+  }
 
-  // jump to label
+  private var removing = false
+  def removeDeadCode(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    prog.head match {
+      case Jmp(_) | Ret if !removing => removing = true; lb(prog.head) -> 1
+      case Label(_) => removing = false; lb(prog.head) -> 1
+      case _ => (if (removing) lb() else lb(prog.head)) -> 1
+    }
+  }
+
+  def removeJumpToNext(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    prog.head match {
+      case Jmp(label) if prog(1) == label => lb(label) -> 2
+      case _ => lb(prog.head) -> 1
+    }
+  }
 }
 
 private case class AsmProgram(instrs: ListBuffer[Instruction]) {
