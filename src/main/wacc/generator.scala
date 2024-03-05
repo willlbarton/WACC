@@ -29,7 +29,6 @@ object generator {
       Mov(exitSuccess, Eax(Size64))
     )
 
-
     // Main body should be evaluated before symTableEnterScope as the symbol table needs to be
     // updated with the variables in the main body
     val savedRegs = Allocator.NON_PARAM_REGS.take(program.vars.size)

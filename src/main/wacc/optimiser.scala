@@ -11,39 +11,45 @@ object optimiser {
     prog: ListBuffer[Instruction],
     funcs: Map[Ident, ListBuffer[Instruction]]
   ): ListBuffer[Instruction] = {
-    val inlined = inliner.inline(prog, inliner.convertToInlineMap(funcs))
-    val program = AsmProgram(inlined) |>
+    val toInline = funcs.filter(inliner.isInlineable)
+    val inlined = inliner.inline(prog, toInline)
+    val program = inlined
+    val optimised = AsmProgram(program) |>
       (removePushPop, 2) |>
       (pushPopToMov, 2) |>
       (removeZeroAddSub, 1) |>
       (removeDeadCode, 1) |>
       (removeJumpToNext, 2) |>
       (removeMovRaxMov, 2)
-    program.instrs
+    optimised.instrs
   }
 }
 
 private object inliner {
-  def convertToInlineMap(
-    funcs: Map[Ident, ListBuffer[Instruction]]
-  ): Map[Ident, ListBuffer[Instruction]] = {
-    funcs.map { case (k,v) =>
-      val label = Allocator.allocateLabel
-      k -> lb(
-        v.tail.map { // remove the label
-          case Ret => Jmp(label) // replace returns with jumps
-          case x => x
-        },
-        label // this should be to before the pops, not the the end
-      )
-    }
+  def isInlineable(func: (Ident, ListBuffer[Instruction])): Boolean = {
+    func._2.length < 20
   }
 
-  def inline(prog: ListBuffer[Instruction], funcs: Map[Ident, ListBuffer[Instruction]]): ListBuffer[Instruction] = {
-    val toInline = funcs.filter { case (_, v) => v.length < 30 } // TODO: find a good heuristic
+  private def convertToInline(
+    body: ListBuffer[Instruction]
+  ): ListBuffer[Instruction] = {
+    val label = Allocator.allocateLabel
+    lb(
+      body.tail.map { // remove the label
+        case Ret => Jmp(label) // replace returns with jumps
+        case x => x
+      },
+      label // this should be to before the pops, not the the end
+    )
+  }
+
+  def inline(
+    prog: ListBuffer[Instruction],
+    toInline: Map[Ident, ListBuffer[Instruction]]
+  ): ListBuffer[Instruction] = {
     prog.flatMap(inst => inst match {
       case CallAsm(label) if toInline.contains(Ident(label.name.stripPrefix("wacc_"))) =>
-        toInline(Ident(label.name.stripPrefix("wacc_")))
+        convertToInline(toInline(Ident(label.name.stripPrefix("wacc_"))))
       case _ => lb(inst)
     })
   }
@@ -77,7 +83,8 @@ private object peephole {
     if (prog.length < 2) return lb(prog.head) -> 1
     (prog.head, prog(1)) match {
       case (Mov(op1, op2, _), Mov(op3, op4, _))
-        if op2 == Eax(Size64) && op3 == Eax(Size64) =>
+        if op2 == Eax(Size64) && op3 == Eax(Size64) &&
+          !(op1.isInstanceOf[Address] && op4.isInstanceOf[Address]) =>
         lb(Mov(op1, op4)) -> 2
       case _ => lb(prog.head) -> 1
     }
