@@ -11,7 +11,7 @@ object optimiser {
     prog: ListBuffer[Instruction],
     funcs: Map[Ident, ListBuffer[Instruction]]
   ): ListBuffer[Instruction] = {
-    val inlined = inliner.inline(prog, funcs)
+    val inlined = inliner.inline(prog, inliner.convertToInlineMap(funcs))
     val program =
       AsmProgram(inlined) |>
         (removePushPop, 2) |>
@@ -32,7 +32,7 @@ private object inliner {
           case Ret => Jmp(label) // replace returns with jumps
           case x => x
         },
-        Label // this should be to before the pops, not the the end
+        label // this should be to before the pops, not the the end
       )
     }
   }
@@ -70,6 +70,10 @@ private object peephole {
       case _ => lb(prog.head) -> 1
     }
   }
+
+  // dead code
+
+  // jump to label
 }
 
 private case class AsmProgram(instrs: ListBuffer[Instruction]) {
