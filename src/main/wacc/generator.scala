@@ -474,7 +474,7 @@ object generator {
           Push(Ebx(Size64)),
           call,
           Pop(Ebx(Size64)),
-          Mov(Eax(Size64), Address(Ebx(Size64)))
+          Mov(Eax(Allocator.getTypeSize(lval.typ.get)), Address(Ebx(Size64)), useOpSize = true)
         )
     }
   }
