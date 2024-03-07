@@ -134,8 +134,9 @@ private object peephole {
         if op1 == op4 && op2 == op3 || op1 == op3 && op2 == op4 => lb(prog.head) -> 2
       case (Movs(op1, op2, _, _), Movs(op3, op4, _, _))
         if op1 == op4 && op2 == op3 || op1 == op3 && op2 == op4 => lb(prog.head) -> 2
-      case (Mov(op1, Eax(_), _), Mov(Eax(Size64), op4, _))
-        if !(op1.isInstanceOf[Address] && op4.isInstanceOf[Address]) => lb(Mov(op1, op4)) -> 2
+      case (Mov(op1, Eax(_), _), Mov(Eax(s2), op4, s1))
+        if !(op1.isInstanceOf[Address] && op4.isInstanceOf[Address]) =>
+        lb(Mov(op1, op4, if (op4.isInstanceOf[Address]) s2 else s1)) -> 2
       case (Movs(op1, Eax(_), s1, _), Movs(Eax(Size64), op4, _, s2))
         if !(op1.isInstanceOf[Address] && op4.isInstanceOf[Address]) =>
         lb(Movs(op1, op4, s1, s2)) -> 2

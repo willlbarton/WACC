@@ -5,14 +5,14 @@ import Imm.intToImmediate
 
 sealed trait Instruction
 
-sealed trait Location
+sealed trait Location {
+  val size: Size
+}
 sealed trait Operand extends Location
 sealed trait Dest extends Location with Operand
 sealed trait MemOp extends Location
 
-sealed trait Reg extends Dest with MemOp {
-  val size: Size
-}
+sealed trait Reg extends Dest with MemOp
 
 sealed trait Size
 case object Size8 extends Size
@@ -46,9 +46,13 @@ final case class Address(
     offset: MemOp = 0,
     index: MemOp = 0,
     scale: MemOp = 1
-) extends Dest
+) extends Dest {
+  override val size: Size = Size64
+}
 
-case class Imm(value: Int) extends Operand with MemOp
+case class Imm(value: Int) extends Operand with MemOp {
+  override val size: Size = Size64
+}
 case object Imm {
   implicit def intToImmediate(value: Int): Imm = Imm(value)
 }
@@ -57,8 +61,14 @@ case object Ret extends Instruction
 case object Cltd extends Instruction
 
 final case class Directive(name: String) extends Instruction
-final case class Label(name: String) extends Instruction with MemOp
-final case class Mov(op: Operand, dest: Dest, useOpSize: Boolean = false) extends Instruction
+final case class Label(name: String) extends Instruction with MemOp {
+  override val size: Size = Size64
+}
+final case class Mov(op: Operand, dest: Dest, size: Size) extends Instruction
+case object Mov {
+  def apply(op: Operand, dest: Dest, useOpSize : Boolean = false): Mov =
+    Mov(op, dest, if (useOpSize) op.size else dest.size)
+}
 final case class Movs(op: Operand, dest: Dest, srcSize: Size, destSize: Size) extends Instruction
 final case class Pop(dest: Dest) extends Instruction
 final case class Push(op: Operand) extends Instruction
