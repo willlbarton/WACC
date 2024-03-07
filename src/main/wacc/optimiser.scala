@@ -12,7 +12,7 @@ object optimiser {
     funcs: Map[Ident, ListBuffer[Instruction]]
   ): ListBuffer[Instruction] = {
     val toInline = funcs.filter(inliner.isInlineable)
-    val inlined = inliner.nestedInline(prog, toInline)
+    val inlined = inliner.inline(prog, toInline)
     val program = inlined
     val optimised = AsmProgram(program) |>
       (removeDeadCode, 1) |>
@@ -33,11 +33,12 @@ private object inliner {
 
   // converts a function body for inlining
   private def convertToInline(
-    body: ListBuffer[Instruction]
+    body: ListBuffer[Instruction],
+    toInline: Map[Ident, ListBuffer[Instruction]]
   ): ListBuffer[Instruction] = {
     val label = Allocator.allocateLabel
     val labels = body.collect { case l: Label => l -> Allocator.allocateLabel }.toMap
-    lb(
+    var instructions = lb(
       Push(Rbp),
       body.tail.map { // remove the label
         case Ret => Jmp(label) // replace returns with jumps
@@ -50,31 +51,24 @@ private object inliner {
       label, // this should be to before the pops, not the the end
       Pop(Rbp)
     )
-  }
-
-  private val INLINE_DEPTH = 3
-
-  def nestedInline(
-    prog: ListBuffer[Instruction],
-    toInline: Map[Ident, ListBuffer[Instruction]]
-  ): ListBuffer[Instruction] = {
     var i = 0
-    var inlined = prog
     while (i < INLINE_DEPTH) {
       i += 1
-      inlined = inline(inlined, toInline)
+      instructions = inline(instructions, toInline)
     }
-    inlined
+    instructions
   }
 
+  private val INLINE_DEPTH = 2
+
   // inlines a map of functions
-  private def inline(
+  def inline(
     prog: ListBuffer[Instruction],
     toInline: Map[Ident, ListBuffer[Instruction]]
   ): ListBuffer[Instruction] = {
     prog.flatMap(inst => inst match {
       case CallAsm(label) if toInline.contains(Ident(label.name.stripPrefix("wacc_"))) =>
-        convertToInline(toInline(Ident(label.name.stripPrefix("wacc_"))))
+        convertToInline(toInline(Ident(label.name.stripPrefix("wacc_"))), toInline)
       case _ => lb(inst)
     })
   }
