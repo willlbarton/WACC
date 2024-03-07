@@ -28,7 +28,7 @@ object optimiser {
 private object inliner {
   // checks if a function should be inlined
   def isInlineable(func: (Ident, ListBuffer[Instruction])): Boolean = {
-    func._2.length < 20
+    func._2.length < 100
   }
 
   // converts a function body for inlining
@@ -38,6 +38,7 @@ private object inliner {
     val label = Allocator.allocateLabel
     val labels = body.collect { case l: Label => l -> Allocator.allocateLabel }.toMap
     lb(
+      Push(Rbp),
       body.tail.map { // remove the label
         case Ret => Jmp(label) // replace returns with jumps
         case Jmp(l) => Jmp(labels.getOrElse(l, l)) // replace jumps with new labels
@@ -46,7 +47,8 @@ private object inliner {
         case l: Label => labels(l) // replace labels with new labels
         case inst => inst
       },
-      label // this should be to before the pops, not the the end
+      label, // this should be to before the pops, not the the end
+      Pop(Rbp)
     )
   }
 
