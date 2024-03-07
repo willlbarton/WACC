@@ -222,9 +222,10 @@ object builtInFunctions {
   }
   // Overload to take list of variables to be saved
   def genNewScopeExit(
-      toAllocate: List[SymbolTableObj]
+      vars: List[SymbolTableObj]
   ): ListBuffer[Instruction] = {
-    val toSave = Allocator.NON_PARAM_REGS.take(toAllocate.size)
+    val toSave = Allocator.NON_PARAM_REGS.take(vars.size)
+    val toAllocate = vars.drop(Allocator.NON_PARAM_REGS.size)
     genNewScopeExit(toSave, toAllocate)
   }
 

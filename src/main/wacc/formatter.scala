@@ -32,8 +32,8 @@ object x86Formatter extends AsmFormatter {
       case Label(name) => s"$name:"
       case Ret         => indent ++ "ret\n"
       case Cltd        => indent ++ "cltd"
-      case Mov(op1, dest, useOpSize) =>
-        indent ++ s"mov${instructionPostfix(if (useOpSize) op1 else dest)}  ${this(op1)}, ${this(dest)}"
+      case Mov(op1, dest, size) =>
+        indent ++ s"mov${instructionPostfix(size)}  ${this(op1)}, ${this(dest)}"
       case Movs(op, dest, srcSize, destSize) =>
         indent ++ s"movs${instructionPostfix(srcSize, destSize)} ${this(op)}, ${this(dest)}"
       case Pop(dest)      => indent ++ s"pop${instructionPostfix(dest)}  ${this(dest)}"
