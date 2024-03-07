@@ -12,7 +12,7 @@ object optimiser {
     funcs: Map[Ident, ListBuffer[Instruction]]
   ): ListBuffer[Instruction] = {
     val toInline = funcs.filter(inliner.isInlineable)
-    val inlined = inliner.inline(prog, toInline)
+    val inlined = inliner.nestedInline(prog, toInline)
     val program = inlined
     val optimised = AsmProgram(program) |>
       (removePushPop, 2) |>
@@ -50,8 +50,23 @@ private object inliner {
     )
   }
 
+  private val INLINE_DEPTH = 3
+
+  def nestedInline(
+    prog: ListBuffer[Instruction],
+    toInline: Map[Ident, ListBuffer[Instruction]]
+  ): ListBuffer[Instruction] = {
+    var i = 0
+    var inlined = prog
+    while (i < INLINE_DEPTH) {
+      i += 1
+      inlined = inline(inlined, toInline)
+    }
+    inlined
+  }
+
   // inlines a map of functions
-  def inline(
+  private def inline(
     prog: ListBuffer[Instruction],
     toInline: Map[Ident, ListBuffer[Instruction]]
   ): ListBuffer[Instruction] = {
