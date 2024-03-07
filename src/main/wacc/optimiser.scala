@@ -26,23 +26,31 @@ object optimiser {
 }
 
 private object inliner {
+  // checks if a function should be inlined
   def isInlineable(func: (Ident, ListBuffer[Instruction])): Boolean = {
     func._2.length < 20
   }
 
+  // converts a function body for inlining
   private def convertToInline(
     body: ListBuffer[Instruction]
   ): ListBuffer[Instruction] = {
     val label = Allocator.allocateLabel
+    val labels = body.collect { case l: Label => l -> Allocator.allocateLabel }.toMap
     lb(
       body.tail.map { // remove the label
         case Ret => Jmp(label) // replace returns with jumps
-        case x => x
+        case Jmp(l) => Jmp(labels.getOrElse(l, l)) // replace jumps with new labels
+        case Jo(l) => Jo(labels.getOrElse(l, l))
+        case JmpComparison(l, op) => JmpComparison(labels.getOrElse(l, l), op)
+        case l: Label => labels(l) // replace labels with new labels
+        case inst => inst
       },
       label // this should be to before the pops, not the the end
     )
   }
 
+  // inlines a map of functions
   def inline(
     prog: ListBuffer[Instruction],
     toInline: Map[Ident, ListBuffer[Instruction]]
@@ -56,6 +64,7 @@ private object inliner {
 }
 
 private object peephole {
+  // push x, pop x
   def removePushPop(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
     prog.head match {
       case Push(op) if prog(1) == Pop(op.asInstanceOf[Dest]) => lb() -> 2
@@ -63,6 +72,7 @@ private object peephole {
     }
   }
 
+  // push x, pop y -> mov x, y
   def pushPopToMov(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
     prog.head match {
       case Push(op) if prog(1).isInstanceOf[Pop] =>
@@ -71,6 +81,7 @@ private object peephole {
     }
   }
 
+  // add 0, sub 0
   def removeZeroAddSub(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
     prog.head match {
       case AddAsm(Imm(0), _) => lb() -> 1
@@ -79,6 +90,7 @@ private object peephole {
     }
   }
 
+  // mov x, rax, mov rax, y -> mov x, y
   def removeMovRaxMov(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
     if (prog.length < 2) return lb(prog.head) -> 1
     (prog.head, prog(1)) match {
@@ -99,6 +111,7 @@ private object peephole {
     }
   }
 
+  // jmp label, label -> label
   def removeJumpToNext(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
     prog.head match {
       case Jmp(label) if prog(1) == label => lb(label) -> 2
@@ -111,10 +124,12 @@ private case class AsmProgram(instrs: ListBuffer[Instruction]) {
 
   def apply(i: Int): Instruction = instrs(i)
 
+  // pipe operator for applying peephole optimisations
   def |>(f: ListBuffer[Instruction] => (ListBuffer[Instruction], Int), n: Int): AsmProgram = {
     peepN(instrs, n, f)
   }
 
+  // peephole framework
   private def peepN(
     prog: ListBuffer[Instruction],
     n: Int,
