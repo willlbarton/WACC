@@ -17,11 +17,10 @@ object optimiser {
     val optimised = AsmProgram(program) |>
       (removeDeadCode, 1) |>
       (removeZeroAddSub, 1) |>
+      (removeJumpToNext, 2) |>
       (removePushPop, 2) |>
       (pushPopToMov, 2) |>
-      (removeJumpToNext, 2) |>
-      (removeMovRaxMov, 2) |>
-      (removeMovBack, 2)
+      (removeMovMov, 2)
     optimised.instrs
   }
 }
@@ -29,7 +28,7 @@ object optimiser {
 private object inliner {
   // checks if a function should be inlined
   def isInlineable(func: (Ident, ListBuffer[Instruction])): Boolean = {
-    func._2.length < 100
+    func._2.length < 25
   }
 
   // converts a function body for inlining
@@ -108,18 +107,6 @@ private object peephole {
     }
   }
 
-  // mov x, rax, mov rax, y -> mov x, y
-  def removeMovRaxMov(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
-    if (prog.length < 2) return lb(prog.head) -> 1
-    (prog.head, prog(1)) match {
-      case (Mov(op1, op2, _), Mov(op3, op4, _))
-        if op2 == Eax(Size64) && op3 == Eax(Size64) &&
-          !(op1.isInstanceOf[Address] && op4.isInstanceOf[Address]) =>
-        lb(Mov(op1, op4)) -> 2
-      case _ => lb(prog.head) -> 1
-    }
-  }
-
   private var removing = false
   def removeDeadCode(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
     prog.head match {
@@ -139,15 +126,21 @@ private object peephole {
 
   // mov x, y, mov y, x -> mov x, y
   // mov x, y, mov x, y -> mov x, y
-  def removeMovBack(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+  // mov x, rax, mov rax, y -> mov x, y
+  def removeMovMov(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
     if (prog.length < 2) return lb(prog.head) -> 1
-    lb(prog.head) -> ((prog.head, prog(1)) match {
+    (prog.head, prog(1)) match {
       case (Mov(op1, op2, _), Mov(op3, op4, _))
-        if op1 == op4 && op2 == op3 || op1 == op3 && op2 == op4 => 2
+        if op1 == op4 && op2 == op3 || op1 == op3 && op2 == op4 => lb(prog.head) -> 2
       case (Movs(op1, op2, _, _), Movs(op3, op4, _, _))
-        if op1 == op4 && op2 == op3 || op1 == op3 && op2 == op4 => 2
-      case _ => 1
-    })
+        if op1 == op4 && op2 == op3 || op1 == op3 && op2 == op4 => lb(prog.head) -> 2
+      case (Mov(op1, Eax(_), _), Mov(Eax(Size64), op4, _))
+        if !(op1.isInstanceOf[Address] && op4.isInstanceOf[Address]) => lb(Mov(op1, op4)) -> 2
+      case (Movs(op1, Eax(_), s1, _), Movs(Eax(Size64), op4, _, s2))
+        if !(op1.isInstanceOf[Address] && op4.isInstanceOf[Address]) =>
+        lb(Movs(op1, op4, s1, s2)) -> 2
+      case _ => lb(prog.head) -> 1
+    }
   }
 }
 
