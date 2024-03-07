@@ -15,12 +15,13 @@ object optimiser {
     val inlined = inliner.nestedInline(prog, toInline)
     val program = inlined
     val optimised = AsmProgram(program) |>
+      (removeDeadCode, 1) |>
+      (removeZeroAddSub, 1) |>
       (removePushPop, 2) |>
       (pushPopToMov, 2) |>
-      (removeZeroAddSub, 1) |>
-      (removeDeadCode, 1) |>
       (removeJumpToNext, 2) |>
-      (removeMovRaxMov, 2)
+      (removeMovRaxMov, 2) |>
+      (removeMovBack, 2)
     optimised.instrs
   }
 }
@@ -134,6 +135,19 @@ private object peephole {
       case Jmp(label) if prog(1) == label => lb(label) -> 2
       case _ => lb(prog.head) -> 1
     }
+  }
+
+  // mov x, y, mov y, x -> mov x, y
+  // mov x, y, mov x, y -> mov x, y
+  def removeMovBack(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    if (prog.length < 2) return lb(prog.head) -> 1
+    lb(prog.head) -> ((prog.head, prog(1)) match {
+      case (Mov(op1, op2, _), Mov(op3, op4, _))
+        if op1 == op4 && op2 == op3 || op1 == op3 && op2 == op4 => 2
+      case (Movs(op1, op2, _, _), Movs(op3, op4, _, _))
+        if op1 == op4 && op2 == op3 || op1 == op3 && op2 == op4 => 2
+      case _ => 1
+    })
   }
 }
 
