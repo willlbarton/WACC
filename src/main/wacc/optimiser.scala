@@ -22,7 +22,8 @@ object optimiser {
       (removePushPop, 2) |>
       (removeMovMov, 2) |>
       (movPushToPush, 2) |>
-      (removeBinaryImmPushPop, 5)
+      (removeBinaryImmPushPop, 5) |>
+      (removeMovsMovAddr, 2)
     optimised.instrs
   }
 }
@@ -198,7 +199,13 @@ private object peephole {
   }
 
   // don't extend values when moving to addresses
-  // ...
+  def removeMovsMovAddr(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    if (prog.length < 2) return lb(prog.head) -> 1
+    (prog.head, prog(1)) match {
+      case (Movs(op1, Eax(Size64), _, _), m@Mov(op3, _: Address, _)) if op1 == op3 => lb(m) -> 2
+      case _ => lb(prog.head) -> 1
+    }
+  }
 }
 
 private case class AsmProgram(instrs: ListBuffer[Instruction]) {
