@@ -1,6 +1,7 @@
 package src.main.wacc
 
 import builtInFunctions.lb
+
 import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
 import peephole._
@@ -19,7 +20,6 @@ object optimiser {
       (removeZeroAddSub, 1) |>
       (removeJumpToNext, 2) |>
       (removePushPop, 2) |>
-      (pushPopToMov, 2) |>
       (removeMovMov, 2) |>
       (movPushToPush, 2)
     optimised.instrs
@@ -77,18 +77,11 @@ private object inliner {
 
 private object peephole {
   // push x, pop x
-  def removePushPop(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
-    prog.head match {
-      case Push(op) if prog(1) == Pop(op.asInstanceOf[Dest]) => lb() -> 2
-      case _ => lb(prog.head) -> 1
-    }
-  }
-
   // push x, pop y -> mov x, y
-  def pushPopToMov(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
-    prog.head match {
-      case Push(op) if prog(1).isInstanceOf[Pop] =>
-        lb(Mov(op, prog(1).asInstanceOf[Pop].dest)) -> 2
+  def removePushPop(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    if (prog.length < 2) return lb(prog.head) -> 1
+    (prog.head, prog(1)) match {
+      case (Push(op), Pop(op2)) => (if (op == op2) lb() else lb(Mov(op, op2))) -> 2
       case _ => lb(prog.head) -> 1
     }
   }
