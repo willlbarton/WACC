@@ -20,7 +20,8 @@ object optimiser {
       (removeJumpToNext, 2) |>
       (removePushPop, 2) |>
       (pushPopToMov, 2) |>
-      (removeMovMov, 2)
+      (removeMovMov, 2) |>
+      (movPushToPush, 2)
     optimised.instrs
   }
 }
@@ -134,6 +135,22 @@ private object peephole {
       case (Movs(op1, Eax(_), s1, _), Movs(Eax(Size64), op4, _, s2))
         if !(op1.isInstanceOf[Address] && op4.isInstanceOf[Address]) =>
         lb(Movs(op1, op4, s1, s2)) -> 2
+      case (Mov(op1, Eax(_), s1), Movs(Eax(Size64), op4, _, s2))
+        if !(op1.isInstanceOf[Address] && op4.isInstanceOf[Address]) =>
+        lb(Movs(op1, op4, s1, s2)) -> 2
+      case (Movs(op1, Eax(_), s1, Size64), Mov(Eax(Size64), op4, s2))
+        if !(op1.isInstanceOf[Address] && op4.isInstanceOf[Address]) =>
+        lb(Movs(op1, op4, s1, s2)) -> 2
+      case _ => lb(prog.head) -> 1
+    }
+  }
+
+  // mov x, rax, push rax -> push x
+  def movPushToPush(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    if (prog.length < 2) return lb(prog.head) -> 1
+    (prog.head, prog(1)) match {
+      case (Mov(op1, Eax(Size64), _), Push(Eax(Size64))) if !op1.isInstanceOf[Imm] =>
+        lb(Push(op1)) -> 2
       case _ => lb(prog.head) -> 1
     }
   }
