@@ -21,7 +21,8 @@ object optimiser {
       (removeJumpToNext, 2) |>
       (removePushPop, 2) |>
       (removeMovMov, 2) |>
-      (movPushToPush, 2)
+      (movPushToPush, 2) |>
+      (removeBinaryImmPushPop, 5)
     optimised.instrs
   }
 }
@@ -147,6 +148,57 @@ private object peephole {
       case _ => lb(prog.head) -> 1
     }
   }
+
+  // Remove unnecessary operations when doing binary operations with immediate values
+  def removeBinaryImmPushPop(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    def binImm(v: Int, operand: Operand, f: (Operand, Dest) => Instruction, swap: Boolean) = {
+      val op = operand match {
+        case _: R12 => R12(Size32)
+        case _: R13 => R13(Size32)
+        case _: R14 => R14(Size32)
+        case _: R15 => R15(Size32)
+        case a: Address => a
+        case _ => throw new IllegalArgumentException("Bad operand for binary imm optimisation")
+      }
+      (if (!swap) lb(
+          Mov(Imm(v), Eax(Size32), Size32),
+          f(op, Eax(Size32))
+        )
+      else lb(
+          Mov(Imm(v), Ebx(Size32), Size32),
+          Mov(op, Eax(Size32), Size32),
+          f(Ebx(Size32), Eax(Size32))
+        )
+      )-> 5
+    }
+
+    def simplifyApp(v: Int, op: Operand, i: Instruction, swap: Boolean) = i match {
+      case AddAsm(Ebx(Size32), Eax(Size32)) => binImm(v, op, AddAsm, swap = false)
+      case SubAsm(Ebx(Size32), Eax(Size32)) => binImm(v, op, SubAsm, swap = swap)
+      case Imul(Ebx(Size32), Eax(Size32))   => binImm(v, op, Imul, swap = false)
+      case _ => lb(prog.head) -> 1
+    }
+
+    if (prog.length < 5) return lb(prog.head) -> 1
+    (prog.head, prog(1), prog(2), prog(3), prog(4)) match {
+      case(
+        Mov(Imm(v), Eax(Size32), Size32),
+        Push(Eax(Size64)),
+        Mov(op, Eax(Size64), _),
+        Pop(Ebx(Size64)),
+        i) => simplifyApp(v, op, i, swap = true)
+      case (
+        Mov(op, Eax(Size64), _),
+        Push(Eax(Size64)),
+        Mov(Imm(v), Eax(Size32), Size32),
+        Pop(Ebx(Size64)),
+        i) => simplifyApp(v, op, i, swap = false)
+      case _ => lb(prog.head) -> 1
+    }
+  }
+
+  // don't extend values when moving to addresses
+  // ...
 }
 
 private case class AsmProgram(instrs: ListBuffer[Instruction]) {
