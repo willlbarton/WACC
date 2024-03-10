@@ -35,8 +35,9 @@ object Main {
                       new FileWriter(outputFile)
                     )
                     try {
-                      val (unoptimised, funcs) = generator.generate(program)
-                      val optimised = optimiser.optimise(unoptimised, funcs)
+                      val optimistedTree = treeOptimiser.optimise(program)
+                      val (unoptimised, funcs) = generator.generate(optimistedTree)
+                      val optimised = codeOptimiser.optimise(unoptimised, funcs)
                       val formatted = formatter.format(optimised, x86Formatter)
                       writer.write(formatted)
                       println(s"Compilation successful! Output written to $outputFile")

@@ -6,7 +6,7 @@ import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
 import peephole._
 
-object optimiser {
+object codeOptimiser {
 
   def optimise(
     prog: ListBuffer[Instruction],
