@@ -10,6 +10,8 @@ object Main {
   private final val syntaxErrCode: Int = 100
   private final val semanticErrCode: Int = 200
 
+  private final val optimiseFlag = "-o"
+
   def main(args: Array[String]): Unit = {
     args.headOption match {
       // Attempt to parse, then analyse and finally generate code
@@ -35,9 +37,12 @@ object Main {
                       new FileWriter(outputFile)
                     )
                     try {
-                      val optimistedTree = treeOptimiser.optimise(program)
-                      val (unoptimised, funcs) = generator.generate(optimistedTree)
-                      val optimised = codeOptimiser.optimise(unoptimised, funcs)
+                      val optimise_? = args.contains(optimiseFlag)
+                      val optimisedTree = if (optimise_?) treeOptimiser.optimise(program)
+                                          else program
+                      val (unoptimised, funcs) = generator.generate(optimisedTree)
+                      val optimised = if (optimise_?) codeOptimiser.optimise(unoptimised, funcs)
+                                      else unoptimised
                       val formatted = formatter.format(optimised, x86Formatter)
                       writer.write(formatted)
                       println(s"Compilation successful! Output written to $outputFile")

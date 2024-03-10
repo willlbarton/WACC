@@ -1,16 +1,16 @@
 package src.test
 
-import src.main.wacc._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
 import org.scalatest.prop.TableDrivenPropertyChecks
+import src.main.wacc._
 
-import scala.sys.process._
-import scala.io.Source
-import java.io.{BufferedWriter, File, FileOutputStream, FileWriter, PrintStream}
+import java.io.{File, FileOutputStream, PrintStream}
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, Future}
+import scala.io.Source
+import scala.sys.process._
 
 sealed trait Err
 case object CompilationError extends Err
@@ -26,14 +26,14 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
         Console.withOut(new PrintStream(new FileOutputStream("/dev/null"))) {
           Main.main(Array(filePath))
         }
-        compileAssembly(s"$filename.s") shouldEqual None
-        val (input, expOut, expExit) = parseWaccFile(filePath)
+        testFileMaker.compileAssembly(s"$filename.s") shouldEqual None
+        val (input, expOut, expExit) = testFileMaker.parseWaccFile(filePath)
         var ret = ("", 1)
         try {
-          ret = Await.result(Future(runBinary(filename, input)), 60.seconds)
+          ret = Await.result(Future(testFileMaker.runBinary(filename, input)), 60.seconds)
         } catch {
           case e: Exception =>
-            deleteFile(filename)
+            testFileMaker.deleteFile(filename)
             fail(s"Error running binary: ${e.getMessage}")
         }
         val (out, exit) = ret
@@ -44,7 +44,9 @@ class Generator extends AnyFlatSpec with TableDrivenPropertyChecks {
       }
     }
   }
+}
 
+object testFileMaker {
   def compileAssembly(assemblyFile: String): Option[Err] = {
     try {
       val binaryFile = assemblyFile.replaceFirst("\\.s$", "")
