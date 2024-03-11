@@ -23,7 +23,8 @@ object codeOptimiser {
       (removeMovMov, 2) |>
       (movPushToPush, 2) |>
       (removeMovsMovAddr, 2) |>
-      (simplifyBinApp, 5)
+      (simplifyBinApp, 5) |>
+      (simplifyUpdate, 5)
     optimised.instrs
   }
 }
@@ -159,7 +160,8 @@ private object peephole {
     }
   }
 
-  // Remove unnecessary operations when doing binary operations with immediate values
+  // Remove unnecessary operations when doing binary operations with atomic values
+  // We don't need to save the value of the operand in a register
   def simplifyBinApp(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
     def getBinApp(
       op1_ : Operand, op2_ : Operand, f: (Operand, Dest) => Instruction, swap: Boolean
@@ -205,6 +207,36 @@ private object peephole {
         i, _) if !op1.isInstanceOf[Eax] =>
           val (instrs, step) = simplifyApp(op2, op1, i, swap = false)
           instrs -> (if (step == 5) 4 else 1)
+      case _ => lb(prog.head) -> 1
+    }
+  }
+
+  // +=, -=, *= Don't use rax, just apply directly
+  def simplifyUpdate(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    if (prog.length < 5) return lb(prog.head) -> 1
+    (prog.head, prog(1), prog(2), prog(3), prog(4)) match {
+      case (
+        Mov(op0, Eax(Size32), Size32),
+        AddAsm(op1, Eax(Size32)),
+        j: Jo,
+        Movs(Eax(Size32), op2, Size32, Size64), _
+      ) if op1.getClass == op2.getClass =>
+        lb(AddAsm(op0, Reg.resize(op2, Size32).asInstanceOf[Dest]), j) -> 4
+      case (
+        Mov(op0, Ebx(Size32), Size32),
+        Mov(op1, Eax(Size32), Size32),
+        SubAsm(Ebx(Size32), Eax(Size32)),
+        j: Jo,
+        Movs(Eax(Size32), op2, Size32, Size64)
+        ) if op1.getClass == op2.getClass =>
+        lb(SubAsm(op0, Reg.resize(op2, Size32).asInstanceOf[Dest]), j) -> 5
+      case (
+        Mov(op0, Eax(Size32), Size32),
+        Imul(op1, Eax(Size32)),
+        j: Jo,
+        Movs(Eax(Size32), op2, Size32, Size64), _
+        ) if op1.getClass == op2.getClass =>
+        lb(Imul(op0, Reg.resize(op2, Size32).asInstanceOf[Dest]), j) -> 4
       case _ => lb(prog.head) -> 1
     }
   }
