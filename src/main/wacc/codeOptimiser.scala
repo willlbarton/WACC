@@ -20,11 +20,12 @@ object codeOptimiser {
       (removeZeroAddSub, 1) |>
       (removeJumpToNext, 2) |>
       (removePushPop, 2) |>
-      (removeMovMov, 2) |>
       (movPushToPush, 2) |>
       (removeMovsMovAddr, 2) |>
       (simplifyBinApp, 5) |>
-      (simplifyUpdate, 5)
+      (simplifyUpdate, 5) |>
+      (removePushPop, 2) |>
+      (removeMovMov, 2)
     optimised.instrs
   }
 }
@@ -250,6 +251,16 @@ private object peephole {
         Movs(Eax(Size32), op2, Size32, Size64), _
         ) if op1.getClass == op2.getClass =>
         lb(Imul(op0, Reg.resize(op2, Size32).asInstanceOf[Dest]), j) -> 4
+      case (
+        Mov(op1, Eax(Size64), Size64),
+        Pop(Ebx(Size64)),
+        Mov(Ebx(Size64), Ecx(Size64), Size64),
+        BitLeftShiftAsm(Ecx(Size64), Eax(Size64)),
+        Mov(Eax(Size64), op2, Size64)
+        ) if op1 == op2 => lb(
+          Pop(Ecx(Size64)),
+          BitLeftShiftAsm(Ecx(Size64), op2),
+        ) -> 5
       case _ => lb(prog.head) -> 1
     }
   }
