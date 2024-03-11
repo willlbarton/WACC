@@ -180,6 +180,7 @@ object analyser {
 
     // Check and find the type of the right hand side
     val (err, typ2) = checkRVal(symTable, value)
+    ident.typ = Some(typ)
     error ++= err withContext s"$typ $ident = $value"
     // Check that the type of the right hand side is compatible with the declared type
     if (typ2.isDefined && !isWeakerType(typ, typ2.get)) {
@@ -252,7 +253,7 @@ object analyser {
       case Right(typ) => typ1 = Some(typ)
     }
     val (err, typ2) = checkRVal(symTable, value)
-    value.typ = typ1
+    value.typ = if (typ1.contains(NullType)) if (typ2.isDefined) typ2 else Some(NullType) else typ1
     error ++= err withContext s"$left = $value"
     // Check that the types are compatible
     if (typ1.isDefined && typ2.isDefined && !isWeakerType(typ1.get, typ2.get))
@@ -297,7 +298,8 @@ object analyser {
       case Character(_) => ("", Some(CharType))
       case StringAtom(s) =>
         if (!generator.stringLiters.contains(s))
-          generator.stringLiters += (s.replace("\"", "\\\"") -> generator.stringLiters.size)
+          generator.stringLiters +=
+            (builtInFunctions.doubleEscape(s) -> generator.stringLiters.size)
         ("", Some(StringType))
       case Null => ("", Some(Pair))
       case id: Ident =>

@@ -1,17 +1,19 @@
 package src.main.wacc
 
 import parsley.internal.machine.instructions.Instr
+import scala.language.implicitConversions
+import Imm.intToImmediate
 
 sealed trait Instruction
 
-sealed trait Location
+sealed trait Location {
+  val size: Size
+}
 sealed trait Operand extends Location
 sealed trait Dest extends Location with Operand
 sealed trait MemOp extends Location
 
-sealed trait Reg extends Dest with MemOp {
-  val size: Size
-}
+sealed trait Reg extends Dest with MemOp
 
 sealed trait Size
 case object Size8 extends Size
@@ -42,18 +44,32 @@ case object Rip extends Reg { override val size: Size = Size64 }
 
 final case class Address(
     base: MemOp,
-    offset: MemOp = Immediate(0),
-    index: MemOp = Immediate(0),
-    scale: MemOp = Immediate(1)
-) extends Dest
-final case class Immediate(value: Int) extends Operand with MemOp
+    offset: MemOp = 0,
+    index: MemOp = 0,
+    scale: MemOp = 1
+) extends Dest {
+  override val size: Size = Size64
+}
+
+case class Imm(value: Int) extends Operand with MemOp {
+  override val size: Size = Size64
+}
+case object Imm {
+  implicit def intToImmediate(value: Int): Imm = Imm(value)
+}
 
 case object Ret extends Instruction
 case object Cltd extends Instruction
 
 final case class Directive(name: String) extends Instruction
-final case class Label(name: String) extends Instruction with MemOp
-final case class Mov(op: Operand, dest: Dest, useOpSize: Boolean = false) extends Instruction
+final case class Label(name: String) extends Instruction with MemOp {
+  override val size: Size = Size64
+}
+final case class Mov(op: Operand, dest: Dest, size: Size) extends Instruction
+case object Mov {
+  def apply(op: Operand, dest: Dest, useOpSize : Boolean = false): Mov =
+    Mov(op, dest, if (useOpSize) op.size else dest.size)
+}
 final case class Movs(op: Operand, dest: Dest, srcSize: Size, destSize: Size) extends Instruction
 final case class Pop(dest: Dest) extends Instruction
 final case class Push(op: Operand) extends Instruction
@@ -80,6 +96,7 @@ final case class CMovl(op: Operand, dest: Dest) extends Instruction
 final case class CMovge(op: Operand, dest: Dest) extends Instruction
 final case class CMovne(op: Operand, dest: Dest) extends Instruction
 
+<<<<<<< src/main/wacc/Instructions.scala
 // Bitwise operators
 final case class BitNotAsm(dest: Dest) extends Instruction
 final case class BitAndAsm(op: Operand, dest: Dest) extends Instruction
@@ -296,8 +313,15 @@ object x86Formatter extends Formatter {
 
 }
 
+=======
+>>>>>>> src/main/wacc/Instructions.scala
 object constants {
   val byteSize: Int = 1
   val intSize: Int = 4
   val ptrSize: Int = 8
+  val boolTrue: Imm = 1
+  val badChar: Imm = -128
+  val exitSuccess: Imm = 0
+  val exitError: Imm = -1
+  val nullPtr: Imm = 0
 }
