@@ -74,7 +74,23 @@ object parser {
           "done".explain("while loops must end with \'done\'")
       ) |
       ScopedStmt("begin" ~> statements <~ "end")
-
+      ifStmt
+  
+  def ifStmt: Parsley[Stmt] = {
+    val ifWithoutElse = IfStmt(
+      atomic("if" ~> expr <~ "then".explain("if statements require 'then'")),
+      statements,
+      Parsley.pure(List.empty[Stmt])
+    )
+  
+    val ifWithElse = IfStmt(
+      atomic("if" ~> expr <~ "then".explain("if statements require 'then'")),
+      statements <~ "else".explain("if statements require an 'else' branch"),
+      statements <~ "fi".explain("if statements must end in 'fi'")
+    )
+  
+    ifWithoutElse <|> ifWithElse
+  }
   // Parses a type
   private lazy val typ: Parsley[Type] = atomic(arrayType) | baseType | pairType
   private lazy val pairType: Parsley[PairType] =
