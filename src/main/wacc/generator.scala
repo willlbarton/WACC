@@ -136,7 +136,7 @@ object generator {
         symTable.put(ident, dest) // Add the variable to the symbol table
         genDeclStmt(value, dest, symTable, allocator)
       case Asgn(lval, value) => genAsgnStmt(lval, value, symTable, allocator)
-      case SideEffectStmt(left, op, expr) => {
+      case SideEffectStmt(left, op, expr) =>
         // At this point, we can assume that left: lval is an lval which can be mapped to an expression
         val lExp: Expr = left match {
           case ArrayElem(ident, exprs) => ArrayElem(ident, exprs)
@@ -160,7 +160,6 @@ object generator {
           symTable,
           allocator
         )
-      }
       case Free(expr) => genFreeStmt(expr, symTable)
       case ifStmt: IfStmt =>
         genIfStmt(ifStmt, symTable, allocator, exitScope) // handle IfStmt case
@@ -653,7 +652,7 @@ object generator {
           )
         case Mod | Div =>
           lb(
-            Cmp(Immediate(0), Ebx(Size32)),
+            Cmp(Imm(0), Ebx(Size32)),
             JmpComparison(Label(s"_$errDivZero"), Eq),
             // As Cltd will write into edx?? This isn't in reference compiler I just did it.
             Push(Edx(Size64)),
@@ -690,24 +689,24 @@ object generator {
       case Chr =>
         lb(
           Movs(Eax(Size8), Eax(Size64), Size8, Size64),
-          Testq(Immediate(-128), Eax(Size64)),
+          Testq(Imm(-128), Eax(Size64)),
           CMovne(Eax(Size64), Esi(Size64)),
           JmpComparison(Label(s"_$errBadChar"), NotEq)
         )
       case Len =>
         lb(
-          Mov(Address(Eax(Size64), Immediate(-intSize)), Eax())
+          Mov(Address(Eax(Size64), Imm(-intSize)), Eax())
         )
       case Neg =>
         lb(
-          Mov(Immediate(0), Edx(Size64)),
+          Mov(Imm(0), Edx(Size64)),
           SubAsm(Eax(Size32), Edx(Size32)),
           Jo(Label(s"_$errOverflow")),
           Movs(Edx(Size32), Eax(Size64), Size32, Size64)
         )
       case Not =>
         lb(
-          Cmp(Immediate(1), Eax(Size64)),
+          Cmp(Imm(1), Eax(Size64)),
           SetAsm(Eax(Size8), NotEq),
           Movs(Eax(Size8), Eax(Size64), Size8, Size64)
         )

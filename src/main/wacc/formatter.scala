@@ -65,6 +65,18 @@ object x86Formatter extends AsmFormatter {
       case CMovne(src, dest) =>
         indent ++ s"cmovne ${this(src)}, ${this(dest)}"
       case Testq(op1, op2) => indent ++ s"test  ${this(op1)}, ${this(op2)}"
+      // Bitwise ops
+      case BitNotAsm(dest) => indent ++ s"not${instructionPostfix(dest)}  ${this(dest)}"
+      case BitAndAsm(op, dest) =>
+        indent ++ s"and${instructionPostfix(dest)}  ${this(op)}, ${this(dest)}"
+      case BitOrAsm(op, dest) =>
+        indent ++ s"or${instructionPostfix(dest)}   ${this(op)}, ${this(dest)}"
+      case BitXorAsm(op, dest) =>
+        indent ++ s"xor${instructionPostfix(dest)}  ${this(op)}, ${this(dest)}"
+      case BitLeftShiftAsm(op, dest) =>
+        indent ++ s"sal${instructionPostfix(dest)}  ${this(op)}, ${this(dest)}"
+      case BitRightShiftAsm(op, dest) =>
+        indent ++ s"shr${instructionPostfix(dest)}  ${this(op)}, ${this(dest)}"
     }
   }
 
