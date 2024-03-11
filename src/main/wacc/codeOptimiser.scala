@@ -183,6 +183,19 @@ private object peephole {
       case AddAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, AddAsm, swap = false)
       case SubAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, SubAsm, swap = swap)
       case Imul(Ebx(Size32), Eax(Size32))   => getBinApp(v, op, Imul, swap = false)
+      case BitAndAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitAndAsm, swap = false)
+      case BitOrAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitOrAsm, swap = false)
+      case BitXorAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitXorAsm, swap = false)
+      case BitLeftShiftAsm(Ebx(Size64), Eax(Size64)) => lb(
+        Mov(v, Ecx(Size64), Size64),
+        Mov(op, Eax(Size64), Size64),
+        BitLeftShiftAsm(Ecx(Size64), Eax(Size64))
+      ) -> 5
+      case BitRightShiftAsm(Ebx(Size64), Eax(Size64)) => lb(
+        Mov(v, Ebx(Size64), Size64),
+        Mov(op, Eax(Size64), Size64),
+        BitRightShiftAsm(Ebx(Size64), Eax(Size64))
+      ) -> 5
       case _ => lb(prog.head) -> 1
     }
 
