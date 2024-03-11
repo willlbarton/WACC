@@ -1,5 +1,7 @@
 package src.main.wacc
 
+import parsley.internal.machine.instructions.Instr
+
 sealed trait Instruction
 
 sealed trait Location
@@ -78,6 +80,14 @@ final case class CMovl(op: Operand, dest: Dest) extends Instruction
 final case class CMovge(op: Operand, dest: Dest) extends Instruction
 final case class CMovne(op: Operand, dest: Dest) extends Instruction
 
+// Bitwise operators
+final case class BitNotAsm(dest: Dest) extends Instruction
+final case class BitAndAsm(op: Operand, dest: Dest) extends Instruction
+final case class BitOrAsm(op: Operand, dest: Dest) extends Instruction
+final case class BitXorAsm(op: Operand, dest: Dest) extends Instruction
+final case class BitLeftShiftAsm(op: Operand, dest: Dest) extends Instruction
+final case class BitRightShiftAsm(op: Operand, dest: Dest) extends Instruction
+
 trait Formatter {
   def apply(instruction: Instruction): String
   def apply(location: Location): String
@@ -131,6 +141,18 @@ object x86Formatter extends Formatter {
       case CMovne(src, dest) =>
         indent ++ s"cmovne ${this(src)}, ${this(dest)}"
       case Testq(op1, op2) => indent ++ s"test  ${this(op1)}, ${this(op2)}"
+      // Bitwise ops
+      case BitNotAsm(dest) => indent ++ s"not${instructionPostfix(dest)}  ${this(dest)}"
+      case BitAndAsm(op, dest) =>
+        indent ++ s"and${instructionPostfix(dest)}  ${this(op)}, ${this(dest)}"
+      case BitOrAsm(op, dest) =>
+        indent ++ s"or${instructionPostfix(dest)}   ${this(op)}, ${this(dest)}"
+      case BitXorAsm(op, dest) =>
+        indent ++ s"xor${instructionPostfix(dest)}  ${this(op)}, ${this(dest)}"
+      case BitLeftShiftAsm(op, dest) =>
+        indent ++ s"sal${instructionPostfix(dest)}  ${this(op)}, ${this(dest)}"
+      case BitRightShiftAsm(op, dest) =>
+        indent ++ s"shr${instructionPostfix(dest)}  ${this(op)}, ${this(dest)}"
     }
   }
 

@@ -532,6 +532,19 @@ object generator {
       Pop(Eax(Size64)),
       Pop(Ebx(Size64)),
       op match {
+        case BitAnd => lb(BitAndAsm(Ebx(Size64), Eax(Size64)))
+        case BitOr  => lb(BitOrAsm(Ebx(Size64), Eax(Size64)))
+        case BitXor => lb(BitXorAsm(Ebx(Size64), Eax(Size64)))
+        case BitLeftShift | BitRightShift =>
+          lb(
+            Push(Ecx(Size64)),
+            Mov(Ebx(Size64), Ecx(Size64)),
+            op match {
+              case BitLeftShift  => BitLeftShiftAsm(Ecx(Size64), Eax(Size64))
+              case BitRightShift => BitRightShiftAsm(Ecx(Size64), Eax(Size64))
+            },
+            Pop(Ecx(Size64))
+          )
         case Add | Sub | Mul =>
           lb(
             op match {
@@ -586,6 +599,7 @@ object generator {
     op match {
       case Chr =>
         lb(
+          Movs(Eax(Size8), Eax(Size64), Size8, Size64),
           Testq(Immediate(-128), Eax(Size64)),
           CMovne(Eax(Size64), Esi(Size64)),
           JmpComparison(Label(s"_$errBadChar"), NotEq)
@@ -608,7 +622,10 @@ object generator {
           Movs(Eax(Size8), Eax(Size64), Size8, Size64)
         )
       case Ord =>
-        lb() // Do nothing as char already being stored as a Long in eax
+        lb(
+          Movs(Eax(Size8), Eax(Size64), Size8, Size64)
+        ) // Do nothing as char already being stored as a Long in eax
+      case BitNot => lb(BitNotAsm(Eax(Size64)))
     }
   )
 }

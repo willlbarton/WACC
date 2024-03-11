@@ -438,6 +438,9 @@ object analyser {
         case Ord =>
           if (someType == CharType) retType = Some(IntType)
           else error ++= unaryAppErrMsg(Ord, someType, expr)
+        case BitNot =>
+          if (someType == IntType) retType = Some(IntType)
+          else error ++= unaryAppErrMsg(BitNot, someType, expr)
       }
     }
     (error.toString, retType)
@@ -495,7 +498,7 @@ object analyser {
             retType = Some(IntType)
           } else if (someType1 == StringType && someType2 == StringType) retType = Some(StringType)
           else error ++= binaryAppErrMsg(op, someType1, someType2, BinaryApp(op, left, right))
-        case Sub | Mul | Div | Mod =>
+        case Sub | Mul | Div | Mod | BitXor | BitAnd | BitLeftShift | BitRightShift | BitOr =>
           if (someType1 == IntType && someType2 == IntType) {
             error ++= checkConstantApplication(left, right, op)
             retType = Some(IntType)
