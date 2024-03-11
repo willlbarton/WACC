@@ -3,7 +3,7 @@ package src.main.wacc
 import parsley.Parsley._
 import parsley.combinator._
 import parsley.errors.ErrorBuilder
-import parsley.errors.combinator.ErrorMethods
+import parsley.errors.combinator.{ErrorMethods, fail}
 import parsley.expr._
 import parsley.{Parsley, Result}
 import parsley.syntax.zipped._
@@ -26,37 +26,53 @@ object parser {
 
   // Parses a sequence of statements, which must end with a return or exit
   private lazy val functionStatements: Parsley[List[Stmt]] =
-    (many(atomic(statement <~ ";")),
+    (
+      many(atomic(statement <~ ";")),
       functionReturn.explain("functions must end with a return or exit")
     ).zipped((stmts, ret) => stmts.appended(ret))
 
   // The statements a function may end with, if it has sub-statements it must end with one of these
   private lazy val functionReturn = Return("return" ~> expr) |
     Exit("exit" ~> expr) |
-    IfStmt("if" ~> expr <~ "then".explain("if statements require \'then\'"),
+    IfStmt(
+      "if" ~> expr <~ "then".explain("if statements require \'then\'"),
       functionStatements <~ "else".explain("if statements require an \'else\' branch"),
-      functionStatements <~ "fi".explain("if statements must end in \'fi\'")) |
+      functionStatements <~ "fi".explain("if statements must end in \'fi\'")
+    ) |
     ScopedStmt("begin" ~> functionStatements <~ "end")
 
   // Parses a sequence of statements with no requirement to end with a return or exit
   private lazy val statements: Parsley[List[Stmt]] = sepBy1(statement, ";")
 
+  private lazy val sideEffectOp: Parsley[SideEffectOp] =
+    "+=" #> AddEq |
+      "-=" #> SubEq |
+      "*=" #> MulEq |
+      "/=" #> DivEq |
+      "%=" #> ModEq
+
   // Parses a single statement
   private lazy val statement: Parsley[Stmt] =
     "skip" #> Skip |
       Decl(typ, ident, "=" ~> rvalue) |
-      Asgn(lvalue, "=".explain("unknown statement treated as assignment") ~> rvalue) |
+      Asgn(atomic(lvalue <~ "=".explain("unknown statement treated as assignment")), rvalue) |
+      SideEffectStmt(lvalue, sideEffectOp, expr) |
       Read("read" ~> lvalue) |
       Free("free" ~> expr) |
       Print("print" ~> expr) |
       PrintLn("println" ~> expr) |
       Return("return" ~> expr) |
       Exit("exit" ~> expr) |
-      IfStmt("if" ~> expr <~ "then".explain("if statements require \'then\'"),
+      IfStmt(
+        "if" ~> expr <~ "then".explain("if statements require \'then\'"),
         statements <~ "else".explain("if statements require an \'else\' branch"),
-        statements <~ "fi".explain("if statements must end in \'fi\'")) |
-      While("while" ~> expr <~ "do", statements <~
-        "done".explain("while loops must end with \'done\'")) |
+        statements <~ "fi".explain("if statements must end in \'fi\'")
+      ) |
+      While(
+        "while" ~> expr <~ "do",
+        statements <~
+          "done".explain("while loops must end with \'done\'")
+      ) |
       ScopedStmt("begin" ~> statements <~ "end")
 
   // Parses a type
@@ -69,8 +85,10 @@ object parser {
       "char" #> CharType |
       "string" #> StringType
   private lazy val arrayType: Parsley[ArrayType] =
-    chain.postfix1(atomic(baseType) |
-      atomic(pairType))(("[".label("array") <~ "]") #> ArrayType)
+    chain.postfix1(
+      atomic(baseType) |
+        atomic(pairType)
+    )(("[".label("array") <~ "]") #> ArrayType)
   private lazy val pairElemType: Parsley[PairElemType] =
     atomic(arrayType) | baseType | "pair" #> Pair
 
@@ -99,7 +117,8 @@ object parser {
       Not <# "!",
       Len <# "len ",
       Ord <# "ord ",
-      Chr <# "chr "
+      Chr <# "chr ",
+      BitNot <# "~"
     ),
     Ops(InfixL)(
       Mul <# "*",
@@ -111,14 +130,21 @@ object parser {
       Sub <# "-".label("binary operator")
     ),
     Ops(InfixN)(
+      NotEq <# "!=",
+      Eq <# "=="
+    ),
+    Ops(InfixL)(
+      BitXor <# "^",
+      BitOr <# atomic(ifS("||" #> true, "|", fail(""))),
+      BitAnd <# atomic(ifS("&&" #> true, "&", fail(""))),
+      BitLeftShift <# "<<",
+      BitRightShift <# ">>"
+    ),
+    Ops(InfixN)(
       GtEq <# ">=",
       LtEq <# "<=",
       Gt <# ">",
       Lt <# "<"
-    ),
-    Ops(InfixN)(
-      NotEq <# "!=",
-      Eq <# "=="
     ),
     Ops(InfixR)(And <# "&&"),
     Ops(InfixR)(Or <# "||")

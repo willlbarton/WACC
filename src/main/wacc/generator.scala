@@ -136,8 +136,33 @@ object generator {
         symTable.put(ident, dest) // Add the variable to the symbol table
         genDeclStmt(value, dest, symTable, allocator)
       case Asgn(lval, value) => genAsgnStmt(lval, value, symTable, allocator)
-      case Free(expr)        => genFreeStmt(expr, symTable)
-      case ifStmt: IfStmt    => genIfStmt(ifStmt, symTable, allocator, exitScope)
+      case SideEffectStmt(left, op, expr) =>
+        // At this point, we can assume that left: lval is an lval which can be mapped to an expression
+        val lExp: Expr = left match {
+          case ArrayElem(ident, exprs) => ArrayElem(ident, exprs)
+          case Ident(name)             => Ident(name)
+          case _ => throw new IllegalArgumentException(s"Unsupported lval: $left")
+        }
+        lExp.typ = left.typ
+        genAsgnStmt(
+          left,
+          BinaryApp(
+            op match {
+              case AddEq => Add
+              case SubEq => Sub
+              case MulEq => Mul
+              case DivEq => Div
+              case ModEq => Mod
+            },
+            lExp,
+            expr
+          ),
+          symTable,
+          allocator
+        )
+      case Free(expr) => genFreeStmt(expr, symTable)
+      case ifStmt: IfStmt =>
+        genIfStmt(ifStmt, symTable, allocator, exitScope) // handle IfStmt case
       case s @ ScopedStmt(stmts) =>
         genScopedStmt(stmts, s.vars, symTable, allocator, NonParamMode, lb(), exitScope)
       case w @ While(expr, stmts) => genWhile(expr, stmts, w.vars, symTable, allocator, exitScope)
@@ -595,34 +620,49 @@ object generator {
       Pop(Eax(Size64)),
       Pop(Ebx(Size64)),
       op match {
-        // Arithmetic operations that may overflow
-        case Add | Sub | Mul => lb(
-          op match {
-            case Add => AddAsm(Ebx(Size32), Eax(Size32))
-            case Sub => SubAsm(Ebx(Size32), Eax(Size32))
-            case Mul => Imul(Ebx(Size32), Eax(Size32))
-          },
-          Jo(Label(s"_$errOverflow")),
-          Movs(Eax(Size32), Eax(Size64), Size32, Size64)
-        )
-        // Comparison operations
-        case Eq | NotEq | Gt | GtEq | Lt | LtEq => lb(
-          Cmp(Ebx(size), Eax(size)),
-          SetAsm(Eax(Size8), op.asInstanceOf[Comparison]),
-          Movs(Eax(Size8), Eax(Size64), Size8, Size64)
-        )
-        // Division and modulo operations
-        case Mod | Div => lb(
-          Cmp(0, Ebx(Size32)),
-          JmpComparison(Label(s"_$errDivZero"), Eq),
-          Push(Edx(Size64)),
-          Cltd,
-          Idiv(Ebx(Size32)),
-          if (op == Mod) Mov(Edx(Size32), Eax(Size32)) else lb(),
-          Movs(Eax(Size32), Eax(Size64), Size32, Size64),
-          Pop(Edx(Size64)) // Pop back
-        )
-        // Logical operations
+        case BitAnd => lb(BitAndAsm(Ebx(Size64), Eax(Size64)))
+        case BitOr  => lb(BitOrAsm(Ebx(Size64), Eax(Size64)))
+        case BitXor => lb(BitXorAsm(Ebx(Size64), Eax(Size64)))
+        case BitLeftShift | BitRightShift =>
+          lb(
+            Push(Ecx(Size64)),
+            Mov(Ebx(Size64), Ecx(Size64)),
+            op match {
+              case BitLeftShift  => BitLeftShiftAsm(Ecx(Size64), Eax(Size64))
+              case BitRightShift => BitRightShiftAsm(Ecx(Size64), Eax(Size64))
+            },
+            Pop(Ecx(Size64))
+          )
+        case Add | Sub | Mul =>
+          lb(
+            op match {
+              case Add => AddAsm(Ebx(Size32), Eax(Size32))
+              case Sub => SubAsm(Ebx(Size32), Eax(Size32))
+              case Mul => Imul(Ebx(Size32), Eax(Size32))
+            },
+            Jo(Label(s"_$errOverflow")),
+            Movs(Eax(Size32), Eax(Size64), Size32, Size64)
+          )
+
+        case Eq | NotEq | Gt | GtEq | Lt | LtEq =>
+          lb(
+            Cmp(Ebx(size), Eax(size)),
+            SetAsm(Eax(Size8), op.asInstanceOf[Comparison]),
+            Movs(Eax(Size8), Eax(Size64), Size8, Size64)
+          )
+        case Mod | Div =>
+          lb(
+            Cmp(Imm(0), Ebx(Size32)),
+            JmpComparison(Label(s"_$errDivZero"), Eq),
+            // As Cltd will write into edx?? This isn't in reference compiler I just did it.
+            Push(Edx(Size64)),
+            Cltd,
+            Idiv(Ebx(Size32)),
+            if (op == Mod) Mov(Edx(Size32), Eax(Size32)) else lb(),
+            Movs(Eax(Size32), Eax(Size64), Size32, Size64),
+            Pop(Edx(Size64)) // Pop back
+          )
+
         case Or | And =>
           val label = Allocator.allocateLabel
           lb(
@@ -646,29 +686,35 @@ object generator {
     genExpr(expr, symTable),
     Pop(Eax(Size64)),
     op match {
-      case Chr => lb(
-        Movs(Eax(Size8), Eax(Size64), Size8, Size64),
-        // Check if the character is in the valid range
-        Testq(badChar, Eax(Size64)),
-        CMovne(Eax(Size64), Esi(Size64)),
-        JmpComparison(Label(s"_$errBadChar"), NotEq)
-      )
-      // Arrays have their length stored at the address before the start of the array
-      case Len => Mov(Address(Eax(Size64), -intSize), Eax())
-      case Neg => lb(
-        Mov(0, Edx(Size64)),
-        SubAsm(Eax(Size32), Edx(Size32)),
-        Jo(Label(s"_$errOverflow")),
-        Movs(Edx(Size32), Eax(Size64), Size32, Size64)
-      )
-      case Not => lb(
-        Cmp(boolTrue, Eax(Size64)),
-        SetAsm(Eax(Size8), NotEq),
-        Movs(Eax(Size8), Eax(Size64), Size8, Size64)
-      )
-      case Ord => lb( // Sign extend the character
-        Movs(Eax(Size8), Eax(Size64), Size8, Size64)
-      )
+      case Chr =>
+        lb(
+          Movs(Eax(Size8), Eax(Size64), Size8, Size64),
+          Testq(Imm(-128), Eax(Size64)),
+          CMovne(Eax(Size64), Esi(Size64)),
+          JmpComparison(Label(s"_$errBadChar"), NotEq)
+        )
+      case Len =>
+        lb(
+          Mov(Address(Eax(Size64), Imm(-intSize)), Eax())
+        )
+      case Neg =>
+        lb(
+          Mov(Imm(0), Edx(Size64)),
+          SubAsm(Eax(Size32), Edx(Size32)),
+          Jo(Label(s"_$errOverflow")),
+          Movs(Edx(Size32), Eax(Size64), Size32, Size64)
+        )
+      case Not =>
+        lb(
+          Cmp(Imm(1), Eax(Size64)),
+          SetAsm(Eax(Size8), NotEq),
+          Movs(Eax(Size8), Eax(Size64), Size8, Size64)
+        )
+      case Ord =>
+        lb(
+          Movs(Eax(Size8), Eax(Size64), Size8, Size64)
+        ) // Do nothing as char already being stored as a Long in eax
+      case BitNot => lb(BitNotAsm(Eax(Size64)))
     }
   )
 }

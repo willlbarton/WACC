@@ -144,11 +144,12 @@ object analyser {
 
   // Checks the validity of statements that cannot have any other statements as children
   private def checkLeafStatement(st: SymbolTable[SymbolTableObj], stmt: Stmt): String = stmt match {
-    case Skip                 => ""
-    case Decl(t, name, value) => handleDeclaration(st, t, name, value)
-    case Asgn(left, value)    => checkAssignment(st, left, value)
-    case Read(value)          => checkRead(st, value)
-    case Free(expr)           => checkFree(st, expr)
+    case Skip                           => ""
+    case Decl(t, name, value)           => handleDeclaration(st, t, name, value)
+    case Asgn(left, value)              => checkAssignment(st, left, value)
+    case SideEffectStmt(left, op, expr) => checkSideEffectStmt(st, left, op, expr)
+    case Read(value)                    => checkRead(st, value)
+    case Free(expr)                     => checkFree(st, expr)
     case Exit(expr) =>
       checkExpr(st, expr) match { // expects an int
         case (err, Some(t)) if t != IntType =>
@@ -212,6 +213,33 @@ object analyser {
     error.toString
   }
 
+  // Checks the validity of a side effect statement
+  private def checkSideEffectStmt(
+      symTable: SymbolTable[SymbolTableObj],
+      left: LVal,
+      op: SideEffectOp,
+      exp: Expr
+  ): String = {
+    val error = new StringBuilder()
+    var typ1: Option[Type] = None
+    checkSideEffectStmtLVal(symTable, left, s"$left $op $exp") match { // Check that the left hand side is a valid lvalue
+      case Left(err)  => error ++= err
+      case Right(typ) => typ1 = Some(typ)
+    }
+    val (err, typ2) = checkExpr(symTable, exp)
+    left.typ = typ1
+    exp.typ = typ1
+    error ++= err withContext s"$left $op $exp"
+    if (typ1.isDefined && typ2.isDefined && !isWeakerType(typ1.get, typ2.get))
+      error ++= typeErrorMsg(
+        "side effect statement",
+        s"$left $op $exp",
+        s"${typ1.get}",
+        s"${typ2.get}"
+      )
+    error.toString
+  }
+
   // Checks that an assignment is valid
   private def checkAssignment(
       symTable: SymbolTable[SymbolTableObj],
@@ -221,7 +249,7 @@ object analyser {
     val error = new StringBuilder()
     var typ1: Option[Type] = None
     checkLVal(symTable, left) match { // Check that the left hand side is a valid lvalue
-      case Left(err)  => error ++= err withContext s"$left = $value"
+      case Left(err)  => error ++= err
       case Right(typ) => typ1 = Some(typ)
     }
     val (err, typ2) = checkRVal(symTable, value)
@@ -260,7 +288,10 @@ object analyser {
   }
 
   // Checks the validity of an expression and finds it type if possible
-  private def checkExpr(symTable: SymbolTable[SymbolTableObj], expr: Expr): (String, Option[Type]) = {
+  private def checkExpr(
+      symTable: SymbolTable[SymbolTableObj],
+      expr: Expr
+  ): (String, Option[Type]) = {
     val (err, typ) = expr match {
       case Integer(_)   => ("", Some(IntType))
       case Bool(_)      => ("", Some(BoolType))
@@ -292,8 +323,8 @@ object analyser {
       case UnaryApp(op, expr)         => checkUnaryApp(symTable, op, expr)
       case BinaryApp(op, left, right) => checkBinaryApp(symTable, op, left, right)
     }
-  expr.typ = typ
-  (err, typ)
+    expr.typ = typ
+    (err, typ)
   }
 
   // Checks that an identifier is defined and returns its type if possible
@@ -409,6 +440,9 @@ object analyser {
         case Ord =>
           if (someType == CharType) retType = Some(IntType)
           else error ++= unaryAppErrMsg(Ord, someType, expr)
+        case BitNot =>
+          if (someType == IntType) retType = Some(IntType)
+          else error ++= unaryAppErrMsg(BitNot, someType, expr)
       }
     }
     (error.toString, retType)
@@ -466,7 +500,7 @@ object analyser {
             retType = Some(IntType)
           } else if (someType1 == StringType && someType2 == StringType) retType = Some(StringType)
           else error ++= binaryAppErrMsg(op, someType1, someType2, BinaryApp(op, left, right))
-        case Sub | Mul | Div | Mod =>
+        case Sub | Mul | Div | Mod | BitXor | BitAnd | BitLeftShift | BitRightShift | BitOr =>
           if (someType1 == IntType && someType2 == IntType) {
             error ++= checkConstantApplication(left, right, op)
             retType = Some(IntType)
@@ -527,6 +561,26 @@ object analyser {
       case (t, Nil) => Some(t)
       case (_, _)   => None
     }
+
+  private def checkSideEffectStmtLVal(
+      symTable: SymbolTable[SymbolTableObj],
+      lval: LVal,
+      context: String
+  ): Either[String, Type] = {
+    lval match {
+      case Fst(value) =>
+        Left(
+          typeErrorMsg(
+            "side effect operation",
+            context,
+            "identifier or array element",
+            s"fst $value"
+          )
+        )
+      case Snd(value) => Left(typeErrorMsg("side effect operation", context, "pair", s"snd $value"))
+      case _          => checkLVal(symTable, lval)
+    }
+  }
 
   // Checks that the left hand side of an assignment or declaration is valid
   // and returns its type if valid
