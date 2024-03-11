@@ -13,6 +13,27 @@ sealed trait Dest extends Location with Operand
 sealed trait MemOp extends Location
 
 sealed trait Reg extends Dest with MemOp
+object Reg {
+  def resize(op: Operand, size: Size): Operand = op match {
+    case _: Eax => Eax(size)
+    case _: Ebx => Ebx(size)
+    case _: Esi => Esi(size)
+    case _: Edi => Edi(size)
+    case _: Edx => Edx(size)
+    case _: Ecx => Ecx(size)
+    case _: R8 => R8(size)
+    case _: R9 => R9(size)
+    case _: R10 => R10(size)
+    case _: R11 => R11(size)
+    case _: R12 => R12(size)
+    case _: R13 => R13(size)
+    case _: R14 => R14(size)
+    case _: R15 => R15(size)
+    case _: Address => op
+    case _: Imm => op
+    case _ => throw new IllegalArgumentException("Bad operand for resize")
+  }
+}
 
 sealed trait Size
 case object Size8 extends Size

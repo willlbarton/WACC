@@ -22,8 +22,8 @@ object codeOptimiser {
       (removePushPop, 2) |>
       (removeMovMov, 2) |>
       (movPushToPush, 2) |>
-      (removeBinaryImmPushPop, 5) |>
-      (removeMovsMovAddr, 2)
+      (removeMovsMovAddr, 2) |>
+      (simplifyBinApp, 5)
     optimised.instrs
   }
 }
@@ -150,59 +150,61 @@ private object peephole {
     }
   }
 
+  // don't extend values when moving to addresses
+  def removeMovsMovAddr(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    if (prog.length < 2) return lb(prog.head) -> 1
+    (prog.head, prog(1)) match {
+      case (Movs(op1, Eax(Size64), _, _), m@Mov(op3, _: Address, _)) if op1 == op3 => lb(m) -> 2
+      case _ => lb(prog.head) -> 1
+    }
+  }
+
   // Remove unnecessary operations when doing binary operations with immediate values
-  def removeBinaryImmPushPop(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
-    def binImm(v: Int, operand: Operand, f: (Operand, Dest) => Instruction, swap: Boolean) = {
-      val op = operand match {
-        case _: R12 => R12(Size32)
-        case _: R13 => R13(Size32)
-        case _: R14 => R14(Size32)
-        case _: R15 => R15(Size32)
-        case a: Address => a
-        case _ => throw new IllegalArgumentException("Bad operand for binary imm optimisation")
-      }
+  def simplifyBinApp(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    def getBinApp(
+      op1_ : Operand, op2_ : Operand, f: (Operand, Dest) => Instruction, swap: Boolean
+    ): (ListBuffer[Instruction], Int) = {
+      val op1 = Reg.resize(op1_, Size32)
+      val op2 = Reg.resize(op2_, Size32)
       (if (!swap) lb(
-          Mov(Imm(v), Eax(Size32), Size32),
-          f(op, Eax(Size32))
-        )
+        Mov(op1, Eax(Size32), Size32),
+        f(op2, Eax(Size32))
+      )
       else lb(
-          Mov(Imm(v), Ebx(Size32), Size32),
-          Mov(op, Eax(Size32), Size32),
-          f(Ebx(Size32), Eax(Size32))
-        )
-      )-> 5
+        Mov(op1, Ebx(Size32), Size32),
+        Mov(op2, Eax(Size32), Size32),
+        f(Ebx(Size32), Eax(Size32))
+      )) -> 5
     }
 
-    def simplifyApp(v: Int, op: Operand, i: Instruction, swap: Boolean) = i match {
-      case AddAsm(Ebx(Size32), Eax(Size32)) => binImm(v, op, AddAsm, swap = false)
-      case SubAsm(Ebx(Size32), Eax(Size32)) => binImm(v, op, SubAsm, swap = swap)
-      case Imul(Ebx(Size32), Eax(Size32))   => binImm(v, op, Imul, swap = false)
+    def simplifyApp(v: Operand, op: Operand, i: Instruction, swap: Boolean) = i match {
+      case AddAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, AddAsm, swap = false)
+      case SubAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, SubAsm, swap = swap)
+      case Imul(Ebx(Size32), Eax(Size32))   => getBinApp(v, op, Imul, swap = false)
       case _ => lb(prog.head) -> 1
     }
 
     if (prog.length < 5) return lb(prog.head) -> 1
     (prog.head, prog(1), prog(2), prog(3), prog(4)) match {
       case(
-        Mov(Imm(v), Eax(Size32), Size32),
+        Mov(v: Imm, Eax(Size32), Size32),
         Push(Eax(Size64)),
-        Mov(op, Eax(Size64), _),
+        Mov(op2, Eax(Size64), _),
         Pop(Ebx(Size64)),
-        i) => simplifyApp(v, op, i, swap = true)
+        i) => simplifyApp(v, op2, i, swap = true)
       case (
-        Mov(op, Eax(Size64), _),
+        Mov(op2, Eax(Size64), _),
         Push(Eax(Size64)),
-        Mov(Imm(v), Eax(Size32), Size32),
+        Mov(v: Imm, Eax(Size32), Size32),
         Pop(Ebx(Size64)),
-        i) => simplifyApp(v, op, i, swap = false)
-      case _ => lb(prog.head) -> 1
-    }
-  }
-
-  // don't extend values when moving to addresses
-  def removeMovsMovAddr(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
-    if (prog.length < 2) return lb(prog.head) -> 1
-    (prog.head, prog(1)) match {
-      case (Movs(op1, Eax(Size64), _, _), m@Mov(op3, _: Address, _)) if op1 == op3 => lb(m) -> 2
+        i) => simplifyApp(v, op2, i, swap = false)
+      case (
+        Push(op1),
+        Mov(op2, Eax(Size64), _),
+        Pop(Ebx(Size64)),
+        i, _) if !op1.isInstanceOf[Eax] =>
+          val (instrs, step) = simplifyApp(op2, op1, i, swap = false)
+          instrs -> (if (step == 5) 4 else 1)
       case _ => lb(prog.head) -> 1
     }
   }
