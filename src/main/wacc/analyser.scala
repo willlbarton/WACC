@@ -341,7 +341,7 @@ object analyser {
     }
 
   // Attempts to evaluate constant integer expressions
-  private def evalConst(expr: Expr): Option[BigInt] = expr match {
+  def evalConst(expr: Expr): Option[BigInt] = expr match {
     case Integer(i)                      => Some(i)
     case UnaryApp(Neg, e)                => evalConst(e).map(-_)
     case UnaryApp(Ord, Character(c))     => Some(c.toInt)

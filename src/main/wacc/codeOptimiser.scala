@@ -1,11 +1,12 @@
 package src.main.wacc
 
 import builtInFunctions.lb
+
 import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
 import peephole._
 
-object optimiser {
+object codeOptimiser {
 
   def optimise(
     prog: ListBuffer[Instruction],
@@ -19,8 +20,11 @@ object optimiser {
       (removeZeroAddSub, 1) |>
       (removeJumpToNext, 2) |>
       (removePushPop, 2) |>
-      (pushPopToMov, 2) |>
-      (removeMovMov, 2)
+      (removeMovMov, 2) |>
+      (movPushToPush, 2) |>
+      (removeMovsMovAddr, 2) |>
+      (simplifyBinApp, 5) |>
+      (simplifyUpdate, 5)
     optimised.instrs
   }
 }
@@ -76,18 +80,11 @@ private object inliner {
 
 private object peephole {
   // push x, pop x
-  def removePushPop(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
-    prog.head match {
-      case Push(op) if prog(1) == Pop(op.asInstanceOf[Dest]) => lb() -> 2
-      case _ => lb(prog.head) -> 1
-    }
-  }
-
   // push x, pop y -> mov x, y
-  def pushPopToMov(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
-    prog.head match {
-      case Push(op) if prog(1).isInstanceOf[Pop] =>
-        lb(Mov(op, prog(1).asInstanceOf[Pop].dest)) -> 2
+  def removePushPop(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    if (prog.length < 2) return lb(prog.head) -> 1
+    (prog.head, prog(1)) match {
+      case (Push(op), Pop(op2)) => (if (op == op2) lb() else lb(Mov(op, op2))) -> 2
       case _ => lb(prog.head) -> 1
     }
   }
@@ -134,6 +131,112 @@ private object peephole {
       case (Movs(op1, Eax(_), s1, _), Movs(Eax(Size64), op4, _, s2))
         if !(op1.isInstanceOf[Address] && op4.isInstanceOf[Address]) =>
         lb(Movs(op1, op4, s1, s2)) -> 2
+      case (Mov(op1, Eax(_), s1), Movs(Eax(Size64), op4, _, s2))
+        if !(op1.isInstanceOf[Address] && op4.isInstanceOf[Address]) =>
+        lb(Movs(op1, op4, s1, s2)) -> 2
+      case (Movs(op1, Eax(_), s1, Size64), Mov(Eax(Size64), op4, s2))
+        if !(op1.isInstanceOf[Address] && op4.isInstanceOf[Address]) =>
+        lb(Movs(op1, op4, s1, s2)) -> 2
+      case _ => lb(prog.head) -> 1
+    }
+  }
+
+  // mov x, rax, push rax -> push x
+  def movPushToPush(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    if (prog.length < 2) return lb(prog.head) -> 1
+    (prog.head, prog(1)) match {
+      case (Mov(op1, Eax(Size64), _), Push(Eax(Size64))) if !op1.isInstanceOf[Imm] =>
+        lb(Push(op1)) -> 2
+      case _ => lb(prog.head) -> 1
+    }
+  }
+
+  // don't extend values when moving to addresses
+  def removeMovsMovAddr(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    if (prog.length < 2) return lb(prog.head) -> 1
+    (prog.head, prog(1)) match {
+      case (Movs(op1, Eax(Size64), _, _), m@Mov(op3, _: Address, _)) if op1 == op3 => lb(m) -> 2
+      case _ => lb(prog.head) -> 1
+    }
+  }
+
+  // Remove unnecessary operations when doing binary operations with atomic values
+  // We don't need to save the value of the operand in a register
+  def simplifyBinApp(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    def getBinApp(
+      op1_ : Operand, op2_ : Operand, f: (Operand, Dest) => Instruction, swap: Boolean
+    ): (ListBuffer[Instruction], Int) = {
+      val op1 = Reg.resize(op1_, Size32)
+      val op2 = Reg.resize(op2_, Size32)
+      (if (!swap) lb(
+        Mov(op1, Eax(Size32), Size32),
+        f(op2, Eax(Size32))
+      )
+      else lb(
+        Mov(op1, Ebx(Size32), Size32),
+        Mov(op2, Eax(Size32), Size32),
+        f(Ebx(Size32), Eax(Size32))
+      )) -> 5
+    }
+
+    def simplifyApp(v: Operand, op: Operand, i: Instruction, swap: Boolean) = i match {
+      case AddAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, AddAsm, swap = false)
+      case SubAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, SubAsm, swap = swap)
+      case Imul(Ebx(Size32), Eax(Size32))   => getBinApp(v, op, Imul, swap = false)
+      case _ => lb(prog.head) -> 1
+    }
+
+    if (prog.length < 5) return lb(prog.head) -> 1
+    (prog.head, prog(1), prog(2), prog(3), prog(4)) match {
+      case(
+        Mov(v: Imm, Eax(Size32), Size32),
+        Push(Eax(Size64)),
+        Mov(op2, Eax(Size64), _),
+        Pop(Ebx(Size64)),
+        i) => simplifyApp(v, op2, i, swap = true)
+      case (
+        Mov(op2, Eax(Size64), _),
+        Push(Eax(Size64)),
+        Mov(v: Imm, Eax(Size32), Size32),
+        Pop(Ebx(Size64)),
+        i) => simplifyApp(v, op2, i, swap = false)
+      case (
+        Push(op1),
+        Mov(op2, Eax(Size64), _),
+        Pop(Ebx(Size64)),
+        i, _) if !op1.isInstanceOf[Eax] =>
+          val (instrs, step) = simplifyApp(op2, op1, i, swap = false)
+          instrs -> (if (step == 5) 4 else 1)
+      case _ => lb(prog.head) -> 1
+    }
+  }
+
+  // +=, -=, *= Don't use rax, just apply directly
+  def simplifyUpdate(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    if (prog.length < 5) return lb(prog.head) -> 1
+    (prog.head, prog(1), prog(2), prog(3), prog(4)) match {
+      case (
+        Mov(op0, Eax(Size32), Size32),
+        AddAsm(op1, Eax(Size32)),
+        j: Jo,
+        Movs(Eax(Size32), op2, Size32, Size64), _
+      ) if op1.getClass == op2.getClass =>
+        lb(AddAsm(op0, Reg.resize(op2, Size32).asInstanceOf[Dest]), j) -> 4
+      case (
+        Mov(op0, Ebx(Size32), Size32),
+        Mov(op1, Eax(Size32), Size32),
+        SubAsm(Ebx(Size32), Eax(Size32)),
+        j: Jo,
+        Movs(Eax(Size32), op2, Size32, Size64)
+        ) if op1.getClass == op2.getClass =>
+        lb(SubAsm(op0, Reg.resize(op2, Size32).asInstanceOf[Dest]), j) -> 5
+      case (
+        Mov(op0, Eax(Size32), Size32),
+        Imul(op1, Eax(Size32)),
+        j: Jo,
+        Movs(Eax(Size32), op2, Size32, Size64), _
+        ) if op1.getClass == op2.getClass =>
+        lb(Imul(op0, Reg.resize(op2, Size32).asInstanceOf[Dest]), j) -> 4
       case _ => lb(prog.head) -> 1
     }
   }

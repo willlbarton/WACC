@@ -5,6 +5,7 @@ stages:
   - analyser
   - backEndUnit
   - generator
+  - optimiser
 
 parser:
   stage: parser
@@ -25,3 +26,8 @@ generator:
   stage: generator
   script:
     - scala-cli test . --test-only src.test.Generator
+
+optimiser:
+  stage: optimiser
+  script:
+    - scala-cli test . --test-only src.test.Optimiser
