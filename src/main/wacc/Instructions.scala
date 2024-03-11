@@ -116,12 +116,19 @@ final case class CMovl(op: Operand, dest: Dest) extends Instruction
 final case class CMovge(op: Operand, dest: Dest) extends Instruction
 final case class CMovne(op: Operand, dest: Dest) extends Instruction
 
+// Bitwise operators
+final case class BitNotAsm(dest: Dest) extends Instruction
+final case class BitAndAsm(op: Operand, dest: Dest) extends Instruction
+final case class BitOrAsm(op: Operand, dest: Dest) extends Instruction
+final case class BitXorAsm(op: Operand, dest: Dest) extends Instruction
+final case class BitLeftShiftAsm(op: Operand, dest: Dest) extends Instruction
+final case class BitRightShiftAsm(op: Operand, dest: Dest) extends Instruction
+
 object constants {
   val byteSize: Int = 1
   val intSize: Int = 4
   val ptrSize: Int = 8
   val boolTrue: Imm = 1
-  val badChar: Imm = -128
   val exitSuccess: Imm = 0
   val exitError: Imm = -1
   val nullPtr: Imm = 0

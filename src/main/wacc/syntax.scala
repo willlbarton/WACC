@@ -50,6 +50,19 @@ case object Skip extends Stmt { override def toString = "skip" }
 final case class Decl(t: Type, ident: Ident, value: RVal) extends Stmt {
   override def toString: String = s"$t $ident = $value"
 }
+
+sealed trait SideEffectOp
+
+final case class SideEffectStmt(left: LVal, op: SideEffectOp, expr: Expr) extends Stmt {
+  override def toString: String = s"$left $op $expr"
+}
+
+case object AddEq extends SideEffectOp { override def toString = "+=" }
+case object SubEq extends SideEffectOp { override def toString = "-=" }
+case object MulEq extends SideEffectOp { override def toString = "*=" }
+case object DivEq extends SideEffectOp { override def toString = "/=" }
+case object ModEq extends SideEffectOp { override def toString = "%=" }
+
 final case class Asgn(left: LVal, value: RVal) extends Stmt {
   override def toString: String = s"$left = $value"
 }
@@ -134,6 +147,9 @@ case object Len extends UnaryOp { override def toString = "len" }
 case object Ord extends UnaryOp { override def toString = "ord" }
 case object Chr extends UnaryOp { override def toString = "chr" }
 
+// Bitwise operators
+case object BitNot extends UnaryOp { override def toString = "~" }
+
 trait Comparison
 
 // <binary-oper> Binary operator types
@@ -154,13 +170,21 @@ case object NotEq extends BinaryOp with Comparison { override def toString = "!=
 case object And extends BinaryOp { override def toString = "&&" }
 case object Or extends BinaryOp { override def toString = "||" }
 
-// Parser bridges used in the parser
+// Bitwise operators
+case object BitAnd extends BinaryOp { override def toString = "&" }
+case object BitOr extends BinaryOp { override def toString = "|" }
+case object BitXor extends BinaryOp { override def toString = "^" }
+case object BitLeftShift extends BinaryOp { override def toString = "<<" }
+case object BitRightShift extends BinaryOp { override def toString = ">>" }
 
+// Parser bridges used in the parser
 object Program extends generic.ParserBridge2[List[Func], List[Stmt], Program]
 object Func extends generic.ParserBridge4[Type, Ident, List[Param], List[Stmt], Func]
 object Param extends generic.ParserBridge2[Type, Ident, Param]
 
 object PairType extends generic.ParserBridge2[PairElemType, PairElemType, PairType]
+
+object SideEffectStmt extends generic.ParserBridge3[LVal, SideEffectOp, Expr, SideEffectStmt]
 
 object Decl extends generic.ParserBridge3[Type, Ident, RVal, Stmt]
 object Asgn extends generic.ParserBridge2[LVal, RVal, Stmt]
