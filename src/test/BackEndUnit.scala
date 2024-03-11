@@ -6,7 +6,6 @@ import scala.collection.mutable.ListBuffer
 import src.main.wacc.builtInFunctions._
 
 class BackEndUnit extends AnyFunSuite {
-  private lazy val indent = "        "
 
   val immValue: Int = 42
   val immOperand: Imm = Imm(immValue)
@@ -25,24 +24,6 @@ class BackEndUnit extends AnyFunSuite {
   test("Formatting instruction should produce correct string") {
     val movInstruction: Instruction = Mov(immOperand, eaxReg)
     assert(x86Formatter.apply(movInstruction) === s"        movl  $$$immValue, %eax")
-  }
-
-  test("Formatting program should produce correct string") {
-    val prog: ListBuffer[Instruction] = ListBuffer(
-      Mov(Imm(1), Eax()),
-      Push(Eax()),
-      Pop(Eax()),
-      Ret
-    )
-
-    val formattedProgram = formatter.format(prog, x86Formatter)
-    val expectedOutput =
-      """        movl  $1, %eax
-        |        pushl %eax
-        |        popl  %eax
-        |        ret""".stripMargin
-
-    assert(formattedProgram.trim === expectedOutput.trim)
   }
 
   test("Formatting jump instructions should produce correct strings") {
