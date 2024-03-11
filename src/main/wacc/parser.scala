@@ -3,7 +3,7 @@ package src.main.wacc
 import parsley.Parsley._
 import parsley.combinator._
 import parsley.errors.ErrorBuilder
-import parsley.errors.combinator.ErrorMethods
+import parsley.errors.combinator.{ErrorMethods, fail}
 import parsley.expr._
 import parsley.{Parsley, Result}
 import parsley.syntax.zipped._
@@ -127,8 +127,8 @@ object parser {
     ),
     Ops(InfixL)(
       BitXor <# "^",
-      BitOr <# "|",
-      BitAnd <# "&",
+      BitOr <# atomic(ifS("||" #> true, "|", fail(""))),
+      BitAnd <# atomic(ifS("&&" #> true, "&", fail(""))),
       BitLeftShift <# "<<",
       BitRightShift <# ">>"
     ),
