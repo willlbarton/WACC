@@ -25,7 +25,8 @@ object codeOptimiser {
       (simplifyBinApp, 5) |>
       (simplifyUpdate, 5) |>
       (removePushPop, 2) |>
-      (removeMovMov, 2)
+      (removeMovMov, 2) |>
+      (shiftByImm, 2)
     optimised.instrs
   }
 }
@@ -261,6 +262,18 @@ private object peephole {
           Pop(Ecx(Size64)),
           BitLeftShiftAsm(Ecx(Size64), op2),
         ) -> 5
+      case _ => lb(prog.head) -> 1
+    }
+  }
+
+  // mov $v rcx, shl rcx x -> shl $v x
+  def shiftByImm(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    if (prog.length < 2) return lb(prog.head) -> 1
+    (prog.head, prog(1)) match {
+      case (Mov(Imm(v), Ecx(Size64), Size64), BitLeftShiftAsm(Ecx(Size64), op)) =>
+        lb(BitLeftShiftAsm(Imm(v), op)) -> 2
+      case (Mov(Imm(v), Ecx(Size64), Size64), BitRightShiftAsm(Ecx(Size64), op)) =>
+        lb(BitRightShiftAsm(Imm(v), op)) -> 2
       case _ => lb(prog.head) -> 1
     }
   }
