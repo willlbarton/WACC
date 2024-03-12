@@ -625,13 +625,11 @@ object generator {
         case BitXor => lb(BitXorAsm(Ebx(Size64), Eax(Size64)))
         case BitLeftShift | BitRightShift =>
           lb(
-            Push(Ecx(Size64)),
             Mov(Ebx(Size64), Ecx(Size64)),
             op match {
               case BitLeftShift  => BitLeftShiftAsm(Ecx(Size64), Eax(Size64))
               case BitRightShift => BitRightShiftAsm(Ecx(Size64), Eax(Size64))
-            },
-            Pop(Ecx(Size64))
+            }
           )
         case Add | Sub | Mul =>
           lb(

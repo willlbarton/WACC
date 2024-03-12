@@ -1,6 +1,7 @@
 package src.main.wacc
 
 import parsley.Parsley._
+import parsley.character.{item, noneOf, spaces}
 import parsley.combinator._
 import parsley.errors.ErrorBuilder
 import parsley.errors.combinator.{ErrorMethods, fail}
@@ -131,9 +132,9 @@ object parser {
   )(
     Ops(Prefix)(
       Not <# "!",
-      Len <# "len ",
-      Ord <# "ord ",
-      Chr <# "chr ",
+      Len <# "len",
+      Ord <# "ord",
+      Chr <# "chr",
       BitNot <# "~"
     ),
     Ops(InfixL)(
@@ -151,8 +152,8 @@ object parser {
     ),
     Ops(InfixL)(
       BitXor <# "^",
-      BitOr <# atomic(ifS("||" #> true, "|", fail(""))),
-      BitAnd <# atomic(ifS("&&" #> true, "&", fail(""))),
+      BitOr  <# atomic(ifS(item.map(_ == '|'), noneOf('|'), fail(""))),
+      BitAnd <# atomic(ifS(item.map(_ == '&'), noneOf('&'), fail(""))),
       BitLeftShift <# "<<",
       BitRightShift <# ">>"
     ),

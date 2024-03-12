@@ -20,11 +20,13 @@ object codeOptimiser {
       (removeZeroAddSub, 1) |>
       (removeJumpToNext, 2) |>
       (removePushPop, 2) |>
-      (removeMovMov, 2) |>
       (movPushToPush, 2) |>
       (removeMovsMovAddr, 2) |>
       (simplifyBinApp, 5) |>
-      (simplifyUpdate, 5)
+      (simplifyUpdate, 5) |>
+      (removePushPop, 2) |>
+      (removeMovMov, 2) |>
+      (shiftByImm, 2)
     optimised.instrs
   }
 }
@@ -183,6 +185,19 @@ private object peephole {
       case AddAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, AddAsm, swap = false)
       case SubAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, SubAsm, swap = swap)
       case Imul(Ebx(Size32), Eax(Size32))   => getBinApp(v, op, Imul, swap = false)
+      case BitAndAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitAndAsm, swap = false)
+      case BitOrAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitOrAsm, swap = false)
+      case BitXorAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitXorAsm, swap = false)
+      case BitLeftShiftAsm(Ebx(Size64), Eax(Size64)) => lb(
+        Mov(v, Ecx(Size64), Size64),
+        Mov(op, Eax(Size64), Size64),
+        BitLeftShiftAsm(Ecx(Size64), Eax(Size64))
+      ) -> 5
+      case BitRightShiftAsm(Ebx(Size64), Eax(Size64)) => lb(
+        Mov(v, Ebx(Size64), Size64),
+        Mov(op, Eax(Size64), Size64),
+        BitRightShiftAsm(Ebx(Size64), Eax(Size64))
+      ) -> 5
       case _ => lb(prog.head) -> 1
     }
 
@@ -237,6 +252,28 @@ private object peephole {
         Movs(Eax(Size32), op2, Size32, Size64), _
         ) if op1.getClass == op2.getClass =>
         lb(Imul(op0, Reg.resize(op2, Size32).asInstanceOf[Dest]), j) -> 4
+      case (
+        Mov(op1, Eax(Size64), Size64),
+        Pop(Ebx(Size64)),
+        Mov(Ebx(Size64), Ecx(Size64), Size64),
+        BitLeftShiftAsm(Ecx(Size64), Eax(Size64)),
+        Mov(Eax(Size64), op2, Size64)
+        ) if op1 == op2 => lb(
+          Pop(Ecx(Size64)),
+          BitLeftShiftAsm(Ecx(Size64), op2),
+        ) -> 5
+      case _ => lb(prog.head) -> 1
+    }
+  }
+
+  // mov $v rcx, shl rcx x -> shl $v x
+  def shiftByImm(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    if (prog.length < 2) return lb(prog.head) -> 1
+    (prog.head, prog(1)) match {
+      case (Mov(Imm(v), Ecx(Size64), Size64), BitLeftShiftAsm(Ecx(Size64), op)) =>
+        lb(BitLeftShiftAsm(Imm(v), op)) -> 2
+      case (Mov(Imm(v), Ecx(Size64), Size64), BitRightShiftAsm(Ecx(Size64), op)) =>
+        lb(BitRightShiftAsm(Imm(v), op)) -> 2
       case _ => lb(prog.head) -> 1
     }
   }
