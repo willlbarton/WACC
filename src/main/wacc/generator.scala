@@ -25,7 +25,7 @@ object generator {
 
     // Generate the main body
     val mainBody = lb(
-      genStmts(program.body, mainSymTable, allocator),
+      genStmts(program.body, mainSymTable, allocator, inline = false),
       Mov(exitSuccess, Eax(Size64))
     )
 
@@ -78,7 +78,10 @@ object generator {
       Label(s"wacc_${func.ident.name}"),
       genNewScopeEnter(usedParamRegs, toAllocate),
       // Generate the body of the function
-      genStmts(func.body, paramTable.makeChild, Allocator(toAllocate, NonParamMode), exitScope)
+      genStmts(
+        func.body, paramTable.makeChild, Allocator(toAllocate, NonParamMode),
+        exitScope, inline = true
+      )
     )
 
     symTableExitScope(paramTable, allocator, usedParamRegs, ParamMode)
@@ -91,11 +94,12 @@ object generator {
       stmts: ListBuffer[Stmt],
       symTable: SymbolTable[Dest],
       allocator: Allocator,
-      exitScope: ListBuffer[Instruction]
+      exitScope: ListBuffer[Instruction],
+      inline: Boolean
   ): ListBuffer[Instruction] =
     lb(
       stmts.flatMap(x => {
-        genStmt(x, symTable, allocator, exitScope)
+        genStmt(x, symTable, allocator, exitScope, inline)
       })
     )
 
@@ -103,13 +107,15 @@ object generator {
       stmts: List[Stmt],
       symTable: SymbolTable[Dest],
       allocator: Allocator,
-      exitScope: ListBuffer[Instruction] = lb()
+      exitScope: ListBuffer[Instruction] = lb(),
+      inline: Boolean
   ): ListBuffer[Instruction] =
     genStmts(
       ListBuffer() ++= stmts,
       symTable,
       allocator,
-      exitScope
+      exitScope,
+      inline
     )
 
   // Generates the assembly for a single statement
@@ -117,7 +123,8 @@ object generator {
       stmt: Stmt,
       symTable: SymbolTable[Dest],
       allocator: Allocator,
-      exitScope: ListBuffer[Instruction] = lb()
+      exitScope: ListBuffer[Instruction] = lb(),
+      inline: Boolean
   ): ListBuffer[Instruction] =
     stmt match {
       case Skip       => lb()
@@ -134,8 +141,8 @@ object generator {
       case Decl(t, ident, value) =>
         val dest = allocator.allocateSpace(t)
         symTable.put(ident, dest) // Add the variable to the symbol table
-        genDeclStmt(value, dest, symTable, allocator)
-      case Asgn(lval, value) => genAsgnStmt(lval, value, symTable, allocator)
+        genDeclStmt(value, dest, symTable, allocator, inline)
+      case Asgn(lval, value) => genAsgnStmt(lval, value, symTable, allocator, inline)
       case SideEffectStmt(left, op, expr) =>
         // At this point, we can assume that left: lval is an lval which can be mapped to an expression
         val lExp: Expr = left match {
@@ -158,13 +165,14 @@ object generator {
             expr
           ),
           symTable,
-          allocator
+          allocator,
+          inline
         )
       case Free(expr) => genFreeStmt(expr, symTable)
       case ifStmt: IfStmt =>
-        genIfStmt(ifStmt, symTable, allocator, exitScope) // handle IfStmt case
+        genIfStmt(ifStmt, symTable, allocator, exitScope, inline) // handle IfStmt case
       case s @ ScopedStmt(stmts) =>
-        genScopedStmt(stmts, s.vars, symTable, allocator, NonParamMode, lb(), exitScope)
+        genScopedStmt(stmts, s.vars, symTable, allocator, NonParamMode, lb(), exitScope, inline)
       case w @ While(expr, stmts) => genWhile(expr, stmts, w.vars, symTable, allocator, exitScope)
     }
 
@@ -176,7 +184,8 @@ object generator {
       allocator: Allocator,
       mode: Mode = NonParamMode,
       extraInstructions: ListBuffer[Instruction] = lb(),
-      exitScope: ListBuffer[Instruction] = lb()
+      exitScope: ListBuffer[Instruction] = lb(),
+      inline: Boolean
   ): ListBuffer[Instruction] = {
 
     val used = allocator.usedRegs
@@ -191,7 +200,8 @@ object generator {
 
     val instructions = lb(
       genNewScopeEnter(used, toAllocate),
-      genStmts(stmts, symTable.makeChild, Allocator(vars, mode), exitScope2 ++ exitScope),
+      genStmts(
+        stmts, symTable.makeChild, Allocator(vars, mode), exitScope2 ++ exitScope, inline),
       extraInstructions,
       exitScope2
     )
@@ -218,7 +228,7 @@ object generator {
       Jmp(labelExpr), // Evaluate condition
       labelStmts,
       // Generate the body of the loop in a new scope
-      genScopedStmt(stmts, vars, symTable, allocator, NonParamMode, lb(), exitScope),
+      genScopedStmt(stmts, vars, symTable, allocator, NonParamMode, lb(), exitScope, inline = true),
       labelExpr,
       generatedExpr,
       Pop(Eax(Size64)),
@@ -232,7 +242,8 @@ object generator {
       ifStmt: IfStmt,
       symTable: SymbolTable[Dest],
       allocator: Allocator,
-      exitScope: ListBuffer[Instruction] = lb()
+      exitScope: ListBuffer[Instruction] = lb(),
+      inline: Boolean
   ): ListBuffer[Instruction] = {
     val IfStmt(expr, body1, body2) = ifStmt
     val labelTrue = Allocator.allocateLabel
@@ -245,11 +256,13 @@ object generator {
       Cmp(boolTrue, Eax(Size64)),
       // If the condition is true, execute the first branch
       JmpComparison(labelTrue, Eq),
-      genScopedStmt(body2, ifStmt.branch2Vars, symTable, allocator, NonParamMode, lb(), exitScope),
+      genScopedStmt(
+        body2, ifStmt.branch2Vars, symTable, allocator, NonParamMode, lb(), exitScope, inline),
       // Skip to end after executing the 'false' branch
       Jmp(labelContinue),
       labelTrue,
-      genScopedStmt(body1, ifStmt.branch1Vars, symTable, allocator, NonParamMode, lb(), exitScope),
+      genScopedStmt(
+        body1, ifStmt.branch1Vars, symTable, allocator, NonParamMode, lb(), exitScope, inline),
       labelContinue
     )
   }
@@ -259,9 +272,10 @@ object generator {
       value: RVal,
       dest: Dest,
       symTable: SymbolTable[Dest],
-      allocator: Allocator
+      allocator: Allocator,
+      inline: Boolean
   ): ListBuffer[Instruction] = lb(
-    genRval(value, symTable, allocator),
+    genRval(value, symTable, allocator, inline),
     Pop(Eax(Size64)),
     Mov(
       // If the destination is a register, use the register size, otherwise use the size of the type
@@ -276,11 +290,12 @@ object generator {
       lval: LVal,
       value: RVal,
       symTable: SymbolTable[Dest],
-      allocator: Allocator
+      allocator: Allocator,
+      inline: Boolean
   ): ListBuffer[Instruction] = {
     lval match {
       case id: Ident => lb(
-        genRval(value, symTable, allocator),
+        genRval(value, symTable, allocator, inline),
         Pop(Eax(Size64)),
         Mov(
           // If the destination is a register, use the register size,
@@ -303,15 +318,15 @@ object generator {
         lb(
           genLVal(arr, symTable),
           genExpr(exprs.last, symTable),
-          genRval(value, symTable, allocator),
+          genRval(value, symTable, allocator, inline),
           Pop(Eax(Size64)),
           Pop(R10(Size64)),
           Pop(R9(Size64)),
           // Store using the arrStore function
           CallAsm(Label(s"_$arrStore${Allocator.getTypeWidth(typ)}"))
         )
-      case f @ Fst(_) => asgnPairElem(f, value, symTable, allocator)
-      case s @ Snd(_) => asgnPairElem(s, value, symTable, allocator, snd_? = true)
+      case f @ Fst(_) => asgnPairElem(f, value, symTable, allocator, inline)
+      case s @ Snd(_) => asgnPairElem(s, value, symTable, allocator, inline, snd_? = true)
     }
   }
 
@@ -321,10 +336,11 @@ object generator {
       right: RVal,
       symTable: SymbolTable[Dest],
       allocator: Allocator,
+      inline: Boolean,
       snd_? : Boolean = false
   ): ListBuffer[Instruction] = lb(
     genLVal(left, symTable),
-    genRval(right, symTable, allocator),
+    genRval(right, symTable, allocator, inline),
     Pop(Eax(Size64)),
     Pop(Ebx(Size64)),
     // null checks are done already
@@ -356,12 +372,13 @@ object generator {
   private def genRval(
       value: RVal,
       symTable: SymbolTable[Dest],
-      allocator: Allocator
+      allocator: Allocator,
+      inline: Boolean
   ): ListBuffer[Instruction] =
     value match {
       case e: Expr       => genExpr(e, symTable)
       case a: ArrayLiter => genArray(a, symTable)
-      case c: Call       => genCall(c, symTable, allocator)
+      case c: Call       => genCall(c, symTable, allocator, inline)
       case NewPair(a, b) => genPair(a, b, symTable)
       // Always dereference pairs elements at this stage
       case f @ Fst(_)    => genPairElem(f, symTable, deref_? = true)
@@ -372,7 +389,8 @@ object generator {
   private def genCall(
       c: Call,
       symTable: SymbolTable[Dest],
-      allocator: Allocator
+      allocator: Allocator,
+      inline: Boolean
   ): ListBuffer[Instruction] = {
     // Arguments are treated as a series of declarations
     val stmts: List[Stmt] = c.args.zipWithIndex.map { case (exp, i) =>
@@ -385,7 +403,8 @@ object generator {
       symTable,
       allocator,
       ParamMode,
-      lb(CallAsm(Label(s"wacc_${c.ident.name}")))
+      lb(CallAsm(Label(s"wacc_${c.ident.name}"), toInline = inline)),
+      inline = inline
     ) += Push(Eax(Size64))
   }
 
