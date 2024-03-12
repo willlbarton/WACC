@@ -346,7 +346,7 @@ object analyser {
     case UnaryApp(Neg, e)                => evalConst(e).map(-_)
     case UnaryApp(Ord, Character(c))     => Some(c.toInt)
     case UnaryApp(Ord, UnaryApp(Chr, e)) => evalConst(e)
-    case BinaryApp(op, e1, e2) =>
+    case BinaryApp(op, e1, e2)           =>
       val val1 = evalConst(e1)
       val val2 = evalConst(e2)
       if (val1.isDefined && val2.isDefined) {
@@ -359,6 +359,10 @@ object analyser {
           // Do not attempt division by 0
           case Div => if (v2 == 0) None else Some(v1 / v2)
           case Mod => Some(v1 % v2)
+          case BitLeftShift => Some(v1 << v2.toInt)
+          case BitRightShift => Some(v1 >> v2.toInt)
+          case BitAnd => Some(v1 & v2)
+          case BitOr  => Some(v1 | v2)
           case _   => None
         }
       } else None

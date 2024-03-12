@@ -17,24 +17,27 @@ object codeOptimiser {
     val program = inlined
     val optimised = AsmProgram(program) |>
       (removeDeadCode, 1) |>
-      (removeZeroAddSub, 1) |>
       (removeJumpToNext, 2) |>
       (removePushPop, 2) |>
       (movPushToPush, 2) |>
-      (removeMovsMovAddr, 2) |>
       (simplifyBinApp, 5) |>
+      (removePushPop, 2) |>
+      (shiftByImm, 2) |>
       (simplifyUpdate, 5) |>
       (removePushPop, 2) |>
-      (removeMovMov, 2) |>
-      (shiftByImm, 2)
+      (simplifyMov, 2) |>
+      (basicOperations, 1) |>
+      (simplifySetCmp, 4)
     optimised.instrs
   }
 }
 
 private object inliner {
+
+  private val inline_function_max_length = 25
   // checks if a function should be inlined
   def isInlineable(func: (Ident, ListBuffer[Instruction])): Boolean = {
-    func._2.length < 25
+    func._2.length <= inline_function_max_length
   }
 
   // converts a function body for inlining
@@ -73,7 +76,8 @@ private object inliner {
     toInline: Map[Ident, ListBuffer[Instruction]]
   ): ListBuffer[Instruction] = {
     prog.flatMap(inst => inst match {
-      case CallAsm(label) if toInline.contains(Ident(label.name.stripPrefix("wacc_"))) =>
+      case CallAsm(label, inline)
+        if toInline.contains(Ident(label.name.stripPrefix("wacc_"))) && inline =>
         convertToInline(toInline(Ident(label.name.stripPrefix("wacc_"))), toInline)
       case _ => lb(inst)
     })
@@ -91,11 +95,12 @@ private object peephole {
     }
   }
 
-  // add 0, sub 0
-  def removeZeroAddSub(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+  // add 0, sub 0, imul 1, imul -> shift
+  def basicOperations(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
     prog.head match {
       case AddAsm(Imm(0), _) => lb() -> 1
       case SubAsm(Imm(0), _) => lb() -> 1
+      case Imul(Imm(1), _)   => lb() -> 1
       case _ => lb(prog.head) -> 1
     }
   }
@@ -120,7 +125,7 @@ private object peephole {
   // mov x, y, mov y, x -> mov x, y
   // mov x, y, mov x, y -> mov x, y
   // mov x, rax, mov rax, y -> mov x, y
-  def removeMovMov(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+  def simplifyMov(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
     if (prog.length < 2) return lb(prog.head) -> 1
     (prog.head, prog(1)) match {
       case (Mov(op1, op2, _), Mov(op3, op4, _))
@@ -144,19 +149,12 @@ private object peephole {
   }
 
   // mov x, rax, push rax -> push x
+  // don't extend values when moving to addresses
   def movPushToPush(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
     if (prog.length < 2) return lb(prog.head) -> 1
     (prog.head, prog(1)) match {
       case (Mov(op1, Eax(Size64), _), Push(Eax(Size64))) if !op1.isInstanceOf[Imm] =>
         lb(Push(op1)) -> 2
-      case _ => lb(prog.head) -> 1
-    }
-  }
-
-  // don't extend values when moving to addresses
-  def removeMovsMovAddr(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
-    if (prog.length < 2) return lb(prog.head) -> 1
-    (prog.head, prog(1)) match {
       case (Movs(op1, Eax(Size64), _, _), m@Mov(op3, _: Address, _)) if op1 == op3 => lb(m) -> 2
       case _ => lb(prog.head) -> 1
     }
@@ -181,24 +179,33 @@ private object peephole {
       )) -> 5
     }
 
-    def simplifyApp(v: Operand, op: Operand, i: Instruction, swap: Boolean) = i match {
-      case AddAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, AddAsm, swap = false)
-      case SubAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, SubAsm, swap = swap)
-      case Imul(Ebx(Size32), Eax(Size32))   => getBinApp(v, op, Imul, swap = false)
-      case BitAndAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitAndAsm, swap = false)
-      case BitOrAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitOrAsm, swap = false)
-      case BitXorAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitXorAsm, swap = false)
-      case BitLeftShiftAsm(Ebx(Size64), Eax(Size64)) => lb(
-        Mov(v, Ecx(Size64), Size64),
-        Mov(op, Eax(Size64), Size64),
-        BitLeftShiftAsm(Ecx(Size64), Eax(Size64))
-      ) -> 5
-      case BitRightShiftAsm(Ebx(Size64), Eax(Size64)) => lb(
-        Mov(v, Ebx(Size64), Size64),
-        Mov(op, Eax(Size64), Size64),
-        BitRightShiftAsm(Ebx(Size64), Eax(Size64))
-      ) -> 5
-      case _ => lb(prog.head) -> 1
+    def simplifyApp(v: Operand, op: Operand, i: Instruction, swap: Boolean) = {
+      val op1 = if (swap) op else v
+      val op2 = if (swap) v else op
+      i match {
+        case AddAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, AddAsm, swap = false)
+        case SubAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, SubAsm, swap = swap)
+        case Imul(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, Imul, swap = false)
+        case BitAndAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitAndAsm, swap = false)
+        case BitOrAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitOrAsm, swap = false)
+        case BitXorAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitXorAsm, swap = false)
+        case BitLeftShiftAsm(Ebx(Size64), Eax(Size64)) => lb(
+          Mov(op1, Ecx(Size64), Size64),
+          Mov(op2, Eax(Size64), Size64),
+          BitLeftShiftAsm(Ecx(Size64), Eax(Size64))
+        ) -> 5
+        case BitRightShiftAsm(Ebx(Size64), Eax(Size64)) => lb(
+          Mov(op1, Ebx(Size64), Size64),
+          Mov(op2, Eax(Size64), Size64),
+          BitRightShiftAsm(Ebx(Size64), Eax(Size64))
+        ) -> 5
+        case Cmp(Ebx(_), Eax(_)) =>
+          if (op1.isInstanceOf[Address] && op2.isInstanceOf[Address]) lb(prog.head) -> 1 else
+          (if (op1.isInstanceOf[Imm])
+            lb(Mov(op1, Eax(Size32), Size32), Cmp(Reg.resize(op2, Size32), Eax(Size32)))
+          else lb(Cmp(Reg.resize(op2, Size32), Reg.resize(op1, Size32)))) -> 5
+        case _ => lb(prog.head) -> 1
+      }
     }
 
     if (prog.length < 5) return lb(prog.head) -> 1
@@ -217,7 +224,7 @@ private object peephole {
         i) => simplifyApp(v, op2, i, swap = false)
       case (
         Push(op1),
-        Mov(op2, Eax(Size64), _),
+        Mov(op2, Eax(_), _),
         Pop(Ebx(Size64)),
         i, _) if !op1.isInstanceOf[Eax] =>
           val (instrs, step) = simplifyApp(op2, op1, i, swap = false)
@@ -235,30 +242,35 @@ private object peephole {
         AddAsm(op1, Eax(Size32)),
         j: Jo,
         Movs(Eax(Size32), op2, Size32, Size64), _
-      ) if op1.getClass == op2.getClass =>
-        lb(AddAsm(op0, Reg.resize(op2, Size32).asInstanceOf[Dest]), j) -> 4
+      ) =>
+        lb(if (op1.getClass == op2.getClass) lb() else lb(Mov(Reg.resize(op1, Size64), op2, Size64)),
+          AddAsm(op0, Reg.resize(op2, Size32).asInstanceOf[Dest]), j) -> 4
       case (
         Mov(op0, Ebx(Size32), Size32),
         Mov(op1, Eax(Size32), Size32),
         SubAsm(Ebx(Size32), Eax(Size32)),
         j: Jo,
         Movs(Eax(Size32), op2, Size32, Size64)
-        ) if op1.getClass == op2.getClass =>
-        lb(SubAsm(op0, Reg.resize(op2, Size32).asInstanceOf[Dest]), j) -> 5
+      ) =>
+        lb(if (op1.getClass == op2.getClass) lb() else lb(Mov(Reg.resize(op1, Size64), op2, Size64)),
+          SubAsm(op0, Reg.resize(op2, Size32).asInstanceOf[Dest]), j) -> 5
       case (
         Mov(op0, Eax(Size32), Size32),
         Imul(op1, Eax(Size32)),
         j: Jo,
         Movs(Eax(Size32), op2, Size32, Size64), _
-        ) if op1.getClass == op2.getClass =>
-        lb(Imul(op0, Reg.resize(op2, Size32).asInstanceOf[Dest]), j) -> 4
+      ) =>
+        lb(if (op1.getClass == op2.getClass) lb() else lb(Mov(Reg.resize(op1, Size64), op2, Size64)),
+          Imul(op0, Reg.resize(op2, Size32).asInstanceOf[Dest]), j) -> 4
       case (
         Mov(op1, Eax(Size64), Size64),
         Pop(Ebx(Size64)),
         Mov(Ebx(Size64), Ecx(Size64), Size64),
         BitLeftShiftAsm(Ecx(Size64), Eax(Size64)),
         Mov(Eax(Size64), op2, Size64)
-        ) if op1 == op2 => lb(
+      ) =>
+        lb(
+          if (op1.getClass == op2.getClass) lb() else lb(Mov(Reg.resize(op1, Size64), op2, Size64)),
           Pop(Ecx(Size64)),
           BitLeftShiftAsm(Ecx(Size64), op2),
         ) -> 5
@@ -274,6 +286,20 @@ private object peephole {
         lb(BitLeftShiftAsm(Imm(v), op)) -> 2
       case (Mov(Imm(v), Ecx(Size64), Size64), BitRightShiftAsm(Ecx(Size64), op)) =>
         lb(BitRightShiftAsm(Imm(v), op)) -> 2
+      case _ => lb(prog.head) -> 1
+    }
+  }
+
+  def simplifySetCmp(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    if (prog.length < 4) return lb(prog.head) -> 1
+    (prog.head, prog(1), prog(2), prog(3)) match {
+      case (
+        SetAsm(Eax(Size8), comparison),
+        Movs(Eax(Size8), Eax(Size64), Size8, Size64),
+        Cmp(Imm(1), Eax(Size64)),
+        JmpComparison(label, Eq)
+        ) =>
+        lb(JmpComparison(label, comparison)) -> 4
       case _ => lb(prog.head) -> 1
     }
   }

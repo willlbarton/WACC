@@ -93,7 +93,7 @@ case object Mov {
 final case class Movs(op: Operand, dest: Dest, srcSize: Size, destSize: Size) extends Instruction
 final case class Pop(dest: Dest) extends Instruction
 final case class Push(op: Operand) extends Instruction
-final case class CallAsm(label: Label) extends Instruction
+final case class CallAsm(label: Label, toInline: Boolean = false) extends Instruction
 final case class AndAsm(op: Operand, dest: Dest) extends Instruction
 final case class Lea(op: Address, dest: Dest) extends Instruction
 
@@ -101,7 +101,7 @@ final case class SetAsm(dest: Dest, comparison: Comparison) extends Instruction
 
 final case class AddAsm(op: Operand, dest: Dest) extends Instruction
 final case class SubAsm(op: Operand, dest: Dest) extends Instruction
-final case class Cmp(src: Operand, dest: Dest) extends Instruction
+final case class Cmp(op1: Operand, op2: Operand) extends Instruction
 
 final case class Jmp(label: Label) extends Instruction
 final case class Jo(label: Label) extends Instruction

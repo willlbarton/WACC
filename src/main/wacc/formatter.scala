@@ -38,7 +38,7 @@ object x86Formatter extends AsmFormatter {
         indent ++ s"movs${instructionPostfix(srcSize, destSize)} ${this(op)}, ${this(dest)}"
       case Pop(dest)      => indent ++ s"pop${instructionPostfix(dest)}  ${this(dest)}"
       case Push(op1)      => indent ++ s"push${instructionPostfix(op1)} ${this(op1)}"
-      case CallAsm(label) => indent ++ s"call  ${label.name}"
+      case CallAsm(label, _) => indent ++ s"call  ${label.name}"
       case AndAsm(op1, dest) =>
         indent ++ s"and${instructionPostfix(dest)}   ${this(op1)}, ${this(dest)}"
       case SetAsm(dest, comparison) =>
