@@ -22,9 +22,10 @@ object codeOptimiser {
       (movPushToPush, 2) |>
       (simplifyBinApp, 5) |>
       (removePushPop, 2) |>
-      (simplifyMov, 2) |>
       (shiftByImm, 2) |>
       (simplifyUpdate, 5) |>
+      (removePushPop, 2) |>
+      (simplifyMov, 2) |>
       (basicOperations, 1) |>
       (simplifySetCmp, 4)
     optimised.instrs
