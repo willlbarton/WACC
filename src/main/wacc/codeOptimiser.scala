@@ -20,10 +20,9 @@ object codeOptimiser {
       (removeJumpToNext, 2) |>
       (removePushPop, 2) |>
       (movPushToPush, 2) |>
-      (removeMovsMovAddr, 2) |>
       (simplifyBinApp, 5) |>
       (removePushPop, 2) |>
-      (removeMovMov, 2) |>
+      (simplifyMov, 2) |>
       (shiftByImm, 2) |>
       (simplifyUpdate, 5) |>
       (basicOperations, 1)
@@ -121,7 +120,7 @@ private object peephole {
   // mov x, y, mov y, x -> mov x, y
   // mov x, y, mov x, y -> mov x, y
   // mov x, rax, mov rax, y -> mov x, y
-  def removeMovMov(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+  def simplifyMov(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
     if (prog.length < 2) return lb(prog.head) -> 1
     (prog.head, prog(1)) match {
       case (Mov(op1, op2, _), Mov(op3, op4, _))
@@ -145,19 +144,12 @@ private object peephole {
   }
 
   // mov x, rax, push rax -> push x
+  // don't extend values when moving to addresses
   def movPushToPush(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
     if (prog.length < 2) return lb(prog.head) -> 1
     (prog.head, prog(1)) match {
       case (Mov(op1, Eax(Size64), _), Push(Eax(Size64))) if !op1.isInstanceOf[Imm] =>
         lb(Push(op1)) -> 2
-      case _ => lb(prog.head) -> 1
-    }
-  }
-
-  // don't extend values when moving to addresses
-  def removeMovsMovAddr(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
-    if (prog.length < 2) return lb(prog.head) -> 1
-    (prog.head, prog(1)) match {
       case (Movs(op1, Eax(Size64), _, _), m@Mov(op3, _: Address, _)) if op1 == op3 => lb(m) -> 2
       case _ => lb(prog.head) -> 1
     }
@@ -182,24 +174,32 @@ private object peephole {
       )) -> 5
     }
 
-    def simplifyApp(v: Operand, op: Operand, i: Instruction, swap: Boolean) = i match {
-      case AddAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, AddAsm, swap = false)
-      case SubAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, SubAsm, swap = swap)
-      case Imul(Ebx(Size32), Eax(Size32))   => getBinApp(v, op, Imul, swap = false)
-      case BitAndAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitAndAsm, swap = false)
-      case BitOrAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitOrAsm, swap = false)
-      case BitXorAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitXorAsm, swap = false)
-      case BitLeftShiftAsm(Ebx(Size64), Eax(Size64)) => lb(
-        Mov(v, Ecx(Size64), Size64),
-        Mov(op, Eax(Size64), Size64),
-        BitLeftShiftAsm(Ecx(Size64), Eax(Size64))
-      ) -> 5
-      case BitRightShiftAsm(Ebx(Size64), Eax(Size64)) => lb(
-        Mov(v, Ebx(Size64), Size64),
-        Mov(op, Eax(Size64), Size64),
-        BitRightShiftAsm(Ebx(Size64), Eax(Size64))
-      ) -> 5
-      case _ => lb(prog.head) -> 1
+    def simplifyApp(v: Operand, op: Operand, i: Instruction, swap: Boolean) = {
+      val op1 = if (swap) op else v
+      val op2 = if (swap) v else op
+      i match {
+        case AddAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, AddAsm, swap = false)
+        case SubAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, SubAsm, swap = swap)
+        case Imul(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, Imul, swap = false)
+        case BitAndAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitAndAsm, swap = false)
+        case BitOrAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitOrAsm, swap = false)
+        case BitXorAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitXorAsm, swap = false)
+        case BitLeftShiftAsm(Ebx(Size64), Eax(Size64)) => lb(
+          Mov(op1, Ecx(Size64), Size64),
+          Mov(op2, Eax(Size64), Size64),
+          BitLeftShiftAsm(Ecx(Size64), Eax(Size64))
+        ) -> 5
+        case BitRightShiftAsm(Ebx(Size64), Eax(Size64)) => lb(
+          Mov(op1, Ebx(Size64), Size64),
+          Mov(op2, Eax(Size64), Size64),
+          BitRightShiftAsm(Ebx(Size64), Eax(Size64))
+        ) -> 5
+        case Cmp(Ebx(_), Eax(_)) =>
+          (if (op1.isInstanceOf[Imm])
+            lb(Mov(op1, Eax(Size32), Size32), Cmp(Reg.resize(op2, Size32), Eax(Size32)))
+          else lb(Cmp(Reg.resize(op2, Size32), Reg.resize(op1, Size32)))) -> 5
+        case _ => lb(prog.head) -> 1
+      }
     }
 
     if (prog.length < 5) return lb(prog.head) -> 1
