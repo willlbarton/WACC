@@ -136,30 +136,6 @@ object generator {
         symTable.put(ident, dest) // Add the variable to the symbol table
         genDeclStmt(value, dest, symTable, allocator)
       case Asgn(lval, value) => genAsgnStmt(lval, value, symTable, allocator)
-      case SideEffectStmt(left, op, expr) =>
-        // At this point, we can assume that left: lval is an lval which can be mapped to an expression
-        val lExp: Expr = left match {
-          case ArrayElem(ident, exprs) => ArrayElem(ident, exprs)
-          case Ident(name)             => Ident(name)
-          case _ => throw new IllegalArgumentException(s"Unsupported lval: $left")
-        }
-        lExp.typ = left.typ
-        genAsgnStmt(
-          left,
-          BinaryApp(
-            op match {
-              case AddEq => Add
-              case SubEq => Sub
-              case MulEq => Mul
-              case DivEq => Div
-              case ModEq => Mod
-            },
-            lExp,
-            expr
-          ),
-          symTable,
-          allocator
-        )
       case Free(expr) => genFreeStmt(expr, symTable)
       case ifStmt: IfStmt =>
         genIfStmt(ifStmt, symTable, allocator, exitScope) // handle IfStmt case

@@ -45,12 +45,12 @@ object parser {
   // Parses a sequence of statements with no requirement to end with a return or exit
   private lazy val statements: Parsley[List[Stmt]] = sepBy1(statement, ";")
 
-  private lazy val sideEffectOp: Parsley[SideEffectOp] =
-    "+=" #> AddEq |
-      "-=" #> SubEq |
-      "*=" #> MulEq |
-      "/=" #> DivEq |
-      "%=" #> ModEq
+  private lazy val sideEffectOp: Parsley[BinaryOp] =
+    "+=" #> Add |
+      "-=" #> Sub |
+      "*=" #> Mul |
+      "/=" #> Div |
+      "%=" #> Mod
 
   // Parses a single statement
   private lazy val statement: Parsley[Stmt] =

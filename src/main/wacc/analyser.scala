@@ -147,7 +147,6 @@ object analyser {
     case Skip                           => ""
     case Decl(t, name, value)           => handleDeclaration(st, t, name, value)
     case Asgn(left, value)              => checkAssignment(st, left, value)
-    case SideEffectStmt(left, op, expr) => checkSideEffectStmt(st, left, op, expr)
     case Read(value)                    => checkRead(st, value)
     case Free(expr)                     => checkFree(st, expr)
     case Exit(expr) =>
@@ -210,33 +209,6 @@ object analyser {
     }
 
     value.typ = Some(typ) // Set the type of the symbol table entry
-    error.toString
-  }
-
-  // Checks the validity of a side effect statement
-  private def checkSideEffectStmt(
-      symTable: SymbolTable[SymbolTableObj],
-      left: LVal,
-      op: SideEffectOp,
-      exp: Expr
-  ): String = {
-    val error = new StringBuilder()
-    var typ1: Option[Type] = None
-    checkSideEffectStmtLVal(symTable, left, s"$left $op $exp") match { // Check that the left hand side is a valid lvalue
-      case Left(err)  => error ++= err
-      case Right(typ) => typ1 = Some(typ)
-    }
-    val (err, typ2) = checkExpr(symTable, exp)
-    left.typ = typ1
-    exp.typ = typ1
-    error ++= err withContext s"$left $op $exp"
-    if (typ1.isDefined && typ2.isDefined && !isWeakerType(typ1.get, typ2.get))
-      error ++= typeErrorMsg(
-        "side effect statement",
-        s"$left $op $exp",
-        s"${typ1.get}",
-        s"${typ2.get}"
-      )
     error.toString
   }
 
