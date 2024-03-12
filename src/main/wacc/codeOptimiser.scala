@@ -25,7 +25,8 @@ object codeOptimiser {
       (simplifyMov, 2) |>
       (shiftByImm, 2) |>
       (simplifyUpdate, 5) |>
-      (basicOperations, 1)
+      (basicOperations, 1) |>
+      (simplifySetCmp, 4)
     optimised.instrs
   }
 }
@@ -195,6 +196,7 @@ private object peephole {
           BitRightShiftAsm(Ebx(Size64), Eax(Size64))
         ) -> 5
         case Cmp(Ebx(_), Eax(_)) =>
+          if (op1.isInstanceOf[Address] && op2.isInstanceOf[Address]) lb(prog.head) -> 1 else
           (if (op1.isInstanceOf[Imm])
             lb(Mov(op1, Eax(Size32), Size32), Cmp(Reg.resize(op2, Size32), Eax(Size32)))
           else lb(Cmp(Reg.resize(op2, Size32), Reg.resize(op1, Size32)))) -> 5
@@ -280,6 +282,20 @@ private object peephole {
         lb(BitLeftShiftAsm(Imm(v), op)) -> 2
       case (Mov(Imm(v), Ecx(Size64), Size64), BitRightShiftAsm(Ecx(Size64), op)) =>
         lb(BitRightShiftAsm(Imm(v), op)) -> 2
+      case _ => lb(prog.head) -> 1
+    }
+  }
+
+  def simplifySetCmp(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+    if (prog.length < 4) return lb(prog.head) -> 1
+    (prog.head, prog(1), prog(2), prog(3)) match {
+      case (
+        SetAsm(Eax(Size8), comparison),
+        Movs(Eax(Size8), Eax(Size64), Size8, Size64),
+        Cmp(Imm(1), Eax(Size64)),
+        JmpComparison(label, Eq)
+        ) =>
+        lb(JmpComparison(label, comparison)) -> 4
       case _ => lb(prog.head) -> 1
     }
   }
