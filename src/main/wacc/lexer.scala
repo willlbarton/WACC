@@ -69,7 +69,10 @@ object lexer {
         "char",
         "string",
         "pair",
-        "null"
+        "null",
+        "len",
+        "ord",
+        "chr"
       )
     )
   )
