@@ -17,16 +17,16 @@ object codeOptimiser {
     val program = inlined
     val optimised = AsmProgram(program) |>
       (removeDeadCode, 1) |>
-      (removeZeroAddSub, 1) |>
       (removeJumpToNext, 2) |>
       (removePushPop, 2) |>
       (movPushToPush, 2) |>
       (removeMovsMovAddr, 2) |>
       (simplifyBinApp, 5) |>
-      (simplifyUpdate, 5) |>
       (removePushPop, 2) |>
       (removeMovMov, 2) |>
-      (shiftByImm, 2)
+      (shiftByImm, 2) |>
+      (simplifyUpdate, 5) |>
+      (basicOperations, 1)
     optimised.instrs
   }
 }
@@ -91,11 +91,12 @@ private object peephole {
     }
   }
 
-  // add 0, sub 0
-  def removeZeroAddSub(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
+  // add 0, sub 0, imul 1, imul -> shift
+  def basicOperations(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
     prog.head match {
       case AddAsm(Imm(0), _) => lb() -> 1
       case SubAsm(Imm(0), _) => lb() -> 1
+      case Imul(Imm(1), _)   => lb() -> 1
       case _ => lb(prog.head) -> 1
     }
   }
@@ -217,7 +218,7 @@ private object peephole {
         i) => simplifyApp(v, op2, i, swap = false)
       case (
         Push(op1),
-        Mov(op2, Eax(Size64), _),
+        Mov(op2, Eax(_), _),
         Pop(Ebx(Size64)),
         i, _) if !op1.isInstanceOf[Eax] =>
           val (instrs, step) = simplifyApp(op2, op1, i, swap = false)
@@ -235,30 +236,35 @@ private object peephole {
         AddAsm(op1, Eax(Size32)),
         j: Jo,
         Movs(Eax(Size32), op2, Size32, Size64), _
-      ) if op1.getClass == op2.getClass =>
-        lb(AddAsm(op0, Reg.resize(op2, Size32).asInstanceOf[Dest]), j) -> 4
+      ) =>
+        lb(if (op1.getClass == op2.getClass) lb() else lb(Mov(Reg.resize(op1, Size64), op2, Size64)),
+          AddAsm(op0, Reg.resize(op2, Size32).asInstanceOf[Dest]), j) -> 4
       case (
         Mov(op0, Ebx(Size32), Size32),
         Mov(op1, Eax(Size32), Size32),
         SubAsm(Ebx(Size32), Eax(Size32)),
         j: Jo,
         Movs(Eax(Size32), op2, Size32, Size64)
-        ) if op1.getClass == op2.getClass =>
-        lb(SubAsm(op0, Reg.resize(op2, Size32).asInstanceOf[Dest]), j) -> 5
+      ) =>
+        lb(if (op1.getClass == op2.getClass) lb() else lb(Mov(Reg.resize(op1, Size64), op2, Size64)),
+          SubAsm(op0, Reg.resize(op2, Size32).asInstanceOf[Dest]), j) -> 5
       case (
         Mov(op0, Eax(Size32), Size32),
         Imul(op1, Eax(Size32)),
         j: Jo,
         Movs(Eax(Size32), op2, Size32, Size64), _
-        ) if op1.getClass == op2.getClass =>
-        lb(Imul(op0, Reg.resize(op2, Size32).asInstanceOf[Dest]), j) -> 4
+      ) =>
+        lb(if (op1.getClass == op2.getClass) lb() else lb(Mov(Reg.resize(op1, Size64), op2, Size64)),
+          Imul(op0, Reg.resize(op2, Size32).asInstanceOf[Dest]), j) -> 4
       case (
         Mov(op1, Eax(Size64), Size64),
         Pop(Ebx(Size64)),
         Mov(Ebx(Size64), Ecx(Size64), Size64),
         BitLeftShiftAsm(Ecx(Size64), Eax(Size64)),
         Mov(Eax(Size64), op2, Size64)
-        ) if op1 == op2 => lb(
+      ) =>
+        lb(
+          if (op1.getClass == op2.getClass) lb() else lb(Mov(Reg.resize(op1, Size64), op2, Size64)),
           Pop(Ecx(Size64)),
           BitLeftShiftAsm(Ecx(Size64), op2),
         ) -> 5
