@@ -331,8 +331,8 @@ object analyser {
           // Do not attempt division by 0
           case Div => if (v2 == 0) None else Some(v1 / v2)
           case Mod => Some(v1 % v2)
-          case BitLeftShift => Some(v1 << v2.toInt)
-          case BitRightShift => Some(v1 >> v2.toInt)
+          case Sal => Some(v1 << v2.toInt)
+          case Shr => Some(v1 >> v2.toInt)
           case BitAnd => Some(v1 & v2)
           case BitOr  => Some(v1 | v2)
           case _   => None
@@ -476,7 +476,7 @@ object analyser {
             retType = Some(IntType)
           } else if (someType1 == StringType && someType2 == StringType) retType = Some(StringType)
           else error ++= binaryAppErrMsg(op, someType1, someType2, BinaryApp(op, left, right))
-        case Sub | Mul | Div | Mod | BitXor | BitAnd | BitLeftShift | BitRightShift | BitOr =>
+        case Sub | Mul | Div | Mod | BitXor | BitAnd | Sal | Shr | BitOr =>
           if (someType1 == IntType && someType2 == IntType) {
             error ++= checkConstantApplication(left, right, op)
             retType = Some(IntType)

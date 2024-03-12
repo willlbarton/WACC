@@ -50,14 +50,19 @@ object parser {
       "-=" #> Sub |
       "*=" #> Mul |
       "/=" #> Div |
-      "%=" #> Mod
+      "%=" #> Mod |
+      "&=" #> BitAnd |
+      "|=" #> BitOr |
+      "^=" #> BitXor |
+      "<<=" #> Sal |
+      ">>=" #> Shr
 
   // Parses a single statement
   private lazy val statement: Parsley[Stmt] =
     "skip" #> Skip |
       Decl(typ, ident, "=" ~> rvalue) |
       Asgn(atomic(lvalue <~ "=".explain("unknown statement treated as assignment")), rvalue) |
-      SideEffectStmt(lvalue, sideEffectOp, expr) |
+      SideEffectStmt(ident | arrayElem, sideEffectOp, expr) |
       Read("read" ~> lvalue) |
       Free("free" ~> expr) |
       Print("print" ~> expr) |
@@ -138,8 +143,8 @@ object parser {
       BitXor <# "^",
       BitOr  <# atomic(ifS(item.map(_ == '|'), noneOf('|'), fail(""))),
       BitAnd <# atomic(ifS(item.map(_ == '&'), noneOf('&'), fail(""))),
-      BitLeftShift <# "<<",
-      BitRightShift <# ">>"
+      Sal <# "<<",
+      Shr <# ">>"
     ),
     Ops(InfixN)(
       GtEq <# ">=",

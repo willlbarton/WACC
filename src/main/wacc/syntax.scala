@@ -167,8 +167,8 @@ case object Or extends BinaryOp { override def toString = "||" }
 case object BitAnd extends BinaryOp { override def toString = "&" }
 case object BitOr extends BinaryOp { override def toString = "|" }
 case object BitXor extends BinaryOp { override def toString = "^" }
-case object BitLeftShift extends BinaryOp { override def toString = "<<" }
-case object BitRightShift extends BinaryOp { override def toString = ">>" }
+case object Sal extends BinaryOp { override def toString = "<<" }
+case object Shr extends BinaryOp { override def toString = ">>" }
 
 // Parser bridges used in the parser
 object Program extends generic.ParserBridge2[List[Func], List[Stmt], Program]

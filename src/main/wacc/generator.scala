@@ -599,12 +599,12 @@ object generator {
         case BitAnd => lb(BitAndAsm(Ebx(Size64), Eax(Size64)))
         case BitOr  => lb(BitOrAsm(Ebx(Size64), Eax(Size64)))
         case BitXor => lb(BitXorAsm(Ebx(Size64), Eax(Size64)))
-        case BitLeftShift | BitRightShift =>
+        case Sal | Shr =>
           lb(
             Mov(Ebx(Size64), Ecx(Size64)),
             op match {
-              case BitLeftShift  => BitLeftShiftAsm(Ecx(Size64), Eax(Size64))
-              case BitRightShift => BitRightShiftAsm(Ecx(Size64), Eax(Size64))
+              case Sal  => SalAsm(Ecx(Size64), Eax(Size64))
+              case Shr => ShrAsm(Ecx(Size64), Eax(Size64))
             }
           )
         case Add | Sub | Mul =>
