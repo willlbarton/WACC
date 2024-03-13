@@ -22,9 +22,10 @@ object codeOptimiser {
       (movPushToPush, 2) |>
       (simplifyBinApp, 5) |>
       (removePushPop, 2) |>
-      (simplifyMov, 2) |>
       (shiftByImm, 2) |>
       (simplifyUpdate, 5) |>
+      (removePushPop, 2) |>
+      (simplifyMov, 2) |>
       (basicOperations, 1) |>
       (simplifySetCmp, 4)
     optimised.instrs
@@ -32,9 +33,11 @@ object codeOptimiser {
 }
 
 private object inliner {
+
+  private val inline_function_max_length = 25
   // checks if a function should be inlined
   def isInlineable(func: (Ident, ListBuffer[Instruction])): Boolean = {
-    func._2.length < 25
+    func._2.length <= inline_function_max_length
   }
 
   // converts a function body for inlining
@@ -73,7 +76,8 @@ private object inliner {
     toInline: Map[Ident, ListBuffer[Instruction]]
   ): ListBuffer[Instruction] = {
     prog.flatMap(inst => inst match {
-      case CallAsm(label) if toInline.contains(Ident(label.name.stripPrefix("wacc_"))) =>
+      case CallAsm(label, inline)
+        if toInline.contains(Ident(label.name.stripPrefix("wacc_"))) && inline =>
         convertToInline(toInline(Ident(label.name.stripPrefix("wacc_"))), toInline)
       case _ => lb(inst)
     })

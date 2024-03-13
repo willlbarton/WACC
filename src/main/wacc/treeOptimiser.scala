@@ -25,10 +25,17 @@ object treeOptimiser {
     case Print(expr) => Print(optimiseExpr(expr))
     case PrintLn(expr) => PrintLn(optimiseExpr(expr))
     case f1@IfStmt(cond, body1, body2) =>
-      val f2 = IfStmt(optimiseExpr(cond), body1.map(optimiseStmt), body2.map(optimiseStmt))
-      f2.branch1Vars = f1.branch1Vars
-      f2.branch2Vars = f1.branch2Vars
-      f2
+      val bool = evalBool(cond)
+      if (bool.isEmpty) {
+        val f2 = IfStmt(optimiseExpr(cond), body1.map(optimiseStmt), body2.map(optimiseStmt))
+        f2.branch1Vars = f1.branch1Vars
+        f2.branch2Vars = f1.branch2Vars
+        f2
+      } else {
+        val b = ScopedStmt((if (bool.get) body1 else body2).map(optimiseStmt))
+        b.vars = if (bool.get) f1.branch1Vars else f1.branch2Vars
+        b
+      }
     case w1@While(cond, body) =>
       val w2 = While(optimiseExpr(cond), body.map(optimiseStmt))
       w2.vars = w1.vars
@@ -81,4 +88,25 @@ object treeOptimiser {
       case Some(value) => Integer(value.toInt)
       case None => UnaryApp(op, optimiseExpr(expr))
     }
+
+  private def evalBool(expr: Expr): Option[Boolean] = {
+    expr match {
+      case Bool(v) => Some(v)
+      case UnaryApp(Not, e) => evalBool(e).map(!_)
+      case BinaryApp(op, e1, e2) =>
+        val (lbool, rbool) = (evalBool(e1), evalBool(e2))
+        val (lint, rint) = (analyser.evalConst(e1), analyser.evalConst(e2))
+        op match {
+          case Gt => lint.zip(rint).map(x => x._1 > x._2)
+          case Lt => lint.zip(rint).map(x => x._1 < x._2)
+          case GtEq => lint.zip(rint).map(x => x._1 >= x._2)
+          case LtEq => lint.zip(rint).map(x => x._1 <= x._2)
+          case Eq => if (e1 == e2) Some(true) else lint.zip(rint).map(x => x._1 == x._2)
+          case NotEq => lint.zip(rint).map(x => x._1 != x._2)
+          case And => lbool.zip(rbool).map(x => x._1 && x._2)
+          case Or => lbool.zip(rbool).map(x => x._1 || x._2)
+        }
+      case _ => None
+    }
+  }
 }
