@@ -101,7 +101,7 @@ object treeOptimiser {
           case Lt => lint.zip(rint).map(x => x._1 < x._2)
           case GtEq => lint.zip(rint).map(x => x._1 >= x._2)
           case LtEq => lint.zip(rint).map(x => x._1 <= x._2)
-          case Eq => lint.zip(rint).map(x => x._1 == x._2)
+          case Eq => if (e1 == e2) Some(true) else lint.zip(rint).map(x => x._1 == x._2)
           case NotEq => lint.zip(rint).map(x => x._1 != x._2)
           case And => lbool.zip(rbool).map(x => x._1 && x._2)
           case Or => lbool.zip(rbool).map(x => x._1 || x._2)
