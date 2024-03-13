@@ -63,6 +63,13 @@ case object MulEq extends SideEffectOp { override def toString = "*=" }
 case object DivEq extends SideEffectOp { override def toString = "/=" }
 case object ModEq extends SideEffectOp { override def toString = "%=" }
 
+// Bitwise sideEffectOps
+case object BitAndEq extends SideEffectOp { override def toString = "&=" }
+case object BitOrEq extends SideEffectOp { override def toString = "|=" }
+case object BitXorEq extends SideEffectOp { override def toString = "^=" }
+case object BitLeftShiftEq extends SideEffectOp { override def toString = "<<=" }
+case object BitRightShiftEq extends SideEffectOp { override def toString = ">>=" }
+
 final case class Asgn(left: LVal, value: RVal) extends Stmt {
   override def toString: String = s"$left = $value"
 }

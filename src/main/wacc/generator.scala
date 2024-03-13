@@ -79,8 +79,11 @@ object generator {
       genNewScopeEnter(usedParamRegs, toAllocate),
       // Generate the body of the function
       genStmts(
-        func.body, paramTable.makeChild, Allocator(toAllocate, NonParamMode),
-        exitScope, inline = true
+        func.body,
+        paramTable.makeChild,
+        Allocator(toAllocate, NonParamMode),
+        exitScope,
+        inline = true
       )
     )
 
@@ -129,12 +132,13 @@ object generator {
     stmt match {
       case Skip       => lb()
       case Exit(expr) => genExit(expr, symTable)
-      case Return(expr) => lb(
-        genExpr(expr, symTable),
-        Pop(Eax(Size64)),
-        exitScope,
-        Ret
-      )
+      case Return(expr) =>
+        lb(
+          genExpr(expr, symTable),
+          Pop(Eax(Size64)),
+          exitScope,
+          Ret
+        )
       case Print(expr)   => genPrintStmt(symTable, expr)
       case PrintLn(expr) => genPrintStmt(symTable, expr) += CallAsm(Label(s"_$print$printlnType"))
       case Read(lval)    => genReadStmt(symTable, lval)
@@ -142,7 +146,7 @@ object generator {
         val dest = allocator.allocateSpace(t)
         symTable.put(ident, dest) // Add the variable to the symbol table
         genDeclStmt(value, dest, symTable, allocator, inline)
-      case Asgn(lval, value) => genAsgnStmt(lval, value, symTable, allocator, inline)
+      case Asgn(lval, value)              => genAsgnStmt(lval, value, symTable, allocator, inline)
       case SideEffectStmt(left, op, expr) =>
         // At this point, we can assume that left: lval is an lval which can be mapped to an expression
         val lExp: Expr = left match {
@@ -155,11 +159,16 @@ object generator {
           left,
           BinaryApp(
             op match {
-              case AddEq => Add
-              case SubEq => Sub
-              case MulEq => Mul
-              case DivEq => Div
-              case ModEq => Mod
+              case AddEq           => Add
+              case SubEq           => Sub
+              case MulEq           => Mul
+              case DivEq           => Div
+              case ModEq           => Mod
+              case BitAndEq        => BitAnd
+              case BitOrEq         => BitOr
+              case BitXorEq        => BitXor
+              case BitLeftShiftEq  => BitLeftShift
+              case BitRightShiftEq => BitRightShift
             },
             lExp,
             expr
@@ -200,8 +209,7 @@ object generator {
 
     val instructions = lb(
       genNewScopeEnter(used, toAllocate),
-      genStmts(
-        stmts, symTable.makeChild, Allocator(vars, mode), exitScope2 ++ exitScope, inline),
+      genStmts(stmts, symTable.makeChild, Allocator(vars, mode), exitScope2 ++ exitScope, inline),
       extraInstructions,
       exitScope2
     )
@@ -257,12 +265,28 @@ object generator {
       // If the condition is true, execute the first branch
       JmpComparison(labelTrue, Eq),
       genScopedStmt(
-        body2, ifStmt.branch2Vars, symTable, allocator, NonParamMode, lb(), exitScope, inline),
+        body2,
+        ifStmt.branch2Vars,
+        symTable,
+        allocator,
+        NonParamMode,
+        lb(),
+        exitScope,
+        inline
+      ),
       // Skip to end after executing the 'false' branch
       Jmp(labelContinue),
       labelTrue,
       genScopedStmt(
-        body1, ifStmt.branch1Vars, symTable, allocator, NonParamMode, lb(), exitScope, inline),
+        body1,
+        ifStmt.branch1Vars,
+        symTable,
+        allocator,
+        NonParamMode,
+        lb(),
+        exitScope,
+        inline
+      ),
       labelContinue
     )
   }
@@ -294,18 +318,21 @@ object generator {
       inline: Boolean
   ): ListBuffer[Instruction] = {
     lval match {
-      case id: Ident => lb(
-        genRval(value, symTable, allocator, inline),
-        Pop(Eax(Size64)),
-        Mov(
-          // If the destination is a register, use the register size,
-          // otherwise use the size of the type
-          Eax(if (symTable(id).get.isInstanceOf[Reg]) Size64
-            else Allocator.getTypeSize(value.typ.get)),
-          symTable(id).get,
-          useOpSize = true
+      case id: Ident =>
+        lb(
+          genRval(value, symTable, allocator, inline),
+          Pop(Eax(Size64)),
+          Mov(
+            // If the destination is a register, use the register size,
+            // otherwise use the size of the type
+            Eax(
+              if (symTable(id).get.isInstanceOf[Reg]) Size64
+              else Allocator.getTypeSize(value.typ.get)
+            ),
+            symTable(id).get,
+            useOpSize = true
+          )
         )
-      )
       case arr @ ArrayElem(ident, exprs) =>
         var typ = ident.typ.get
         // Get the type of the array, fold to get nested array type
@@ -350,21 +377,23 @@ object generator {
   // Generates the assembly for a free statement
   private def genFreeStmt(expr: Expr, symTable: SymbolTable[Dest]): ListBuffer[Instruction] =
     expr.typ.get match {
-      case ArrayType(_) => lb(
-        genExpr(expr, symTable),
-        Pop(Eax(Size64)),
-        Mov(Eax(Size64), Edi(Size64)),
-        // The length of the array is stored at the address before the start of the array
-        SubAsm(intSize, Edi(Size64)),
-        CallAsm(Label(s"_$free"))
-      )
+      case ArrayType(_) =>
+        lb(
+          genExpr(expr, symTable),
+          Pop(Eax(Size64)),
+          Mov(Eax(Size64), Edi(Size64)),
+          // The length of the array is stored at the address before the start of the array
+          SubAsm(intSize, Edi(Size64)),
+          CallAsm(Label(s"_$free"))
+        )
       // call freePair for pairs
-      case PairType(_, _) | Pair => lb(
-        genExpr(expr, symTable),
-        Pop(Eax(Size64)),
-        Mov(Eax(Size64), Edi(Size64)),
-        CallAsm(Label(s"_$freepair"))
-      )
+      case PairType(_, _) | Pair =>
+        lb(
+          genExpr(expr, symTable),
+          Pop(Eax(Size64)),
+          Mov(Eax(Size64), Edi(Size64)),
+          CallAsm(Label(s"_$freepair"))
+        )
       case _ => throw new IllegalArgumentException(s"Free called with type: ${expr.typ.get}")
     }
 
@@ -381,8 +410,8 @@ object generator {
       case c: Call       => genCall(c, symTable, allocator, inline)
       case NewPair(a, b) => genPair(a, b, symTable)
       // Always dereference pairs elements at this stage
-      case f @ Fst(_)    => genPairElem(f, symTable, deref_? = true)
-      case s @ Snd(_)    => genPairElem(s, symTable, snd_? = true, deref_? = true)
+      case f @ Fst(_) => genPairElem(f, symTable, deref_? = true)
+      case s @ Snd(_) => genPairElem(s, symTable, snd_? = true, deref_? = true)
     }
 
   // Generates the assembly for a function call rvalue
@@ -462,10 +491,10 @@ object generator {
 
   // Generates the assembly for a pair element
   private def genPairElem(
-    lval: LVal,
-    symTable: SymbolTable[Dest],
-    snd_? : Boolean = false,
-    deref_? : Boolean = false
+      lval: LVal,
+      symTable: SymbolTable[Dest],
+      snd_? : Boolean = false,
+      deref_? : Boolean = false
   ): ListBuffer[Instruction] = {
     val derefCheck = lb(
       // Check if the pair is null
@@ -553,17 +582,17 @@ object generator {
 
   // Generates the assembly for an lvalue
   private def genLVal(
-    lval: LVal,
-    symTable: SymbolTable[Dest],
-    deref_? : Boolean = false
+      lval: LVal,
+      symTable: SymbolTable[Dest],
+      deref_? : Boolean = false
   ): ListBuffer[Instruction] = {
     lval match {
       case id: Ident               => lb(Push(symTable(id).get))
       case ArrayElem(ident, exprs) => genArrayElem(ident, exprs.init, symTable)
       // We may or may not need to dereference the pair, but recursive calls always do
-      case f @ Fst(_)              =>
+      case f @ Fst(_) =>
         genPairElem(f, symTable, deref_? = deref_?)
-      case s @ Snd(_)              =>
+      case s @ Snd(_) =>
         genPairElem(s, symTable, snd_? = true, deref_? = deref_?)
     }
   }
@@ -603,22 +632,25 @@ object generator {
     expr match {
       case Integer(i) => Mov(i, Eax())
       case StringAtom(s) =>
-        Lea(Address(
-          Rip, // String literals have " escaped
-          Label(s".L.str${stringLiters(builtInFunctions.doubleEscape(s))}")),
-          Eax(Size64))
-      case Bool(value)  => Mov(if (value) 1 else 0, Eax(Size64))
-      case Character(c) => Mov(c, Eax(Size64))
+        Lea(
+          Address(
+            Rip, // String literals have " escaped
+            Label(s".L.str${stringLiters(builtInFunctions.doubleEscape(s))}")
+          ),
+          Eax(Size64)
+        )
+      case Bool(value)             => Mov(if (value) 1 else 0, Eax(Size64))
+      case Character(c)            => Mov(c, Eax(Size64))
       case ArrayElem(ident, exprs) => genArrayElem(ident, exprs, symTable)
       case Ident(name) =>
         symTable(Ident(name)) match {
           case Some(value) => Mov(value, Eax(Size64))
           case None        => throw new NoSuchElementException(s"Variable $name not found")
         }
-      case Null => Mov(nullPtr, Eax(Size64))
+      case Null                       => Mov(nullPtr, Eax(Size64))
       case BinaryApp(op, left, right) => genBinaryApp(op, left, right, symTable)
       case UnaryApp(op, expr)         => genUnaryApp(op, expr, symTable)
-      case BracketedExpr(expr) => genExpr(expr, symTable)
+      case BracketedExpr(expr)        => genExpr(expr, symTable)
     },
     // If the expression is one of these, the result will already be pushed to the stack
     if (expr.isInstanceOf[BracketedExpr] || expr.isInstanceOf[ArrayElem]) lb()
