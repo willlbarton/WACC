@@ -346,7 +346,7 @@ object analyser {
     case UnaryApp(Neg, e)                => evalConst(e).map(-_)
     case UnaryApp(Ord, Character(c))     => Some(c.toInt)
     case UnaryApp(Ord, UnaryApp(Chr, e)) => evalConst(e)
-    case BinaryApp(op, e1, e2)           =>
+    case BinaryApp(op, e1, e2) =>
       val val1 = evalConst(e1)
       val val2 = evalConst(e2)
       if (val1.isDefined && val2.isDefined) {
@@ -357,13 +357,13 @@ object analyser {
           case Sub => Some(v1 - v2)
           case Mul => Some(v1 * v2)
           // Do not attempt division by 0
-          case Div => if (v2 == 0) None else Some(v1 / v2)
-          case Mod => Some(v1 % v2)
-          case BitLeftShift => Some(v1 << v2.toInt)
+          case Div           => if (v2 == 0) None else Some(v1 / v2)
+          case Mod           => Some(v1 % v2)
+          case BitLeftShift  => Some(v1 << v2.toInt)
           case BitRightShift => Some(v1 >> v2.toInt)
-          case BitAnd => Some(v1 & v2)
-          case BitOr  => Some(v1 | v2)
-          case _   => None
+          case BitAnd        => Some(v1 & v2)
+          case BitOr         => Some(v1 | v2)
+          case _             => None
         }
       } else None
     case _ => None
@@ -402,10 +402,10 @@ object analyser {
   // Error messages for unary operator applications
   private def unaryAppErrMsg(op: UnaryOp, typ: Type, expr: Expr): String = {
     val expected: String = op match {
-      case Chr | Neg => IntType.toString
-      case Ord       => CharType.toString
-      case Len       => s"$StringType or array"
-      case Not       => BoolType.toString
+      case Chr | Neg | BitNot => IntType.toString
+      case Ord                => CharType.toString
+      case Len                => s"$StringType or array"
+      case Not                => BoolType.toString
     }
     typeErrorMsg(s"application of $op operator", s"expression: $expr", expected, s"$typ")
   }
