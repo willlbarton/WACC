@@ -455,10 +455,12 @@ object analyser {
   // Error messages for binary operator applications
   private def binaryAppErrMsg(op: BinaryOp, typ1: Type, typ2: Type, expr: Expr): String = {
     val expected: String = op match {
-      case And | Or                                      => BoolType.toString
-      case Eq | NotEq                                    => "compatible types"
-      case Add                                           => s"$IntType' or '$StringType"
-      case Gt | GtEq | Lt | LtEq | Sub | Mul | Div | Mod => IntType.toString
+      case And | Or   => BoolType.toString
+      case Eq | NotEq => "compatible types"
+      case Add        => s"$IntType' or '$StringType"
+      case Gt | GtEq | Lt | LtEq | Sub | Mul | Div | Mod | BitAnd | BitOr | BitXor | BitLeftShift |
+          BitRightShift =>
+        IntType.toString
     }
     typeErrorMsg(
       s"application of '$op' operator",
