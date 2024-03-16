@@ -145,8 +145,8 @@ object generator {
       case Decl(t, ident, value) =>
         val dest = allocator.allocateSpace(t)
         symTable.put(ident, dest) // Add the variable to the symbol table
-        genDeclStmt(value, dest, symTable, allocator)
-      case Asgn(lval, value) => genAsgnStmt(lval, value, symTable, allocator)
+        genDeclStmt(value, dest, symTable, allocator, inline)
+      case Asgn(lval, value) => genAsgnStmt(lval, value, symTable, allocator, inline)
       case Free(expr) => genFreeStmt(expr, symTable)
       case ifStmt: IfStmt =>
         genIfStmt(ifStmt, symTable, allocator, exitScope, inline) // handle IfStmt case
