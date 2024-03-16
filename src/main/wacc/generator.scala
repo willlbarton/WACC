@@ -146,37 +146,7 @@ object generator {
         val dest = allocator.allocateSpace(t)
         symTable.put(ident, dest) // Add the variable to the symbol table
         genDeclStmt(value, dest, symTable, allocator, inline)
-      case Asgn(lval, value)              => genAsgnStmt(lval, value, symTable, allocator, inline)
-      case SideEffectStmt(left, op, expr) =>
-        // At this point, we can assume that left: lval is an lval which can be mapped to an expression
-        val lExp: Expr = left match {
-          case ArrayElem(ident, exprs) => ArrayElem(ident, exprs)
-          case Ident(name)             => Ident(name)
-          case _ => throw new IllegalArgumentException(s"Unsupported lval: $left")
-        }
-        lExp.typ = left.typ
-        genAsgnStmt(
-          left,
-          BinaryApp(
-            op match {
-              case AddEq           => Add
-              case SubEq           => Sub
-              case MulEq           => Mul
-              case DivEq           => Div
-              case ModEq           => Mod
-              case BitAndEq        => BitAnd
-              case BitOrEq         => BitOr
-              case BitXorEq        => BitXor
-              case BitLeftShiftEq  => BitLeftShift
-              case BitRightShiftEq => BitRightShift
-            },
-            lExp,
-            expr
-          ),
-          symTable,
-          allocator,
-          inline
-        )
+      case Asgn(lval, value) => genAsgnStmt(lval, value, symTable, allocator, inline)
       case Free(expr) => genFreeStmt(expr, symTable)
       case ifStmt: IfStmt =>
         genIfStmt(ifStmt, symTable, allocator, exitScope, inline) // handle IfStmt case
@@ -674,12 +644,12 @@ object generator {
         case BitAnd => lb(BitAndAsm(Ebx(Size64), Eax(Size64)))
         case BitOr  => lb(BitOrAsm(Ebx(Size64), Eax(Size64)))
         case BitXor => lb(BitXorAsm(Ebx(Size64), Eax(Size64)))
-        case BitLeftShift | BitRightShift =>
+        case Sal | Shr =>
           lb(
             Mov(Ebx(Size64), Ecx(Size64)),
             op match {
-              case BitLeftShift  => BitLeftShiftAsm(Ecx(Size64), Eax(Size64))
-              case BitRightShift => BitRightShiftAsm(Ecx(Size64), Eax(Size64))
+              case Sal  => SalAsm(Ecx(Size64), Eax(Size64))
+              case Shr => ShrAsm(Ecx(Size64), Eax(Size64))
             }
           )
         case Add | Sub | Mul =>

@@ -191,15 +191,15 @@ private object peephole {
         case BitAndAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitAndAsm, swap = false)
         case BitOrAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitOrAsm, swap = false)
         case BitXorAsm(Ebx(Size32), Eax(Size32)) => getBinApp(v, op, BitXorAsm, swap = false)
-        case BitLeftShiftAsm(Ebx(Size64), Eax(Size64)) => lb(
+        case SalAsm(Ebx(Size64), Eax(Size64)) => lb(
           Mov(op1, Ecx(Size64), Size64),
           Mov(op2, Eax(Size64), Size64),
-          BitLeftShiftAsm(Ecx(Size64), Eax(Size64))
+          SalAsm(Ecx(Size64), Eax(Size64))
         ) -> 5
-        case BitRightShiftAsm(Ebx(Size64), Eax(Size64)) => lb(
+        case ShrAsm(Ebx(Size64), Eax(Size64)) => lb(
           Mov(op1, Ebx(Size64), Size64),
           Mov(op2, Eax(Size64), Size64),
-          BitRightShiftAsm(Ebx(Size64), Eax(Size64))
+          ShrAsm(Ebx(Size64), Eax(Size64))
         ) -> 5
         case Cmp(Ebx(_), Eax(_)) =>
           if (op1.isInstanceOf[Address] && op2.isInstanceOf[Address]) lb(prog.head) -> 1 else
@@ -268,13 +268,13 @@ private object peephole {
         Mov(op1, Eax(Size64), Size64),
         Pop(Ebx(Size64)),
         Mov(Ebx(Size64), Ecx(Size64), Size64),
-        BitLeftShiftAsm(Ecx(Size64), Eax(Size64)),
+        SalAsm(Ecx(Size64), Eax(Size64)),
         Mov(Eax(Size64), op2, Size64)
       ) =>
         lb(
           if (op1.getClass == op2.getClass) lb() else lb(Mov(Reg.resize(op1, Size64), op2, Size64)),
           Pop(Ecx(Size64)),
-          BitLeftShiftAsm(Ecx(Size64), op2),
+          SalAsm(Ecx(Size64), op2),
         ) -> 5
       case _ => lb(prog.head) -> 1
     }
@@ -284,10 +284,10 @@ private object peephole {
   def shiftByImm(prog: ListBuffer[Instruction]): (ListBuffer[Instruction], Int) = {
     if (prog.length < 2) return lb(prog.head) -> 1
     (prog.head, prog(1)) match {
-      case (Mov(Imm(v), Ecx(Size64), Size64), BitLeftShiftAsm(Ecx(Size64), op)) =>
-        lb(BitLeftShiftAsm(Imm(v), op)) -> 2
-      case (Mov(Imm(v), Ecx(Size64), Size64), BitRightShiftAsm(Ecx(Size64), op)) =>
-        lb(BitRightShiftAsm(Imm(v), op)) -> 2
+      case (Mov(Imm(v), Ecx(Size64), Size64), SalAsm(Ecx(Size64), op)) =>
+        lb(SalAsm(Imm(v), op)) -> 2
+      case (Mov(Imm(v), Ecx(Size64), Size64), ShrAsm(Ecx(Size64), op)) =>
+        lb(ShrAsm(Imm(v), op)) -> 2
       case _ => lb(prog.head) -> 1
     }
   }

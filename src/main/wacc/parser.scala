@@ -45,24 +45,24 @@ object parser {
   // Parses a sequence of statements with no requirement to end with a return or exit
   private lazy val statements: Parsley[List[Stmt]] = sepBy1(statement, ";")
 
-  private lazy val sideEffectOp: Parsley[SideEffectOp] =
-    "+=" #> AddEq |
-      "-=" #> SubEq |
-      "*=" #> MulEq |
-      "/=" #> DivEq |
-      "%=" #> ModEq |
-      "&=" #> BitAndEq |
-      "|=" #> BitOrEq |
-      "^=" #> BitXorEq |
-      "<<=" #> BitLeftShiftEq |
-      ">>=" #> BitRightShiftEq
+  private lazy val sideEffectOp: Parsley[BinaryOp] =
+    "+=" #> Add |
+      "-=" #> Sub |
+      "*=" #> Mul |
+      "/=" #> Div |
+      "%=" #> Mod |
+      "&=" #> BitAnd |
+      "|=" #> BitOr |
+      "^=" #> BitXor |
+      "<<=" #> Sal |
+      ">>=" #> Shr
 
   // Parses a single statement
   private lazy val statement: Parsley[Stmt] =
     "skip" #> Skip |
       Decl(typ, ident, "=" ~> rvalue) |
       Asgn(atomic(lvalue <~ "=".explain("unknown statement treated as assignment")), rvalue) |
-      SideEffectStmt(lvalue, sideEffectOp, expr) |
+      SideEffectStmt(ident | arrayElem, sideEffectOp, expr) |
       Read("read" ~> lvalue) |
       Free("free" ~> expr) |
       Print("print" ~> expr) |
@@ -159,8 +159,8 @@ object parser {
       BitXor <# "^",
       BitOr <# atomic(ifS(item.map(_ == '|'), noneOf('|'), fail(""))),
       BitAnd <# atomic(ifS(item.map(_ == '&'), noneOf('&'), fail(""))),
-      BitLeftShift <# "<<",
-      BitRightShift <# ">>"
+      Sal <# "<<",
+      Shr <# ">>"
     ),
     Ops(InfixN)(
       GtEq <# ">=",

@@ -121,8 +121,8 @@ final case class BitNotAsm(dest: Dest) extends Instruction
 final case class BitAndAsm(op: Operand, dest: Dest) extends Instruction
 final case class BitOrAsm(op: Operand, dest: Dest) extends Instruction
 final case class BitXorAsm(op: Operand, dest: Dest) extends Instruction
-final case class BitLeftShiftAsm(op: Operand, dest: Dest) extends Instruction
-final case class BitRightShiftAsm(op: Operand, dest: Dest) extends Instruction
+final case class SalAsm(op: Operand, dest: Dest) extends Instruction
+final case class ShrAsm(op: Operand, dest: Dest) extends Instruction
 
 object constants {
   val byteSize: Int = 1
