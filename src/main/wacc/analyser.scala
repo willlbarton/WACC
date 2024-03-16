@@ -329,13 +329,13 @@ object analyser {
           case Sub => Some(v1 - v2)
           case Mul => Some(v1 * v2)
           // Do not attempt division by 0
-          case Div           => if (v2 == 0) None else Some(v1 / v2)
-          case Mod           => Some(v1 % v2)
-          case BitLeftShift  => Some(v1 << v2.toInt)
-          case BitRightShift => Some(v1 >> v2.toInt)
-          case BitAnd        => Some(v1 & v2)
-          case BitOr         => Some(v1 | v2)
-          case _             => None
+          case Div    => if (v2 == 0) None else Some(v1 / v2)
+          case Mod    => Some(v1 % v2)
+          case Sal    => Some(v1 << v2.toInt)
+          case Shr    => Some(v1 >> v2.toInt)
+          case BitAnd => Some(v1 & v2)
+          case BitOr  => Some(v1 | v2)
+          case _      => None
         }
       } else None
     case _ => None
@@ -430,8 +430,7 @@ object analyser {
       case And | Or   => BoolType.toString
       case Eq | NotEq => "compatible types"
       case Add        => s"$IntType' or '$StringType"
-      case Gt | GtEq | Lt | LtEq | Sub | Mul | Div | Mod | BitAnd | BitOr | BitXor | BitLeftShift |
-          BitRightShift =>
+      case Gt | GtEq | Lt | LtEq | Sub | Mul | Div | Mod | BitAnd | BitOr | BitXor | Sal | Shr =>
         IntType.toString
     }
     typeErrorMsg(
