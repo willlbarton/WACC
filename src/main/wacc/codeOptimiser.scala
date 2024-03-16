@@ -101,8 +101,8 @@ private object peephole {
       case AddAsm(Imm(0), _) => lb() -> 1
       case SubAsm(Imm(0), _) => lb() -> 1
       case Imul(Imm(1), _)   => lb() -> 1
-      case BitLeftShiftAsm(Imm(0), _) => lb() -> 1
-      case BitRightShiftAsm(Imm(0), _) => lb() -> 1
+      case SalAsm(Imm(0), _) => lb() -> 1
+      case ShrAsm(Imm(0), _) => lb() -> 1
       case _ => lb(prog.head) -> 1
     }
   }
