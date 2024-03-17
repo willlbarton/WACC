@@ -55,7 +55,7 @@ object parser {
       "|=" #> BitOr |
       "^=" #> BitXor |
       "<<=" #> Sal |
-      ">>=" #> Shr
+      ">>=" #> Sar
 
   // Parses a single statement
   private lazy val statement: Parsley[Stmt] =
@@ -145,7 +145,7 @@ object parser {
       BitOr <# atomic(ifS(item.map(_ == '|'), noneOf('|'), fail(""))),
       BitAnd <# atomic(ifS(item.map(_ == '&'), noneOf('&'), fail(""))),
       Sal <# "<<",
-      Shr <# ">>"
+      Sar <# ">>"
     ),
     Ops(InfixN)(
       GtEq <# ">=",

@@ -644,12 +644,12 @@ object generator {
         case BitAnd => lb(BitAndAsm(Ebx(Size64), Eax(Size64)))
         case BitOr  => lb(BitOrAsm(Ebx(Size64), Eax(Size64)))
         case BitXor => lb(BitXorAsm(Ebx(Size64), Eax(Size64)))
-        case Sal | Shr =>
+        case Sal | Sar =>
           lb(
             Mov(Ebx(Size64), Ecx(Size64)),
             op match {
               case Sal  => SalAsm(Ecx(Size64), Eax(Size64))
-              case Shr => ShrAsm(Ecx(Size64), Eax(Size64))
+              case Sar => SarAsm(Ecx(Size64), Eax(Size64))
             }
           )
         case Add | Sub | Mul =>

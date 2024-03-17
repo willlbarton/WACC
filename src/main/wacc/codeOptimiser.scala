@@ -102,7 +102,7 @@ private object peephole {
       case SubAsm(Imm(0), _) => lb() -> 1
       case Imul(Imm(1), _)   => lb() -> 1
       case SalAsm(Imm(0), _) => lb() -> 1
-      case ShrAsm(Imm(0), _) => lb() -> 1
+      case SarAsm(Imm(0), _) => lb() -> 1
       case _ => lb(prog.head) -> 1
     }
   }
@@ -196,10 +196,10 @@ private object peephole {
           Mov(op2, Eax(Size64), Size64),
           SalAsm(Ecx(Size64), Eax(Size64))
         ) -> 5
-        case ShrAsm(Ebx(Size64), Eax(Size64)) => lb(
+        case SarAsm(Ebx(Size64), Eax(Size64)) => lb(
           Mov(op1, Ebx(Size64), Size64),
           Mov(op2, Eax(Size64), Size64),
-          ShrAsm(Ebx(Size64), Eax(Size64))
+          SarAsm(Ebx(Size64), Eax(Size64))
         ) -> 5
         case Cmp(Ebx(_), Eax(_)) =>
           if (op1.isInstanceOf[Address] && op2.isInstanceOf[Address]) lb(prog.head) -> 1 else
@@ -286,8 +286,8 @@ private object peephole {
     (prog.head, prog(1)) match {
       case (Mov(Imm(v), Ecx(Size64), Size64), SalAsm(Ecx(Size64), op)) =>
         lb(SalAsm(Imm(v), op)) -> 2
-      case (Mov(Imm(v), Ecx(Size64), Size64), ShrAsm(Ecx(Size64), op)) =>
-        lb(ShrAsm(Imm(v), op)) -> 2
+      case (Mov(Imm(v), Ecx(Size64), Size64), SarAsm(Ecx(Size64), op)) =>
+        lb(SarAsm(Imm(v), op)) -> 2
       case _ => lb(prog.head) -> 1
     }
   }

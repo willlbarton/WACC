@@ -332,7 +332,7 @@ object analyser {
           case Div    => if (v2 == 0) None else Some(v1 / v2)
           case Mod    => Some(v1 % v2)
           case Sal    => Some(v1 << v2.toInt)
-          case Shr    => Some(v1 >> v2.toInt)
+          case Sar    => Some(v1 >> v2.toInt)
           case BitAnd => Some(v1 & v2)
           case BitOr  => Some(v1 | v2)
           case _      => None
@@ -430,7 +430,7 @@ object analyser {
       case And | Or   => BoolType.toString
       case Eq | NotEq => "compatible types"
       case Add        => s"$IntType' or '$StringType"
-      case Gt | GtEq | Lt | LtEq | Sub | Mul | Div | Mod | BitAnd | BitOr | BitXor | Sal | Shr =>
+      case Gt | GtEq | Lt | LtEq | Sub | Mul | Div | Mod | BitAnd | BitOr | BitXor | Sal | Sar =>
         IntType.toString
     }
     typeErrorMsg(
@@ -477,7 +477,7 @@ object analyser {
             retType = Some(IntType)
           } else if (someType1 == StringType && someType2 == StringType) retType = Some(StringType)
           else error ++= binaryAppErrMsg(op, someType1, someType2, BinaryApp(op, left, right))
-        case Sub | Mul | Div | Mod | BitXor | BitAnd | Sal | Shr | BitOr =>
+        case Sub | Mul | Div | Mod | BitXor | BitAnd | Sal | Sar | BitOr =>
           if (someType1 == IntType && someType2 == IntType) {
             error ++= checkConstantApplication(left, right, op)
             retType = Some(IntType)

@@ -75,8 +75,8 @@ object x86Formatter extends AsmFormatter {
         indent ++ s"xor${instructionPostfix(dest)}  ${this(op)}, ${this(dest)}"
       case SalAsm(op, dest) =>
         indent ++ s"sal${instructionPostfix(dest)}  ${this(op)}, ${this(dest)}"
-      case ShrAsm(op, dest) =>
-        indent ++ s"shr${instructionPostfix(dest)}  ${this(op)}, ${this(dest)}"
+      case SarAsm(op, dest) =>
+        indent ++ s"sar${instructionPostfix(dest)}  ${this(op)}, ${this(dest)}"
     }
   }
 
